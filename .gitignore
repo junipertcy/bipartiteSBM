@@ -1,0 +1,65 @@
+# excutables
+engines/mcmc/bin/*
+engines/kl/bin/*
+
+# .idea configurations
+.idea/*
+
+# logs
+logs/*
+engines/mcmc/src/cmake-build-debug/*
+
+# outputs
+engines/kl/output/*
+*.gt
+
+# Created by https://www.gitignore.io/api/cmake,c++
+
+### CMake ###
+CMakeCache.txt
+CMakeFiles
+CMakeScripts
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+
+# *.ini
+config/dev.ini
+
+### C++ ###
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# End of https://www.gitignore.io/api/cmake,c++
