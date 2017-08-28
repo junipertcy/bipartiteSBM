@@ -1,3 +1,9 @@
+<p align="center">
+  <a href="https://github.com/junipertcy/det_k_bisbm">
+    <img width="800" src="http://wiki.junipertcy.info/images/1/10/Det_k_bisbm-logo.png">
+  </a>
+</p>
+
 # det_k_bisbm
 
 Python implementation of a fast community number determination heuristic of the bipartite Stochastic Block Model (biSBM), 
