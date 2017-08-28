@@ -1,9 +1,11 @@
-from retrying import retry
 from numba import jit
 import numpy as np
 import random
 import math
 from collections import OrderedDict
+
+import os
+from pathos.multiprocessing import ProcessingPool as Pool
 
 
 class OptimalKs(object):
@@ -38,25 +40,26 @@ class OptimalKs(object):
     """
 
     def __init__(self,
+                 engine,
                  edgelist,
                  types,
                  init_Ka=10,
                  init_Kb=10,
-                 i_th=0.1,
-                 n_sweeps=5,
-                 is_parallel=True,
-                 n_cores=2,
-                 **kwargs):
+                 i_th=0.1):
 
         import os
         import numpy as np
-        from pathos.multiprocessing import ProcessingPool as Pool
+
         import math
         import subprocess
 
-        self._os = os
+        self._engine = engine.engine  # TODO: check that engine is an object
+        self.MAX_NUM_SWEEPS = engine.MAX_NUM_SWEEPS
+        self.PARALLELIZATION = engine.PARALLELIZATION
+        self.NUM_CORES = engine.NUM_CORES
+
+
         self._np = np
-        self._Pool = Pool
         self._math = math
         self._subprocess = subprocess
 
@@ -68,9 +71,6 @@ class OptimalKs(object):
 
         self.ITALIC_I_THRESHOLD = float(i_th)
         self._ITALIC_I_THRESHOLD = self.ITALIC_I_THRESHOLD
-        self.MAX_NUM_SWEEPS = int(n_sweeps)
-        self.PARALLELIZATION = bool(is_parallel)
-        self.NUM_CORES = int(n_cores)
 
         self.types = types
         self.NUM_NODES_A = 0
@@ -97,128 +97,12 @@ class OptimalKs(object):
 
         # for debug/temp variables
         self.debug_str = ""
-        self.f_edgelist_ = "edgelist-" + str(random.random()) + ".tmp"
-        with open(self.f_edgelist_, "wb") as f:
+        self.f_edgelist = "edgelist-" + str(random.random()) + ".tmp"
+        with open(self.f_edgelist, "wb") as f:
             for edge in self.edgelist:
                 f.write(str(edge[0]) + "\t" + edge[1] + "\n")
 
-        # for output
-        # self.membership_path = 'membership.txt'
-        # try:
-        #     self._os.remove(self.membership_path)
-        # except:
-        #     pass
-
-        # for MCMC
-        try:
-            self.f_mcmc = kwargs["f_mcmc"]
-        except:
-            raise BaseException
-        else:
-            self.mcmc_steps_ = int(kwargs["mcmc_steps"])
-            self.mcmc_await_steps_ = int(kwargs["mcmc_await_steps"])
-            self.mcmc_cooling_ = str(kwargs["mcmc_cooling"])
-            self.mcmc_cooling_param_1 = str(kwargs["mcmc_cooling_param_1"])
-            self.mcmc_cooling_param_2 = str(kwargs["mcmc_cooling_param_2"])
-            self.mcmc_epsilon_ = str(kwargs["mcmc_epsilon"])
-
         pass
-
-    def prepare_engine(self, ka, kb):
-        """Output shell commands for graph partitioning calculation.
-
-        Parameters
-        ----------
-        ka : int, required
-            Number of communities for type-a nodes to partition.
-
-        kb : int, required
-            Number of communities for type-b nodes to partition.
-        """
-        # membership_path_ = self.membership_path
-
-        # crit = ka != self.INIT_ka or kb != self.INIT_kb
-        # if not crit:  # the first step of the algorithm
-        #     print("the first step of the algorithm")
-        #     pass
-        # else:
-        #     try:
-        #         self.confident_of_group[(ka, kb)]
-        #     except Exception as e:
-        #         #print(e)
-        #         # in order to make the inference faster, we generate the block membership on our own
-        #         n_id = [b_id if idx < self.NUM_NODES_A else b_id - self.ka
-        #                 for idx, b_id in enumerate(self.confident_of_group[(self.ka, self.kb)])]
-        #         if ka - self.ka < 0 and kb - self.kb >= 0:
-        #             _n_id = [_id - 1 if idx < self.NUM_NODES_A and _id == self.ka - 1 else
-        #                      _id for idx, _id in enumerate(n_id)]
-        #         elif kb - self.kb < 0 and ka - self.ka >= 0:
-        #             _n_id = [_id - 1 if idx >= self.NUM_NODES_A and _id == self.kb - 1 else
-        #                      _id for idx, _id in enumerate(n_id)]
-        #         elif ka - self.ka < 0 and kb - self.kb < 0:
-        #             _n_id = []
-        #             for idx, _id in enumerate(n_id):
-        #                 if idx < self.NUM_NODES_A and _id == self.ka - 1:
-        #                     _n_id.append(_id - 1)
-        #                 elif idx >= self.NUM_NODES_A and _id == self.kb - 1:
-        #                     _n_id.append(_id - 1)
-        #                 else:
-        #                     _n_id.append(_id)
-        #         else:
-        #             _n_id = n_id
-        #         new_of_group = [b_id if idx < self.NUM_NODES_A else b_id + ka for idx, b_id in enumerate(_n_id)]
-        #         self._save_of_group_to_file(membership_path_, new_of_group)
-        #     else:
-        #         self._save_of_group_to_file(membership_path_, self.confident_of_group[(ka, kb)])
-
-        params_ = ""
-        if self.mcmc_cooling_ in ["exponential", "linear", "logarithmic"]:
-            params_ = self.mcmc_cooling_param_1 + " " + self.mcmc_cooling_param_2
-        elif self.mcmc_cooling_ == "constant":
-            params_ = self.mcmc_cooling_param_1
-
-        # n_blocks_ = " ".join(
-        #     self._constrained_sum_sample_pos(ka, self.NUM_NODES_A)
-        # ) + " " + " ".join(
-        #     self._constrained_sum_sample_pos(kb, self.NUM_NODES_B)
-        # )
-        n_blocks_ = self._gen_init_n_blocks(self.NUM_NODES_A, self.NUM_NODES_B, ka, kb)
-
-        #first time of calculation -- save an edgelist file for future use:
-
-
-        n_types_ = str(self.NUM_NODES_A) + " " + str(self.NUM_NODES_B)
-        action_list = [
-            self.f_mcmc,
-            "-e",
-            self.f_edgelist_,
-            "-n",
-            n_blocks_,
-            # "--membership_path",
-            # membership_path_,  # just a temporary path, holding the configuration information
-            "-t",
-            str(self.mcmc_steps_),
-            "-x",
-            str(self.mcmc_await_steps_),
-            "--maximize",
-            "-c",
-            self.mcmc_cooling_,
-            "-a",
-            params_,
-            # "-r",  # initial random assignment or not
-            "-y",
-            n_types_,
-            "-z",
-            str(ka) + " " + str(kb),
-            "-E",
-            self.mcmc_epsilon_,
-            "--randomize"
-        ]
-
-        action_str = ' '.join(action_list)
-        # print action_str
-
-        return action_str
 
     @staticmethod
     def _save_of_group_to_file(path, of_group):
@@ -236,86 +120,6 @@ class OptimalKs(object):
         with open(path, "wb") as f:
             for i in range(0, num_nodes):
                 f.write(str(of_group[i]) + "\n")
-        return
-
-    @retry(stop_max_attempt_number=10)
-    def _engine(self, ka, kb):  # TODO: bug when assigned verbose=False
-        """Run the shell code.
-
-        Parameters
-        ----------
-        ka : int, required
-            Number of communities for type-a nodes to partition.
-
-        kb : int, required
-            Number of communities for type-b nodes to partition.
-        """
-
-        action_str = self.prepare_engine(ka, kb)
-        num_sweeps_ = 1
-
-        def _run_engine(_):
-            p = self._subprocess.Popen(
-                action_str.split(' '),
-                bufsize=2048,
-                stdout=self._subprocess.PIPE
-            )
-            out, err = p.communicate()
-            p.wait()
-            return out, err, p
-
-        num_sweep_ = 0
-
-        while num_sweep_ < num_sweeps_:
-            out, err, p = _run_engine("")
-            if p.returncode == -11:  # when Exception raises from the mcmc code
-                raise RuntimeError("Exception from C++ program during inference! -- " + action_str)
-            elif p.returncode == 0:
-                num_sweep_ += 1
-                of_group = out.replace(' \n', '').split(' ')  # Note the space before the line break
-                of_group = map(int, of_group)
-
-        # try:
-        #     self._os.remove(self.membership_path)
-        # except Exception as e:
-        #     print e
-        # else:
-        #     pass
-
-        return of_group
-
-    @staticmethod
-    def _constrained_sum_sample_pos(n, total):
-        # in this setting, there will be no empty groups generated by this function
-        n = int(n)
-        total = int(total)
-        normalized_list = [int(total) + 1]
-        while sum(normalized_list) > total and np.greater_equal(normalized_list, np.zeros(n)).all():
-            indicator = True
-            while indicator:
-                normalized_list = list(map(round, map(lambda x: x * total, np.random.dirichlet(np.ones(n), 1).tolist()[0])))
-                normalized_list = list(map(int, normalized_list))
-                indicator = len(normalized_list) - np.count_nonzero(normalized_list) != 0
-            sum_ = 0
-            for ind, q in enumerate(normalized_list):
-                if ind < len(normalized_list) - 1:
-                    sum_ += q
-            # TODO: there is a bug here; sometimes it assigns -1 to the end of the array, but pass the while condition
-            normalized_list[len(normalized_list) - 1] = abs(total - sum_)
-        assert sum(normalized_list) == total, "ERROR: the constrainedSumSamplePos-sampled list does not sum to #edges."
-        return map(str, normalized_list)
-
-
-    @staticmethod
-    def _gen_init_n_blocks(NUM_NODES_A, NUM_NODES_B, KA, KB):
-        num_nodes_A = np.arange(NUM_NODES_A)
-        n_blocks_A = map(len, np.array_split(num_nodes_A, KA))
-        num_nodes_B = np.arange(NUM_NODES_B)
-        n_blocks_B = map(len, np.array_split(num_nodes_B, KB))
-
-        n_blocks_ = " ".join(map(str, n_blocks_A)) + " " + " ".join(map(str, n_blocks_B))
-
-        return n_blocks_
 
     # start from here: our main algorithm!
     @staticmethod
@@ -364,7 +168,6 @@ class OptimalKs(object):
     @staticmethod
     def _permute_m_e_rs_and_get_index(m_e_rs):
         pass
-
 
     @staticmethod
     def _reduced_matrix(ka, kb, m_e_rs):
@@ -485,15 +288,16 @@ class OptimalKs(object):
             return italic_i, m_e_rs, of_group
 
         def _run_(ka, kb):
-            of_group = self._engine(ka, kb)
+            of_group = self._engine(self.f_edgelist, self.NUM_NODES_A, self.NUM_NODES_B, ka, kb)
             m_e_rs, _ = self.m_e_rs_from_of_group(self.edgelist, of_group)
             italic_i = self._cal_italic_I(m_e_rs)
             new_desc_len = self._cal_desc_len(ka, kb, italic_i)
+
             # print "new_desc_len = ", new_desc_len
             return m_e_rs, italic_i, new_desc_len, of_group
 
         def __par_run__(num_cores, num_sweeps):
-            return self._Pool(num_cores=num_cores).map(lambda x: _run_(ka, kb), range(num_sweeps))
+            return Pool(num_cores=num_cores).map(lambda x: _run_(ka, kb), range(num_sweeps))
 
         # Calculate the biSBM inference several times,
         # choose the maximum likelihood result.
@@ -637,7 +441,7 @@ class OptimalKs(object):
                                     print("DONE: the answer is...", old_ka_moving, old_kb_moving)
 
                                     # clean up
-                                    self._os.remove(self.f_edgelist_)
+                                    os.remove(self.f_edgelist)
 
                                     return self.confident_desc_len
                             else:
@@ -655,8 +459,7 @@ class OptimalKs(object):
             else:
                 old_of_g = self.confident_of_group[(self.ka, self.kb)]
                 new_of_g = list(np.zeros(self.NUM_NODES))
-                # new_of_g = [i - 1 if i > ind else i for i in old_of_g]
-                # print "mlist", mlist
+
                 mlist.sort()
                 for _node_id, _g in enumerate(old_of_g):
                     if _g == mlist[1]:
