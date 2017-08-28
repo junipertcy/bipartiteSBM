@@ -23,14 +23,14 @@ numbers of communities in the biSBM that best compresses the model and data. Sev
 If you are new to Python, we recommend you install `Anaconda`. It will provide most scientific libraries that we need here.
 
 If you want to enable parallelization for the engine, please additionally install `pathos` via:
-```python
+```bash
 pip install git+https://github.com/uqfoundation/pathos.git@master
 ```
 We provide two reference engines to illustrate the applicability of our method. They have been added as submodules to this repository. To clone this project along with the submodules, do:
-```python
-git clong git@github.com:junipertcy/det_k_bisbm.git --recursive
+```bash
+git clone git@github.com:junipertcy/det_k_bisbm.git --recursive
 ```
-Both of the two modules are C++ subroutines for graph partitioning. To compile these C++ codes, please run the shell script:
+Now enter the directory `det_k_bisbm`. Since both of the two modules are C++ subroutines for graph partitioning. To compile these C++ codes, please run the shell script:
 ```bash
 sh start.sh
 ```
@@ -57,15 +57,17 @@ mcmc = MCMC(f_engine="engines/bipartiteSBM-MCMC/bin/mcmc",
             mcmc_cooling_param_2=0.1,
             mcmc_epsilon=0.01)
 ```
-The `mcmc` is a wrapper class for the C++ engine. It can also generate string that are useful to run in the command line. 
-For example, this code generates a string that tells the C++ program to do graph partition of the `southern women dataset` at `K1=2` and `K2=3`. 
+The `mcmc` is a wrapper class for the C++ engine. It can also generate strings that are useful to run in the command line. 
+For example, this code generates a string that tells the C++ program to do graph partition of the `southern women dataset` at `K1=3` and `K2=2`. 
+```python
+mcmc.prepare_engine("dataset/southernWomen.edgelist0", 18, 14, 3, 2)
+# 'engines/bipartiteSBM-MCMC/bin/mcmc -e dataset/southernWomen.edgelist0 -n 6 6 6 7 7 -t 100 -x 1000 --maximize -c exponential -a 10 0.1 -y 18 14 -z 3 2 -E 0.01 --randomize
+``` 
 In addition, we have to tell the program which are type-1 nodes and which are type-2. 
 We assume that the node index in the dataset runs from all nodes in type-1 first and then type-2. 
 Here, we have the number of type-1 nodes as `n1=18`, while number of type-2 nodes is `n2=14`, meaning that the node index
 `0 .. 18` are type-1 nodes and `18 .. 32` are type-2 nodes.  
-```python
-mcmc.prepare_engine("dataset/southernWomen.edgelist0", 18, 14, 2, 3)
-``` 
+
 Once we specified the engine that we liked, it's time to prepare the dataset.
 ```python
 edgelist = get_edgelist("dataset/southernWomen.edgelist0", " ")
