@@ -26,7 +26,7 @@ numbers of communities in the biSBM that best compresses the model and data. Sev
 
 ### Installation
 
-If you are new to Python, we recommend you install `Anaconda`. It will provide most scientific libraries that we need here.
+If you are new to Python, we suggest you install [Anaconda](https://www.anaconda.com/download/). It will provide most scientific libraries that we need here.
 
 If you want to enable parallelization for the engine, please additionally install `pathos` via:
 ```bash

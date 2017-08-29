@@ -72,14 +72,18 @@ class OptimalKs(object):
         self.ITALIC_I_THRESHOLD = float(i_th)
         self._ITALIC_I_THRESHOLD = self.ITALIC_I_THRESHOLD
 
+        # TODO: "types" is only used to compute na and nb. Can be made more generic.
         self.types = types
         self.NUM_NODES_A = 0
         self.NUM_NODES_B = 0
         for _type in types:
-            if _type == "1":
+            if _type in ["1", 1]:
                 self.NUM_NODES_A += 1
-            else:
+            elif _type in ["2",  2]:
                 self.NUM_NODES_B += 1
+
+        assert self.NUM_NODES_A > 0, "Number of type-a nodes = 0, which is not allowed"
+        assert self.NUM_NODES_B > 0, "Number of type-b nodes = 0, which is not allowed"
         self.NUM_NODES = len(types)
 
         self.edgelist = edgelist
