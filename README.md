@@ -89,8 +89,8 @@ We can then feed these three variables into the main class.
 oks = OptimalKs(mcmc,
                 edgelist, 
                 types,
-                init_Ka=50,
-                init_Kb=50,
+                init_ka=50,
+                init_kb=50,
                 i_th=0.1)
 ```
 We now start the heuristic search via,

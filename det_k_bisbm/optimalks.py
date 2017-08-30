@@ -43,8 +43,8 @@ class OptimalKs(object):
                  engine,
                  edgelist,
                  types,
-                 init_Ka=10,
-                 init_Kb=10,
+                 init_ka=10,
+                 init_kb=10,
                  i_th=0.1):
 
         import numpy as np
@@ -62,13 +62,9 @@ class OptimalKs(object):
         self._subprocess = subprocess
 
         # params for the heuristic
-        self.ka = int(init_Ka)
-        self.kb = int(init_Kb)
-        self.INIT_ka = int(init_Ka)
-        self.INIT_kb = int(init_Kb)
-
+        self.ka = int(init_ka)
+        self.kb = int(init_kb)
         self.ITALIC_I_THRESHOLD = float(i_th)
-        self._ITALIC_I_THRESHOLD = self.ITALIC_I_THRESHOLD
 
         # TODO: "types" is only used to compute na and nb. Can be made more generic.
         self.types = types
@@ -100,15 +96,22 @@ class OptimalKs(object):
         # for debug/temp variables
         self.debug_str = ""
         self.f_edgelist = "edgelist-" + str(random.random()) + ".tmp"
-        with open(self.f_edgelist, "wb") as f:
-            for edge in self.edgelist:
-                f.write(str(edge[0]) + "\t" + edge[1] + "\n")
 
         pass
+
+    def set_params(self, init_ka=10, init_kb=10, i_th=0.1):
+        # params for the heuristic
+        self.ka = int(init_ka)
+        self.kb = int(init_kb)
+        self.ITALIC_I_THRESHOLD = float(i_th)
 
     def clean(self):
         # TODO
-        pass
+        self.confident_desc_len = OrderedDict()
+        self.confident_m_e_rs = OrderedDict()
+        self.confident_italic_I = OrderedDict()
+        self.confident_of_group = OrderedDict()
+        self.confident_of_group_info = OrderedDict()
 
     @staticmethod
     def _save_of_group_to_file(path, of_group):
@@ -387,6 +390,10 @@ class OptimalKs(object):
         return __ka, __kb, __m_e_rs, diff_italic_i, _mlist
 
     def iterator(self):
+        with open(self.f_edgelist, "wb") as f:
+            for edge in self.edgelist:
+                f.write(str(edge[0]) + "\t" + edge[1] + "\n")
+
         ka_moving = self.ka
         kb_moving = self.kb
 
@@ -401,7 +408,6 @@ class OptimalKs(object):
             ))
             if abs(diff_italic_i) > self.ITALIC_I_THRESHOLD * self.INIT_ITALIC_I:
             # if abs(diff_italic_i) > self.ITALIC_I_THRESHOLD * min(self.confident_italic_I.values()):
-                print(abs(diff_italic_i), self.ITALIC_I_THRESHOLD, self.INIT_ITALIC_I)
                 old_desc_len, _, _ = self._calc_and_update((old_ka_moving, old_kb_moving))
                 if any(i < old_desc_len for i in self.confident_desc_len.values()):
                     ka_moving, kb_moving = self._back_to_where_desc_len_is_lowest(diff_italic_i)
@@ -449,8 +455,6 @@ class OptimalKs(object):
                             else:
                                 # continue moving with the
                                 # new candidate's direction
-                                # TODO: this is not needed...
-                                # self.ITALIC_I_THRESHOLD = float(self._ITALIC_I_THRESHOLD)
                                 self._update_current_state((ka_moving, kb_moving), t_m_e_rs_cand)
                         else:
                             # continue moving w/ the new candidate's direction
