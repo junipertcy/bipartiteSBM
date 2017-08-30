@@ -3,7 +3,7 @@ import shutil
 import subprocess
 import hashlib
 from collections import OrderedDict
-
+import random
 
 class KL(object):
     def __init__(self,
@@ -51,13 +51,20 @@ class KL(object):
 
 
         """
+
         try:
             os.mkdir(self.f_kl_output)
         except OSError:
-            # clear the working dir, and mkdir a new one
-            shutil.rmtree(self.f_kl_output, ignore_errors=True)
-            os.mkdir(self.f_kl_output)
             pass
+        finally:
+            self.f_kl_output += "/" + hashlib.md5(str(random.random())).hexdigest()
+            try:
+                os.mkdir(self.f_kl_output)
+            except OSError:
+                # clear the working dir, and mkdir a new one
+                shutil.rmtree(self.f_kl_output, ignore_errors=True)
+                os.mkdir(self.f_kl_output)
+                pass
 
         filename = hashlib.md5(f_edgelist).hexdigest()
         f_edgelist_1_indexed = self.f_kl_output + "/" + filename + "_1-indexed.edgelist"
@@ -134,13 +141,17 @@ class KL(object):
             else:  # spawn processes across cores, collect results, and return the best option
                 # However, in optimalks.py main code, we may calculate each single point in parallel, which
                 # might raise "AssertionError: daemonic processes are not allowed to have children"
-                # TODO: For now, parallel calculation for KL is disabled. (Fix it)
+                # TODO: For now, parallel calculation for KL is disabled. (Fix it?)
                 self._par_run(run, num_cores_, range(num_sweeps_))
                 for i in range(num_sweeps_):
                     kl_output[self._get_score_by_index(i + 1)] = self._get_of_group_by_index(i + 1)
 
         of_group = kl_output[max(kl_output)]
-        return of_group
+
+        try:
+            shutil.rmtree(self.f_kl_output, ignore_errors=True)
+        finally:
+            return of_group
 
     @staticmethod
     def gen_types(na, nb):

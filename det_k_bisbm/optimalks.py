@@ -47,7 +47,6 @@ class OptimalKs(object):
                  init_Kb=10,
                  i_th=0.1):
 
-        import os
         import numpy as np
 
         import math
@@ -57,7 +56,6 @@ class OptimalKs(object):
         self.MAX_NUM_SWEEPS = engine.MAX_NUM_SWEEPS
         self.PARALLELIZATION = engine.PARALLELIZATION
         self.NUM_CORES = engine.NUM_CORES
-
 
         self._np = np
         self._math = math
@@ -106,6 +104,10 @@ class OptimalKs(object):
             for edge in self.edgelist:
                 f.write(str(edge[0]) + "\t" + edge[1] + "\n")
 
+        pass
+
+    def clean(self):
+        # TODO
         pass
 
     @staticmethod
@@ -352,18 +354,10 @@ class OptimalKs(object):
             # This is an important step, where we
             # (1) Calculate the heavy biSBM at init (ka, kb)
             # (2) Initiate important variables for logging and drawing
-            italic_i, m_e_rs, of_group = self._calc_with_hook(ka, kb)
+            _, m_e_rs, italic_i = self._calc_and_update((ka, kb))
 
             self.INIT_ITALIC_I = italic_i
             self.m_e_rs = m_e_rs
-
-            # These confident_* variable are used to store "true" data
-            # that is, not the sloppy temporarily results via matrix merging
-            self.confident_desc_len[(ka, kb)] = self._cal_desc_len(ka, kb, italic_i)
-            self.confident_m_e_rs[(ka, kb)] = m_e_rs
-            self.confident_italic_I[(ka, kb)] = italic_i
-            self.confident_of_group[(ka, kb)] = of_group
-            self._save_of_group_info(ka, kb)
 
             # these are used to track temporarily variables during the heuristic
             self.diff_italic_I_array = [0.]
@@ -374,6 +368,7 @@ class OptimalKs(object):
             _ka, _kb, _m_e_rs, _mlist = self._reduced_matrix(self.ka, self.kb, self.m_e_rs)
             _italic_I = self._cal_italic_I(_m_e_rs)
             diff_italic_i = _italic_I - self.INIT_ITALIC_I
+            # diff_italic_i = _italic_I - min(self.confident_italic_I.values())
             return _ka, _kb, _m_e_rs, diff_italic_i, _mlist
 
         indexes_to_run_ = range(0, (ka + kb) * 2)  # how many times that a sample merging takes place
@@ -402,14 +397,16 @@ class OptimalKs(object):
             ka_moving, kb_moving, t_m_e_rs, diff_italic_i, mlist = self._moving_one_step_down(ka_moving, kb_moving)
             print(
                 "Now trying (Ka, Kb) = ({}, {}) from (Ka, Kb) = ({}, {}) ...".format(
-                    ka_moving, kb_moving, old_ka_moving,old_kb_moving
+                    ka_moving, kb_moving, old_ka_moving, old_kb_moving
             ))
             if abs(diff_italic_i) > self.ITALIC_I_THRESHOLD * self.INIT_ITALIC_I:
-                old_desc_len = self._calc_and_update((old_ka_moving, old_kb_moving))
+            # if abs(diff_italic_i) > self.ITALIC_I_THRESHOLD * min(self.confident_italic_I.values()):
+                print(abs(diff_italic_i), self.ITALIC_I_THRESHOLD, self.INIT_ITALIC_I)
+                old_desc_len, _, _ = self._calc_and_update((old_ka_moving, old_kb_moving))
                 if any(i < old_desc_len for i in self.confident_desc_len.values()):
                     ka_moving, kb_moving = self._back_to_where_desc_len_is_lowest(diff_italic_i)
                 else:
-                    candidate_desc_len = self._calc_and_update((ka_moving, kb_moving), old_desc_len)
+                    candidate_desc_len, _, _ = self._calc_and_update((ka_moving, kb_moving), old_desc_len)
                     t_m_e_rs_cand = self.confident_m_e_rs[(ka_moving, kb_moving)]
                     if candidate_desc_len > old_desc_len:  # candidate move is not a good choice
                         tmp = [
@@ -419,12 +416,12 @@ class OptimalKs(object):
                         tmp.reverse()
                         ka_moving = old_ka_moving + tmp[0]
                         kb_moving = old_kb_moving + tmp[1]
-                        candidate_desc_len = self._calc_and_update((ka_moving, kb_moving), old_desc_len)
+                        candidate_desc_len, _, _ = self._calc_and_update((ka_moving, kb_moving), old_desc_len)
                         t_m_e_rs_cand = self.confident_m_e_rs[(ka_moving, kb_moving)]
                         if candidate_desc_len > old_desc_len:  # candidate move is not a good choice
                             ka_moving = old_ka_moving - 1
                             kb_moving = old_kb_moving - 1
-                            candidate_desc_len = self._calc_and_update((ka_moving, kb_moving), old_desc_len)
+                            candidate_desc_len, _, _ = self._calc_and_update((ka_moving, kb_moving), old_desc_len)
                             t_m_e_rs_cand = self.confident_m_e_rs[(ka_moving, kb_moving)]
                             if candidate_desc_len > old_desc_len:  # candidate move is not a good choice
                                 # Before we conclude anything,
@@ -445,13 +442,15 @@ class OptimalKs(object):
                                     print("DONE: the answer is...", old_ka_moving, old_kb_moving)
 
                                     # clean up
-                                    os.remove(self.f_edgelist)
-
-                                    return self.confident_desc_len
+                                    try:
+                                        os.remove(self.f_edgelist)
+                                    finally:
+                                        return self.confident_desc_len
                             else:
                                 # continue moving with the
                                 # new candidate's direction
-                                self.ITALIC_I_THRESHOLD = float(self._ITALIC_I_THRESHOLD)
+                                # TODO: this is not needed...
+                                # self.ITALIC_I_THRESHOLD = float(self._ITALIC_I_THRESHOLD)
                                 self._update_current_state((ka_moving, kb_moving), t_m_e_rs_cand)
                         else:
                             # continue moving w/ the new candidate's direction
@@ -473,7 +472,7 @@ class OptimalKs(object):
                     else:
                         new_of_g[_node_id] = _g - 1
 
-                # inntermediate state infos
+                # intermediate state infos
                 self.confident_of_group[(ka_moving, kb_moving)] = new_of_g
                 self._save_of_group_info(ka_moving, kb_moving)
                 # self.confident_italic_I[(ka_moving, kb_moving)] = self._cal_italic_I(t_m_e_rs)
@@ -526,15 +525,17 @@ class OptimalKs(object):
         self.m_e_rs = m_e_rs
         return
 
-    def _calc_and_update(self, point, old_desc_len=0):
-        if old_desc_len == 0:
+    def _calc_and_update(self, point, old_desc_len=0.):
+        # These confident_* variable are used to store "true" data
+        # that is, not the sloppy temporarily results via matrix merging
+        if old_desc_len == 0.:
             italic_i, m_e_rs, of_group = self._calc_with_hook(point[0], point[1])
         else:
             italic_i, m_e_rs, of_group = self._calc_with_hook(point[0], point[1], old_desc_len=old_desc_len)
         candidate_desc_len = self._cal_desc_len(point[0], point[1], italic_i)
+        self.confident_desc_len[point] = candidate_desc_len
         self.confident_italic_I[point] = italic_i
         self.confident_m_e_rs[point] = m_e_rs
-        self.confident_desc_len[point] = candidate_desc_len
         self.confident_of_group[point] = of_group
         self._save_of_group_info(point[0], point[1])
-        return candidate_desc_len
+        return candidate_desc_len, m_e_rs, italic_i

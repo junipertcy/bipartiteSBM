@@ -4,7 +4,7 @@
 from retrying import retry
 
 
-def get_edgelist(f_edgelist, delimiter=","):
+def get_edgelist(f_edgelist, delimiter=','):
     """
         This function returns an edgelist list from a file.
 
@@ -21,17 +21,12 @@ def get_edgelist(f_edgelist, delimiter=","):
         edgelist : list
             The list of tupled edges.
 
-        >>> import ioutils
-        >>> edgelist = get_edgelist(f_edgelist, ",")
-        >>> print(edgelist)
-
     """
-    import re
     edgelist = []
     with open(f_edgelist, "rb") as f:
         for line in f:
             line = line.replace('\r', '').replace('\n', '')  # remove all line breaks!
-            edge = re.split(delimiter, line)
+            edge = line.split(delimiter)
             # edgelist.append((str(int(edge[0]) - 1), str(int(edge[1]) - 1)))
             edgelist.append((str(int(edge[0])), str(int(edge[1]))))
     f.close()
@@ -59,7 +54,7 @@ def get_types(f_types):
     types = []
     with open(f_types, "rb") as f:
         for line in f:
-            types.append(str(int(line.replace('n', ""))))
+            types.append(str(int(line.replace('\n', ""))))
     f.close()
     return types
 

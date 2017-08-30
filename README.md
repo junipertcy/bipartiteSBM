@@ -34,15 +34,19 @@ pip install git+https://github.com/uqfoundation/pathos.git@master
 ```
 We provide two reference engines to illustrate the applicability of our method. They have been added as submodules to this repository. To clone this project along with the submodules, do:
 ```bash
-git clone git@github.com:junipertcy/det_k_bisbm.git --recursive
+git clone git@github.com:junipertcy/det_k_bisbm.git --recursive --init
 ```
-Now enter the directory `det_k_bisbm`. Since both of the two modules are C++ subroutines for graph partitioning. To compile these C++ codes, please run the shell script:
+Now enter the directory `det_k_bisbm`. Since the submodules we cloned in the `engines` folder are still empty, let's run this command to ensure we have all the submodule's content:
+```bash
+git submodule update
+```
+Since both of the two modules are C++ subroutines for graph partitioning. To compile these C++ codes, please run the shell script:
 ```bash
 sh start.sh
 ```
 If you are good so far, then we are now ready!
 
-## Example MCMC inference
+### Example MCMC inference
 
 To use this library, let's first import the class and functions.
 ```python
@@ -95,7 +99,7 @@ oks.iterator()
 ```
 We should expect a while for the program to finish.
 
-## Example Kerininghan-Lin inference
+### Example Kerninghan-Lin inference
 
 (to be written)
 
