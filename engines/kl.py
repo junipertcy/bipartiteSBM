@@ -23,11 +23,11 @@ class KL(object):
         self.KL_PARALLELIZATION = bool(kl_is_parallel)
 
         if self.KL_PARALLELIZATION:
-            raise NotImplementedError, "KL calculation accross many cores is not supported."
+            raise NotImplementedError("KL calculation accross many cores is not supported.")
 
         # for KL
         if not os.path.isfile(f_engine):
-            raise BaseException, "Error: KL engine binary not found!"
+            raise BaseException("Error: KL engine binary not found!")
 
         self.f_engine = f_engine
         self.kl_itertimes = int(kl_itertimes)
@@ -215,7 +215,7 @@ class KL(object):
                     try:
                         g.write(str(int(edge[0]) + 1) + "\t" + str(int(edge[1]) + 1) + "\n")
                     except ValueError as e:
-                        raise ValueError, "Please check if the delimiter for the edgelist file is wrong -- {}".format(e)
+                        raise ValueError("Please check if the delimiter for the edgelist file is wrong -- {}".format(e))
 
     @staticmethod
     def _save_types(f_types, na, nb):

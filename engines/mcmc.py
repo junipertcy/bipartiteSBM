@@ -22,7 +22,7 @@ class MCMC(object):
 
         # for MCMC
         if not os.path.isfile(f_engine):
-            raise BaseException, "Error: MCMC engine binary not found!"
+            raise BaseException("Error: MCMC engine binary not found!")
 
         self.f_engine = f_engine
         self.mcmc_steps_ = int(mcmc_steps)
