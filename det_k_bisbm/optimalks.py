@@ -161,7 +161,6 @@ class OptimalKs(object):
     def m_e_rs_from_of_group(edgelist, of_group):
         # construct e_rs matrix
         m_e_rs = np.zeros((max(of_group) + 1, max(of_group) + 1))
-        # print of_group
         for i in edgelist:
             # Please do check the index convention of the edgelist
             source_group = int(of_group[int(i[0])])
@@ -258,7 +257,6 @@ class OptimalKs(object):
             new_ka, new_kb, c.shape[1]
         )
         assert np.all(c.transpose() == c), "Error: output m_e_rs matrix is not symmetric!"
-        # print "merge_list: ", merge_list
         return new_ka, new_kb, c, merge_list
 
     def _calc_with_hook(self, ka, kb, **kwargs):
@@ -302,7 +300,6 @@ class OptimalKs(object):
             italic_i = self._cal_italic_I(m_e_rs)
             new_desc_len = self._cal_desc_len(ka, kb, italic_i)
 
-            # print "new_desc_len = ", new_desc_len
             return m_e_rs, italic_i, new_desc_len, of_group
 
         def __par_run__(num_cores, num_sweeps):
@@ -316,8 +313,6 @@ class OptimalKs(object):
             old_desc_len = float(kwargs["old_desc_len"])
         except KeyError as _:
             if self.PARALLELIZATION:
-                # print "num_cores_", self.NUM_CORES
-                # print "num_sweeps_", self.MAX_NUM_SWEEPS
                 results = __par_run__(self.NUM_CORES, self.MAX_NUM_SWEEPS)
             else:
                 results = [_run_(ka, kb)]
@@ -349,8 +344,6 @@ class OptimalKs(object):
         return italic_i, m_e_rs, of_group
 
     def _moving_one_step_down(self, ka, kb):
-        # print "confident_desc_len = " + str(self.confident_desc_len)
-        # print "confident_italic_I = " + str(self.confident_italic_I)
         try:
             self.INIT_ITALIC_I
         except AttributeError as _:
@@ -439,10 +432,9 @@ class OptimalKs(object):
                                             )
                                 for item in items:
                                     self._calc_and_update(item, old_desc_len)
-                                # print "done calculation on less probable points"
 
                                 if any(i < old_desc_len for i in self.confident_desc_len.values()):
-                                    print "New suspected point found...."
+                                    print("New suspected point found....")
                                     self._back_to_where_desc_len_is_lowest(diff_italic_i)
                                 else:
                                     print("DONE: the answer is...", old_ka_moving, old_kb_moving)
@@ -483,8 +475,6 @@ class OptimalKs(object):
                 # self.confident_desc_len[(ka_moving, kb_moving)] = self._cal_desc_len(
                 #     ka_moving, kb_moving, self.confident_italic_I[(ka_moving, kb_moving)]
                 # )
-
-                # print("-- merging mat just prevented expansive biSBM calculation --")
                 self._update_current_state((ka_moving, kb_moving), t_m_e_rs)
 
             # for drawing...
@@ -506,11 +496,9 @@ class OptimalKs(object):
         return self.confident_of_group_info[(ka, kb)]
 
     def _back_to_where_desc_len_is_lowest(self, diff_italic_i):
-        # print("You are going too far, the (ka, kb) around here are too small.")
         self._iter_calc_hook(diff_italic_i)
         self.ka = sorted(self.confident_desc_len, key=self.confident_desc_len.get, reverse=False)[0][0]
         self.kb = sorted(self.confident_desc_len, key=self.confident_desc_len.get, reverse=False)[0][1]
-        # print("assigned new starting (ka, kb) to", self.ka, self.kb)
         self.ITALIC_I_THRESHOLD *= 0.9
         self.m_e_rs = self.confident_m_e_rs[(self.ka, self.kb)]
         return self.ka, self.kb
@@ -522,7 +510,6 @@ class OptimalKs(object):
         return
 
     def _update_current_state(self, point, m_e_rs):
-        # print("Find new direction!! Assign new m_e_rs...")
         self.ka = point[0]
         self.kb = point[1]
         # this will be used in _moving_one_step_down function
