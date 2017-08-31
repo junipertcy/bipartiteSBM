@@ -20,7 +20,7 @@ def get_edgelist(f_edgelist, delimiter=','):
 
     """
     edgelist = []
-    with open(f_edgelist, "rb") as f:
+    with open(f_edgelist, "r") as f:
         for line in f:
             line = line.replace('\r', '').replace('\n', '')  # remove all line breaks!
             edge = line.split(delimiter)
@@ -49,7 +49,7 @@ def get_types(f_types):
 
     """
     types = []
-    with open(f_types, "rb") as f:
+    with open(f_types, "r") as f:
         for line in f:
             types.append(str(int(line.replace('\n', ""))))
     f.close()

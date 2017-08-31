@@ -81,7 +81,7 @@ Here, we have the number of type-1 nodes as `n1=18`, while number of type-2 node
 
 Once we specified the engine that we liked, it's time to prepare the dataset.
 ```python
-edgelist = get_edgelist("dataset/southernWomen.edgelist", " ")
+edgelist = get_edgelist("dataset/southernWomen.edgelist", "\t")
 types= get_types("dataset/southernWomen.types")
 ```
 We can then feed these three variables into the main class.
@@ -91,7 +91,7 @@ oks = OptimalKs(mcmc, edgelist, types)
 Although there are default parametric values the heuristic, we suggest you set new ones on your own. 
 Here, we set `init_ka=50`, `init_kb=50` and `i_th=0.1`.
 ```python
-ops.set_params(init_ka=50, init_kb=50, i_th=0.1)
+oks.set_params(init_ka=50, init_kb=50, i_th=0.1)
 ```  
 We now start the heuristic search via,
 ```python
@@ -135,7 +135,7 @@ edgelist = get_edgelist("dataset/southernWomen.edgelist", ",")
 types= kl.gen_types(18, 14)
 
 oks = OptimalKs(kl, edgelist, types)
-ops.set_params(init_ka=10, init_kb=10, i_th=0.1)
+oks.set_params(init_ka=10, init_kb=10, i_th=0.1)
 oks.iterator()
 ```
 We might expect to wait longer in larger networks since Kerninghan-Lin is slower than the MCMC algorithm.

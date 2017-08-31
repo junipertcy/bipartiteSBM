@@ -112,7 +112,7 @@ class KL(object):
         num_cores_ = self.NUM_CORES
 
         if not verbose_:
-            stdout = open(os.devnull, "wb")
+            stdout = open(os.devnull, "w")
         else:
             stdout = subprocess.PIPE
 
@@ -178,7 +178,7 @@ class KL(object):
             :return: file handle
         '''
         f = open(
-            self.f_kl_output + '/biDCSBMcomms' + str(int(num_sweep_)) + '.score', 'rb'
+            self.f_kl_output + '/biDCSBMcomms' + str(int(num_sweep_)) + '.score', 'r'
         )
         return f
 
@@ -193,7 +193,7 @@ class KL(object):
         '''
         f = open(
             self.f_kl_output + '/biDCSBMcomms' +
-            str(int(num_sweep_)) + '.tsv', 'rb'
+            str(int(num_sweep_)) + '.tsv', 'r'
         )
         return f
 
@@ -207,8 +207,8 @@ class KL(object):
         :return:
         """
         import re
-        with open(f_target_edgelist, "wb") as g:
-            with open(f_edgelist, "rb") as f:
+        with open(f_target_edgelist, "w") as g:
+            with open(f_edgelist, "r") as f:
                 for line in f:
                     line = line.replace('\r', '').replace('\n', '')
                     edge = re.split(delimiter, line)
@@ -222,7 +222,7 @@ class KL(object):
         assert na > 0, "Number of type-a nodes = 0, which is not allowed"
         assert nb > 0, "Number of type-b nodes = 0, which is not allowed"
         types = [1] * int(na) + [2] * int(nb)
-        with open(f_types, "wb") as f:
+        with open(f_types, "w") as f:
             for line in types:
                 f.write(str(line) + '\n')
         return types

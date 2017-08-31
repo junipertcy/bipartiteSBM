@@ -126,7 +126,7 @@ class OptimalKs(object):
             Group membership list.
         """
         num_nodes = len(of_group)
-        with open(path, "wb") as f:
+        with open(path, "w") as f:
             for i in range(0, num_nodes):
                 f.write(str(of_group[i]) + "\n")
 
@@ -383,7 +383,7 @@ class OptimalKs(object):
         return __ka, __kb, __m_e_rs, diff_italic_i, _mlist
 
     def iterator(self):
-        with open(self.f_edgelist, "wb") as f:
+        with open(self.f_edgelist, "w") as f:
             for edge in self.edgelist:
                 f.write(str(edge[0]) + "\t" + edge[1] + "\n")
 
