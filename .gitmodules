@@ -1,6 +1,6 @@
 [submodule "engines/bipartiteSBM-MCMC"]
 	path = engines/bipartiteSBM-MCMC
-	url = git@github.com:junipertcy/bipartiteSBM-MCMC.git
+	url = https://github.com/junipertcy/bipartiteSBM-MCMC.git
 [submodule "engines/bipartiteSBM-KL"]
 	path = engines/bipartiteSBM-KL
-	url = git@github.com:junipertcy/bipartiteSBM-KL.git
+	url = https://github.com/junipertcy/bipartiteSBM-KL.git

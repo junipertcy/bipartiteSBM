@@ -34,7 +34,7 @@ pip install git+https://github.com/uqfoundation/pathos.git@master
 ```
 We provide two reference engines to illustrate the applicability of our method. They have been added as submodules to this repository. To clone this project along with the submodules, do:
 ```bash
-git clone git@github.com:junipertcy/det_k_bisbm.git --recursive --init
+git clone git@github.com:junipertcy/det_k_bisbm.git --recursive
 ```
 Now enter the directory `det_k_bisbm`. Since the submodules we cloned in the `engines` folder are still empty, let's run this command to ensure we have all the submodule's content:
 ```bash
@@ -46,7 +46,7 @@ sh start.sh
 ```
 If you are good so far, then we are now ready!
 
-### Example MCMC inference
+### <a id="example-mcmc"></a>Example MCMC inference
 
 To use this library, let's first import the class and functions.
 ```python
@@ -105,7 +105,7 @@ oks.clean()
 ```
 Now we can set new parameters and re-run the algorithm!
 
-### Example Kerninghan-Lin inference
+### <a id="example-kl"></a>Example Kerninghan-Lin inference
 
 The algorithm for bipartite community detection is independent to the graph partitioning algorithm used. 
 In principle, one could switch to a different partitioning engine and infer the number of communities in a similar manner.
