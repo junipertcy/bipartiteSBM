@@ -61,12 +61,12 @@ mcmc = MCMC(f_engine="engines/bipartiteSBM-MCMC/bin/mcmc",  # path to the graph 
             is_parallel=True,                               # whether to compute the partitioning in parallel
             n_cores=2,                                      # if `is_parallel == True`, the number of cores used   
             mcmc_steps=100,                                 # [MCMC] the number of sweeps
-            mcmc_await_steps=1000,                          # [MCMC] the number of sweeps to await to stop the algorithm, if max(entropy) and min(entropy) show no change therein  
+            mcmc_await_steps=1000,                          # [MCMC] the number of sweeps to await until stopping the algorithm, if max(entropy) and min(entropy) show no change therein  
             mcmc_cooling="exponential",                     # [MCMC] annealing scheme used. enum: ["exponential", "logarithm", "linear", "constant"].
             mcmc_cooling_param_1=10,                        # [MCMC] parameter 1 for the annealing
             mcmc_cooling_param_2=0.1,                       # [MCMC] parameter 2 for the annealing
             mcmc_epsilon=0.01                               # [MCMC] the "epsilon" value used in the algorithm
-        )                                
+        )
 ```
 The `mcmc` is a wrapper class for the C++ engine. It can also generate strings that are useful to run in the command line. 
 For example, this code generates a string that tells the C++ program to do graph partition of the `southern women dataset` at `K1=3` and `K2=2`. 
@@ -139,7 +139,6 @@ ops.set_params(init_ka=10, init_kb=10, i_th=0.1)
 oks.iterator()
 ```
 We might expect to wait longer in larger networks since Kerninghan-Lin is slower than the MCMC algorithm.
-
 
 ## Datasets
 
