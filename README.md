@@ -1,16 +1,26 @@
+# det_k_bisbm
+[![Twitter: @oneofyen](https://img.shields.io/badge/contact-@oneofyen-blue.svg?style=flat)](https://twitter.com/oneofyen) 
+[![License](https://img.shields.io/badge/license-GPL-green.svg?style=flat)](https://github.com/junipertcy/det_k_bisbm/blob/master/LICENSE)
+
+Python implementation of a fast community number determination heuristic of the bipartite Stochastic Block Model (biSBM), 
+using the [MCMC sampler](https://github.com/junipertcy/bipartiteSBM-MCMC)
+or the [Kernighan-Lin algorithm](https://github.com/junipertcy/bipartiteSBM-KL) as the inference engine. 
+
 <p align="center">
   <a href="https://github.com/junipertcy/det_k_bisbm">
     <img width="800" src="http://wiki.junipertcy.info/images/1/10/Det_k_bisbm-logo.png">
   </a>
 </p>
 
-# det_k_bisbm
+---
 
-Python implementation of a fast community number determination heuristic of the bipartite Stochastic Block Model (biSBM), 
-using the MCMC sampler or the Kernighan-Lin algorithm as the inference engine. 
-
-This program utilizes the Minimum Description Length principle to determine a point estimate of the
+`det_k_bisbm` utilizes the Minimum Description Length principle to determine a point estimate of the
 numbers of communities in the biSBM that best compresses the model and data. Several test examples are included.
+
+If you want to sample the whole marginal distribution of the number of communities, rather than a point estimate,
+please check the companion [Markov Chain Monte Carlo](https://github.com/junipertcy/bipartiteSBM-MCMC) program.
+
+Currently, only Python 2 is supported. But extension to Python 3 is in our TODO list.
 
 ## Table of content
 
@@ -18,7 +28,7 @@ numbers of communities in the biSBM that best compresses the model and data. Sev
     1. [Installation](#installation)
     2. [Example MCMC inference](#example-mcmc)
     3. [Example Kerininghan-Lin inference](#example-kl)
-2. [Datasets](#datasets)
+2. [Dataset](#dataset)
 2. [Versions](#versions)  
 3. [Companion article](#companion-article)
 
@@ -36,7 +46,7 @@ We provide two reference engines to illustrate the applicability of our method. 
 ```bash
 git clone git@github.com:junipertcy/det_k_bisbm.git --recursive
 ```
-Now enter the directory `det_k_bisbm`. Since the submodules we cloned in the `engines` folder are still empty, let's run this command to ensure we have all the submodule's content:
+Now enter the directory `det_k_bisbm`. Since the submodules we cloned in the `engines` folder may be out-dated, let's run this command to ensure we have all the newest submodule's content:
 ```bash
 git submodule update
 ```
@@ -48,20 +58,21 @@ If you are good so far, then we are now ready!
 
 ### <a id="example-mcmc"></a>Example MCMC inference
 
-To use this library, let's first import the class and functions.
+As an example, we'll compute the partition that gives minimum description length on a small graph in `dataset/southernWomen.edgelist`.
+To begin, let's first import the class and functions.
 ```python
 from det_k_bisbm.ioutils import *
 from det_k_bisbm.optimalks import *
 ```
-If you want to do the graph partitioning using Markov Chain Monte Carlo, do:
+If you want to do the graph partitioning using [Markov Chain Monte Carlo](https://github.com/junipertcy/bipartiteSBM-MCMC), do:
 ```python
 from engines.mcmc import *
 mcmc = MCMC(f_engine="engines/bipartiteSBM-MCMC/bin/mcmc",  # path to the graph partitioning binary
-            n_sweeps=2,                                     # number of partitioning computations for each (K1, K2) data point
+            n_sweeps=10,                                    # number of partitioning computations for each (K1, K2) data point
             is_parallel=True,                               # whether to compute the partitioning in parallel
             n_cores=2,                                      # if `is_parallel == True`, the number of cores used   
-            mcmc_steps=100,                                 # [MCMC] the number of sweeps
-            mcmc_await_steps=1000,                          # [MCMC] the number of sweeps to await until stopping the algorithm, if max(entropy) and min(entropy) show no change therein  
+            mcmc_steps=100000,                              # [MCMC] the number of sweeps
+            mcmc_await_steps=10000,                         # [MCMC] the number of sweeps to await until stopping the algorithm, if max(entropy) and min(entropy) show no change therein  
             mcmc_cooling="exponential",                     # [MCMC] annealing scheme used. enum: ["exponential", "logarithm", "linear", "constant"].
             mcmc_cooling_param_1=10,                        # [MCMC] parameter 1 for the annealing
             mcmc_cooling_param_2=0.1,                       # [MCMC] parameter 2 for the annealing
@@ -97,9 +108,11 @@ We now start the heuristic search via,
 ```python
 oks.iterator()
 ```
-We should expect for a while for the program to finish.
+We should expect to wait for a while for the program to finish (if the network is large).
+For the `sourthernWomen` dataset, we will see that there are no statistically significant communities other than the fact of being a bipartite network.
+That is, we reached a trivial conclusion that `K1=1` and `K2=1`.
 
-If you want to run the heuristic again, there's a function that easily clean up the traces that we have gone so far.
+If you are interested to run the heuristic again, there's a function that easily clean up the traces that we have gone so far.
 ```python
 oks.clean()
 ```
@@ -109,7 +122,7 @@ Now we can set new parameters and re-run the algorithm!
 
 The algorithm for bipartite community detection is independent to the graph partitioning algorithm used. 
 In principle, one could switch to a different partitioning engine and infer the number of communities in a similar manner.
-Here, we illustrate the use of the Kerninghan-Lin algorithm in the heuristic.
+Here, we illustrate the use of the [Kerninghan-Lin algorithm](https://github.com/junipertcy/bipartiteSBM-KL) in the heuristic.
 
 If one wants to do the graph partitioning using Kerninghan-Lin, one initiates a different engine class:
 ```python
@@ -119,30 +132,44 @@ kl = KL(f_engine="engines/bipartiteSBM-KL/biSBM",
         is_parallel=True,
         n_cores=2,
         kl_edgelist_delimiter="\t",                        # [KL] due to the KL code accepts 1-indexed nodes by default, we used the delimiter to transform our 0-indexed input.  
-        kl_itertimes=1,                                    # [KL] the number of random initializations 
+        kl_itertimes=4,                                    # [KL] the number of random initializations 
         f_kl_output="engines/bipartiteSBM-KL/f_kl_output"  # [KL] path to the KL output dir; recommended to be in the same folder as the binary
     )
 ```
 Similarly, one can generate the string for command line computation. 
 Note that since all outputs will appear in one specified `f_kl_output` and we may have `kl_itertimes` random initializations,
-hence the subfolders in `f_kl_output` is hashed in order to place the output data nicely.
+hence the subfolders in `f_kl_output` are hashed in order to place the output data nicely.
+
+This time we test the algorithm on an example graph in `dataset/bisbm-n_1000-ka_4-kb_6-r-1.0-Ka_30-Ir_1.75.gt.edgelist`.
+This is a synthetic network with `K1=4` and `K2=6`, generated by the bipartite SBM. 
+
 ```python
-kl.prepare_engine("dataset/southernWomen.edgelist", 18, 14, 2, 3)
+kl.prepare_engine("dataset/bisbm-n_1000-ka_4-kb_6-r-1.0-Ka_30-Ir_1.75.gt.edgelist", 500, 500, 6, 7)
 ```
+
 The remaining codes are similar.
 ```python
-edgelist = get_edgelist("dataset/southernWomen.edgelist", ",")
-types= kl.gen_types(18, 14)
+edgelist = get_edgelist("dataset/bisbm-n_1000-ka_4-kb_6-r-1.0-Ka_30-Ir_1.75.gt.edgelist", "\t")
+types= kl.gen_types(500, 500)
 
 oks = OptimalKs(kl, edgelist, types)
 oks.set_params(init_ka=10, init_kb=10, i_th=0.1)
 oks.iterator()
 ```
-We might expect to wait longer in larger networks since Kerninghan-Lin is slower than the MCMC algorithm.
+We will see that it correctly finds `K1=4` and `K2=6` as a result.
+Note that Kerninghan-Lin is generally slower than the MCMC algorithm when the number of communities is large.
 
-## Datasets
+## Dataset
 
-(to be written)
+This program accepts input data as a text file of graph adjacencies, say `graph.edgelist`, which contains one edge per line. Each line follows an out-neighbor adjacency list format; that is, a 2-tuple of node indexes of the form,
+```ini
+<node_source_id_1> <out_neighbor_id_1>
+<node_source_id_1> <out_neighbor_id_2>
+...
+<node_source_id_1> <out_neighbor_id_<outdegree>>
+...
+```
+The `get_edgelist` function can resolve text files with custom delimiters.
 
 ## Versions
 
@@ -151,6 +178,8 @@ We might expect to wait longer in larger networks since Kerninghan-Lin is slower
 `Version 1.0` - `2017-06-20` - A `pre-release` version that does model selection for bipartite SBM.
 
 ## Companion article
+
+If you find `det_k_bisbm` useful for your research, please consider citing the following paper:
 
 **Estimating the Number of Communitites in a Bipartite Network**
 

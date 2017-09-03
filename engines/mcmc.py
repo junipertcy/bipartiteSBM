@@ -133,8 +133,6 @@ class MCMC(object):
 
         return of_group
 
-
-
     @staticmethod
     def _gen_init_n_blocks(na, nb, ka, kb):
         num_nodes_A = np.arange(na)

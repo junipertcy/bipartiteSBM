@@ -386,10 +386,8 @@ class OptimalKs(object):
         with open(self.f_edgelist, "w") as f:
             for edge in self.edgelist:
                 f.write(str(edge[0]) + "\t" + edge[1] + "\n")
-
         ka_moving = self.ka
         kb_moving = self.kb
-
         while ka_moving != 1 or kb_moving != 1:
             old_ka_moving = ka_moving
             old_kb_moving = kb_moving
@@ -425,6 +423,7 @@ class OptimalKs(object):
                             if candidate_desc_len > old_desc_len:  # candidate move is not a good choice
                                 # Before we conclude anything,
                                 # we check all the other points near here.
+                                print("check all the other points near here")
                                 items = map(lambda x: (
                                     x[0] + old_ka_moving,
                                     x[1] + old_kb_moving
@@ -437,12 +436,15 @@ class OptimalKs(object):
                                     print("New suspected point found....")
                                     self._back_to_where_desc_len_is_lowest(diff_italic_i)
                                 else:
-                                    print("DONE: the answer is...", old_ka_moving, old_kb_moving)
-
                                     # clean up
                                     try:
                                         os.remove(self.f_edgelist)
+                                        os.remove("edgelist-*.tmp")
                                     finally:
+                                        p_estimate = sorted(self.confident_desc_len, key=self.confident_desc_len.get)[0]
+                                        print("DONE: the MDL point is ({},{})".format(
+                                            p_estimate[0], p_estimate[1]
+                                        ))
                                         return self.confident_desc_len
                             else:
                                 # continue moving with the
@@ -477,9 +479,19 @@ class OptimalKs(object):
                 # )
                 self._update_current_state((ka_moving, kb_moving), t_m_e_rs)
 
-            # for drawing...
+            # for drawing...`
             self._iter_calc_hook(diff_italic_i)
-        return
+
+        # clean up
+        try:
+            os.remove(self.f_edgelist)
+            os.remove("edgelist-*.tmp")
+        finally:
+            p_estimate = sorted(self.confident_desc_len, key=self.confident_desc_len.get)[0]
+            print("DONE: the MDL point is ({},{})".format(
+                p_estimate[0], p_estimate[1]
+            ))
+            return self.confident_desc_len
 
     def _save_of_group_info(self, ka, kb):
         self.confident_of_group_info[(ka, kb)] = {}
