@@ -45,6 +45,10 @@ class MCMC(object):
         kb : int, required
             Number of communities for type-b nodes to partition.
 
+        Returns
+        -------
+        action_str : str
+            the command line string that enables execution of the code
 
         """
         params_ = ""
@@ -105,7 +109,7 @@ class MCMC(object):
         of_group : list
 
         """
-
+        of_group = []
         action_str = self.prepare_engine(f_edgelist, na, nb, ka, kb)
 
         num_sweeps_ = 1
@@ -164,3 +168,8 @@ class MCMC(object):
             normalized_list[len(normalized_list) - 1] = abs(total - sum_)
         assert sum(normalized_list) == total, "ERROR: the constrainedSumSamplePos-sampled list does not sum to #edges."
         return map(str, normalized_list)
+
+    @staticmethod
+    def gen_types(na, nb):
+        types = [1] * int(na) + [2] * int(nb)
+        return types

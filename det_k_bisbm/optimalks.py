@@ -19,10 +19,10 @@ class OptimalKs(object):
     types : list, required
         Types of each node specifying the type membership.
 
-    init_Ka : int, required
+    init_ka : int, required
         Initial Ka for successive merging and searching for the optimum.
 
-    init_Kb : int, required
+    init_kb : int, required
         Initial Ka for successive merging and searching for the optimum.
 
     i_th :  double, optional
@@ -106,7 +106,6 @@ class OptimalKs(object):
         self.ITALIC_I_THRESHOLD = float(i_th)
 
     def clean(self):
-        # TODO
         self.confident_desc_len = OrderedDict()
         self.confident_m_e_rs = OrderedDict()
         self.confident_italic_I = OrderedDict()
@@ -133,7 +132,7 @@ class OptimalKs(object):
     # start from here: our main algorithm!
     @staticmethod
     @jit
-    def _cal_italic_I(m_e_rs):
+    def _cal_italic_i(m_e_rs):
         italic_i = 0.
         m_e_r = np.sum(m_e_rs, axis=1)
         num_edges = m_e_r.sum() / 2.
@@ -174,11 +173,34 @@ class OptimalKs(object):
         return m_e_rs, m_e_r
 
     @staticmethod
-    def _permute_m_e_rs_and_get_index(m_e_rs):
-        pass
-
-    @staticmethod
     def _reduced_matrix(ka, kb, m_e_rs):
+        """
+        Merge the rows of the affinity matrix (dim = K) to gain a reduced matrix (dim = K - 1)
+
+        Parameters
+        ----------
+        ka : int
+            number of type-a communities in the affinity matrix
+        kb : int
+            number of type-b communities in the affinity matrix
+        m_e_rs : numpy array
+            the affinity matrix
+
+        Returns
+        -------
+        new_ka : int
+            the new number of type-a communities in the affinity matrix
+
+        new_kb : int
+            the new number of type-b communities in the affinity matrix
+
+        c : numpy array
+            the new affinity matrix
+
+        merge_list : list(int, int)
+            the two row-indexes of the original affinity matrix that were merged
+
+        """
         # check if symmetric
         assert np.all(m_e_rs.transpose() == m_e_rs), "Error: input m_e_rs matrix is not symmetric!"
         from_row = random.sample([0] * ka + [ka] * kb, 1)[0]
@@ -261,25 +283,25 @@ class OptimalKs(object):
 
     def _calc_with_hook(self, ka, kb, **kwargs):
         """
-        Summary line.
-
-        Extended description of function.
+        Execute the partitioning code by spawning child processes in the shell; save its output afterwards.
 
         Parameters
         ----------
-        arg1 : int
-            Description of arg1
-        arg2 : str
-            Description of arg2
+        ka : int
+            Number of type-a communities that one wants to partition on the bipartite graph
+        kb : int
+            Number of type-b communities that one wants to partition on the bipartite graph
 
         Returns
         -------
         italic_i : float
-            Description of return value
-        dist : float
+            the profile likelihood of the found partition
 
         m_e_rs : numpy array
+            the affinity matrix via the group membership vector found by the partitioning engine
 
+        of_group : list[int]
+            group membership vector calculated by the partitioning engine
 
         """
         # each time when you calculate/search at particular ka and kb
@@ -297,7 +319,7 @@ class OptimalKs(object):
         def _run_(ka, kb):
             of_group = self._engine(self.f_edgelist, self.NUM_NODES_A, self.NUM_NODES_B, ka, kb)
             m_e_rs, _ = self.m_e_rs_from_of_group(self.edgelist, of_group)
-            italic_i = self._cal_italic_I(m_e_rs)
+            italic_i = self._cal_italic_i(m_e_rs)
             new_desc_len = self._cal_desc_len(ka, kb, italic_i)
 
             return m_e_rs, italic_i, new_desc_len, of_group
@@ -344,6 +366,34 @@ class OptimalKs(object):
         return italic_i, m_e_rs, of_group
 
     def _moving_one_step_down(self, ka, kb):
+        """
+        Apply multiple merges of the original affinity matrix, return the one that least alters the entropy
+
+        Parameters
+        ----------
+        ka : int
+            number of type-a communities in the affinity matrix
+        kb : int
+            number of type-b communities in the affinity matrix
+
+        Returns
+        -------
+        _ka : int
+            the new number of type-a communities in the affinity matrix
+
+        _kb : int
+            the new number of type-b communities in the affinity matrix
+
+        _m_e_rs : numpy array
+            the new affinity matrix
+
+        diff_italic_i : list(int, int)
+            the difference of the new profile likelihood and the old one
+
+        _mlist : list(int, int)
+            the two row-indexes of the original affinity matrix that were finally chosen (and merged)
+
+        """
         try:
             self.INIT_ITALIC_I
         except AttributeError as _:
@@ -362,25 +412,25 @@ class OptimalKs(object):
 
         def _sample_and_merge():
             _ka, _kb, _m_e_rs, _mlist = self._reduced_matrix(self.ka, self.kb, self.m_e_rs)
-            _italic_I = self._cal_italic_I(_m_e_rs)
+            _italic_I = self._cal_italic_i(_m_e_rs)
             diff_italic_i = _italic_I - self.INIT_ITALIC_I
-            # diff_italic_i = _italic_I - min(self.confident_italic_I.values())
             return _ka, _kb, _m_e_rs, diff_italic_i, _mlist
 
-        indexes_to_run_ = range(0, (ka + kb) * 2)  # how many times that a sample merging takes place
+        # how many times that a sample merging takes place
+        indexes_to_run_ = range(0, (ka + kb) * 2)  # NOTE that the 2 is a hard-coded parameter
 
         results = []
         for _ in indexes_to_run_:
             results.append(_sample_and_merge())
 
-        __ka, __kb, __m_e_rs, diff_italic_i, _mlist = max(results, key=lambda x: x[3])
+        _ka, _kb, _m_e_rs, _diff_italic_i, _mlist = max(results, key=lambda x: x[3])
 
-        assert int(__m_e_rs.sum()) == int(self.NUM_EDGES * 2), "__m_e_rs.sum() = {}; self.NUM_EDGES * 2 = {}".format(
-            str(int(__m_e_rs.sum())), str(self.NUM_EDGES * 2)
+        assert int(_m_e_rs.sum()) == int(self.NUM_EDGES * 2), "__m_e_rs.sum() = {}; self.NUM_EDGES * 2 = {}".format(
+            str(int(_m_e_rs.sum())), str(self.NUM_EDGES * 2)
         )
 
         # print("After reducing the matrix via merging we reached (ka, kb) = (%s, %s)", str(__ka), str(__kb))
-        return __ka, __kb, __m_e_rs, diff_italic_i, _mlist
+        return _ka, _kb, _m_e_rs, _diff_italic_i, _mlist
 
     def iterator(self):
         with open(self.f_edgelist, "w") as f:
@@ -398,7 +448,6 @@ class OptimalKs(object):
                     ka_moving, kb_moving, old_ka_moving, old_kb_moving
             ))
             if abs(diff_italic_i) > self.ITALIC_I_THRESHOLD * self.INIT_ITALIC_I:
-            # if abs(diff_italic_i) > self.ITALIC_I_THRESHOLD * min(self.confident_italic_I.values()):
                 old_desc_len, _, _ = self._calc_and_update((old_ka_moving, old_kb_moving))
                 if any(i < old_desc_len for i in self.confident_desc_len.values()):
                     ka_moving, kb_moving = self._back_to_where_desc_len_is_lowest(diff_italic_i)
@@ -473,7 +522,7 @@ class OptimalKs(object):
                 # intermediate state infos
                 self.confident_of_group[(ka_moving, kb_moving)] = new_of_g
                 self._save_of_group_info(ka_moving, kb_moving)
-                # self.confident_italic_I[(ka_moving, kb_moving)] = self._cal_italic_I(t_m_e_rs)
+                # self.confident_italic_I[(ka_moving, kb_moving)] = self._cal_italic_i(t_m_e_rs)
                 # self.confident_desc_len[(ka_moving, kb_moving)] = self._cal_desc_len(
                 #     ka_moving, kb_moving, self.confident_italic_I[(ka_moving, kb_moving)]
                 # )

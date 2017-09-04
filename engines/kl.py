@@ -38,7 +38,7 @@ class KL(object):
 
         pass
 
-    def prepare_engine(self, f_edgelist, na, nb, ka, kb):
+    def prepare_engine(self, f_edgelist, na, nb, ka, kb, delimiter=None):
         """Output shell commands for graph partitioning calculation.
 
         Parameters
@@ -49,8 +49,14 @@ class KL(object):
         kb : int, required
             Number of communities for type-b nodes to partition.
 
+        Returns
+        -------
+        action_str : str
+            the command line string that enables execution of the code
 
         """
+        if delimiter is None:
+            delimiter = self.kl_edgelist_delimiter
 
         try:
             os.mkdir(self.f_kl_output)
@@ -68,7 +74,7 @@ class KL(object):
 
         filename = hashlib.md5(f_edgelist).hexdigest()
         f_edgelist_1_indexed = self.f_kl_output + "/" + filename + "_1-indexed.edgelist"
-        self._save_edgelist_as_1_indexed(f_edgelist, f_edgelist_1_indexed, self.kl_edgelist_delimiter)
+        self._save_edgelist_as_1_indexed(f_edgelist, f_edgelist_1_indexed, delimiter)
 
         f_types = self.f_kl_output + "/" + filename + ".types"
         self.types = self._save_types(f_types, na, nb)
