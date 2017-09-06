@@ -116,7 +116,21 @@ If you are interested to run the heuristic again, there's a function that easily
 ```python
 oks.clean()
 ```
-Now we can set new parameters and re-run the algorithm!
+Now we can reset the parameters and run the algorithm again! 
+
+In addition, in any case, if one wants to calculate the description length of the data at a single point, `(ka, kb)`, without running through the whole heuristic, one can use,
+```python
+oks.compute_and_update(ka, kb)
+``` 
+and then check this inherent variable, which faithfully stores the description lengths that we have computed,
+```python
+oks.confident_desc_len
+```
+
+We have kept a book-keeping of other useful data, too. 
+They are `confident_italic_I`, `confident_m_e_rs`, `confident_of_group` and `confident_of_group_info`. 
+We will make a quick tutorial with them in a Jupyter Notebook soon later.
+
 
 ### <a id="example-kl"></a>Example Kerninghan-Lin inference
 

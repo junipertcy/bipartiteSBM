@@ -86,7 +86,8 @@ class OptimalKs(object):
         # sanity checks:
         assert self.NUM_NODES == self.NUM_NODES_A + self.NUM_NODES_B
 
-        # for the iterator
+        # These confident_* variable are used to store "true" data
+        # that is, not the sloppy temporarily results via matrix merging
         self.confident_desc_len = OrderedDict()
         self.confident_m_e_rs = OrderedDict()
         self.confident_italic_I = OrderedDict()
@@ -578,8 +579,7 @@ class OptimalKs(object):
         return
 
     def _calc_and_update(self, point, old_desc_len=0.):
-        # These confident_* variable are used to store "true" data
-        # that is, not the sloppy temporarily results via matrix merging
+
         if old_desc_len == 0.:
             italic_i, m_e_rs, of_group = self._calc_with_hook(point[0], point[1])
         else:
@@ -591,3 +591,13 @@ class OptimalKs(object):
         self.confident_of_group[point] = of_group
         self._save_of_group_info(point[0], point[1])
         return candidate_desc_len, m_e_rs, italic_i
+
+    def compute_and_update(self, ka, kb):
+        with open(self.f_edgelist, "w") as f:
+            for edge in self.edgelist:
+                f.write(str(edge[0]) + "\t" + edge[1] + "\n")
+        self._calc_and_update((ka, kb))
+        try:
+            os.remove(self.f_edgelist)
+        finally:
+            pass
