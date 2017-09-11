@@ -1,11 +1,9 @@
-from numba import jit
-import numpy as np
-import random
-import math
-from collections import OrderedDict
-
 import os
-from pathos.multiprocessing import ProcessingPool as Pool
+import math
+import random
+import numpy as np
+from collections import OrderedDict
+from loky import get_reusable_executor
 
 
 class OptimalKs(object):
@@ -47,24 +45,16 @@ class OptimalKs(object):
                  init_kb=10,
                  i_th=0.1):
 
-        import numpy as np
-
-        import math
-        import subprocess
-
         self._engine = engine.engine  # TODO: check that engine is an object
         self.MAX_NUM_SWEEPS = engine.MAX_NUM_SWEEPS
         self.PARALLELIZATION = engine.PARALLELIZATION
         self.NUM_CORES = engine.NUM_CORES
 
-        self._np = np
-        self._math = math
-        self._subprocess = subprocess
-
         # params for the heuristic
         self.ka = int(init_ka)
         self.kb = int(init_kb)
         self.ITALIC_I_THRESHOLD = float(i_th)
+        self.adaptive_ratio = 0.9  # adaptive parameter to make the "delta" smaller, if it's too large
 
         # TODO: "types" is only used to compute na and nb. Can be made more generic.
         self.types = types
@@ -76,23 +66,26 @@ class OptimalKs(object):
             elif _type in ["2",  2]:
                 self.NUM_NODES_B += 1
 
-        assert self.NUM_NODES_A > 0, "Number of type-a nodes = 0, which is not allowed"
-        assert self.NUM_NODES_B > 0, "Number of type-b nodes = 0, which is not allowed"
+        assert self.NUM_NODES_A > 0, "[ERROR] Number of type-a nodes = 0, which is not allowed"
+        assert self.NUM_NODES_B > 0, "[ERROR] Number of type-b nodes = 0, which is not allowed"
         self.NUM_NODES = len(types)
 
         self.edgelist = edgelist
         self.NUM_EDGES = len(self.edgelist)
 
-        # sanity checks:
-        assert self.NUM_NODES == self.NUM_NODES_A + self.NUM_NODES_B
+        assert self.NUM_NODES == self.NUM_NODES_A + self.NUM_NODES_B, \
+            "[ERROR] num_nodes ({}) does not equal to num_nodes_a ({}) plus num_nodes_b ({})".format(
+                self.NUM_NODES, self.NUM_NODES_A, self.NUM_NODES_B
+            )
 
-        # These confident_* variable are used to store "true" data
+        # These confident_* variable are used to store the "true" data
         # that is, not the sloppy temporarily results via matrix merging
         self.confident_desc_len = OrderedDict()
         self.confident_m_e_rs = OrderedDict()
-        self.confident_italic_I = OrderedDict()
-        self.confident_of_group = OrderedDict()
-        self.confident_of_group_info = OrderedDict()
+        self.confident_italic_i = OrderedDict()
+
+        # These trace_* variable are used to store the data that we temporarily go through
+        self.trace_mb = OrderedDict()
 
         # for debug/temp variables
         self.debug_str = ""
@@ -109,31 +102,12 @@ class OptimalKs(object):
     def clean(self):
         self.confident_desc_len = OrderedDict()
         self.confident_m_e_rs = OrderedDict()
-        self.confident_italic_I = OrderedDict()
-        self.confident_of_group = OrderedDict()
-        self.confident_of_group_info = OrderedDict()
+        self.confident_italic_i = OrderedDict()
+        self.trace_mb = OrderedDict()
 
     @staticmethod
-    def _save_of_group_to_file(path, of_group):
-        """Save the group membership list to a file path.
-
-        Parameters
-        ----------
-        path : str, required
-            File path for the list to save to.
-
-        of_group : list[int], required
-            Group membership list.
-        """
-        num_nodes = len(of_group)
-        with open(path, "w") as f:
-            for i in range(0, num_nodes):
-                f.write(str(of_group[i]) + "\n")
-
-    # start from here: our main algorithm!
-    @staticmethod
-    @jit
-    def _cal_italic_i(m_e_rs):
+    def get_italic_i_from_m_e_rs(m_e_rs):
+        assert type(m_e_rs) is np.ndarray, "[ERROR] input parameter (m_e_rs) should be of type numpy.ndarray"
         italic_i = 0.
         m_e_r = np.sum(m_e_rs, axis=1)
         num_edges = m_e_r.sum() / 2.
@@ -146,27 +120,26 @@ class OptimalKs(object):
                 )
         return italic_i
 
-    @jit
     def _cal_desc_len(self, ka, kb, italic_i):
         desc_len_b = (
-            self.NUM_NODES_A * self._math.log(ka) + self.NUM_NODES_B * self._math.log(kb) - self.NUM_EDGES * italic_i
+            self.NUM_NODES_A * math.log(ka) + self.NUM_NODES_B * math.log(kb) - self.NUM_EDGES * italic_i
         ) / self.NUM_EDGES
         x = float(ka * kb) / self.NUM_EDGES
-        desc_len_b += (1 + x) * self._math.log(1 + x) - x * self._math.log(x)
+        desc_len_b += (1 + x) * math.log(1 + x) - x * math.log(x)
         return desc_len_b
 
-
     @staticmethod
-    @jit
-    def m_e_rs_from_of_group(edgelist, of_group):
+    def get_m_e_rs_from_mb(edgelist, mb):
+        assert type(edgelist) is list, "[ERROR] the type of the first input parameter should be a list"
+        assert type(mb) is list, "[ERROR] the type of the second input parameter should be a list"
         # construct e_rs matrix
-        m_e_rs = np.zeros((max(of_group) + 1, max(of_group) + 1))
+        m_e_rs = np.zeros((max(mb) + 1, max(mb) + 1))
         for i in edgelist:
             # Please do check the index convention of the edgelist
-            source_group = int(of_group[int(i[0])])
-            target_group = int(of_group[int(i[1])])
+            source_group = int(mb[int(i[0])])
+            target_group = int(mb[int(i[1])])
             if source_group == target_group:
-                raise StandardError("This is not a bipartite network!")
+                raise StandardError("[ERROR] This is not a bipartite network!")
             m_e_rs[source_group][target_group] += 1
             m_e_rs[target_group][source_group] += 1
 
@@ -174,7 +147,7 @@ class OptimalKs(object):
         return m_e_rs, m_e_r
 
     @staticmethod
-    def _reduced_matrix(ka, kb, m_e_rs):
+    def merge_matrix(ka, kb, m_e_rs):
         """
         Merge the rows of the affinity matrix (dim = K) to gain a reduced matrix (dim = K - 1)
 
@@ -202,20 +175,20 @@ class OptimalKs(object):
             the two row-indexes of the original affinity matrix that were merged
 
         """
-        # check if symmetric
-        assert np.all(m_e_rs.transpose() == m_e_rs), "Error: input m_e_rs matrix is not symmetric!"
+        assert type(m_e_rs) is np.ndarray, "[ERROR] input parameter (m_e_rs) should be of type numpy.ndarray"
+        assert np.all(m_e_rs.transpose() == m_e_rs), "[ERROR] input m_e_rs matrix is not symmetric!"
         from_row = random.sample([0] * ka + [ka] * kb, 1)[0]
         a = m_e_rs[0:ka, ka:ka+kb]
 
-        merge_list = list([0, 0])    # which two of_group label should be merged together?
-        of_group_map = OrderedDict()
+        merge_list = list([0, 0])    # which two mb label should be merged together?
+        mb_map = OrderedDict()
         new_ka = 0
         new_kb = 0
         if from_row == 0:
             perm = np.arange(a.shape[0])
             np.random.shuffle(perm)
             for _ind in np.arange(a.shape[0]):
-                of_group_map[_ind] = perm[_ind]
+                mb_map[_ind] = perm[_ind]
             a = a[perm]
 
             new_ka = ka - 1
@@ -232,14 +205,14 @@ class OptimalKs(object):
                     elif ind_i == from_row + 1:
                         b[ind_i - 1][ind_j] += __a
 
-            merge_list[0] = of_group_map[from_row]
-            merge_list[1] = of_group_map[from_row + 1]
+            merge_list[0] = mb_map[from_row]
+            merge_list[1] = mb_map[from_row + 1]
 
         elif from_row == ka:
             perm = np.arange(a.shape[1])
             np.random.shuffle(perm)
             for _ind in np.arange(a.shape[1]):
-                of_group_map[_ind] = perm[_ind]
+                mb_map[_ind] = perm[_ind]
 
             new_ka = ka
             new_kb = kb - 1
@@ -258,8 +231,8 @@ class OptimalKs(object):
                         b[ind_i][ind_j] += __a
                     elif ind_i == from_row + 1 - new_ka:
                         b[ind_i - 1][ind_j] += __a
-            merge_list[0] = of_group_map[from_row - ka] + ka
-            merge_list[1] = of_group_map[from_row + 1 - ka] + ka
+            merge_list[0] = mb_map[from_row - ka] + ka
+            merge_list[1] = mb_map[from_row + 1 - ka] + ka
 
         c = np.zeros([new_ka + new_kb, new_ka + new_kb])
         bt = b.transpose()
@@ -301,7 +274,7 @@ class OptimalKs(object):
         m_e_rs : numpy array
             the affinity matrix via the group membership vector found by the partitioning engine
 
-        of_group : list[int]
+        mb : list[int]
             group membership vector calculated by the partitioning engine
 
         """
@@ -312,21 +285,18 @@ class OptimalKs(object):
         except KeyError as _:
             pass
         else:
-            italic_i = self.confident_italic_I[(ka, kb)]
+            italic_i = self.confident_italic_i[(ka, kb)]
             m_e_rs = self.confident_m_e_rs[(ka, kb)]
-            of_group = self.confident_of_group[(ka, kb)]
-            return italic_i, m_e_rs, of_group
+            mb = self.trace_mb[(ka, kb)]
+            return italic_i, m_e_rs, mb
 
-        def _run_(ka, kb):
-            of_group = self._engine(self.f_edgelist, self.NUM_NODES_A, self.NUM_NODES_B, ka, kb)
-            m_e_rs, _ = self.m_e_rs_from_of_group(self.edgelist, of_group)
-            italic_i = self._cal_italic_i(m_e_rs)
+        def run(ka, kb):
+            mb = self._engine(self.f_edgelist, self.NUM_NODES_A, self.NUM_NODES_B, ka, kb)
+            m_e_rs, _ = self.get_m_e_rs_from_mb(self.edgelist, mb)
+            italic_i = self.get_italic_i_from_m_e_rs(m_e_rs)
             new_desc_len = self._cal_desc_len(ka, kb, italic_i)
 
-            return m_e_rs, italic_i, new_desc_len, of_group
-
-        def __par_run__(num_cores, num_sweeps):
-            return Pool(num_cores=num_cores).map(lambda x: _run_(ka, kb), range(num_sweeps))
+            return m_e_rs, italic_i, new_desc_len, mb
 
         # Calculate the biSBM inference several times,
         # choose the maximum likelihood result.
@@ -336,9 +306,10 @@ class OptimalKs(object):
             old_desc_len = float(kwargs["old_desc_len"])
         except KeyError as _:
             if self.PARALLELIZATION:
-                results = __par_run__(self.NUM_CORES, self.MAX_NUM_SWEEPS)
+                # automatically shutdown after idling for 2s
+                results = list(self.executor(self.NUM_CORES, 2, lambda x: run(ka, kb), range(self.MAX_NUM_SWEEPS)))
             else:
-                results = [_run_(ka, kb)]
+                results = [run(ka, kb)]
         else:  # TODO: better way of writing?
             if not self.PARALLELIZATION:
                 # if old_desc_len is passed
@@ -348,7 +319,7 @@ class OptimalKs(object):
                 # we should escape from the local minimum during the heuristic
                 calculate_times = 0
                 while calculate_times < self.MAX_NUM_SWEEPS:
-                    result = _run_(ka, kb)
+                    result = run(ka, kb)
                     results.append(result)
                     new_desc_len = self._cal_desc_len(ka, kb, result[1])
                     if new_desc_len < old_desc_len:
@@ -357,14 +328,22 @@ class OptimalKs(object):
                     else:
                         calculate_times += 1
             else:
-                results = __par_run__(self.NUM_CORES, self.MAX_NUM_SWEEPS)
+                results = list(self.executor(self.NUM_CORES, 2, lambda x: run(ka, kb), range(self.MAX_NUM_SWEEPS)))
 
         result = min(results, key=lambda x: x[2])
-        of_group = result[3]
+        mb = result[3]
         italic_i = result[1]
         m_e_rs = result[0]
 
-        return italic_i, m_e_rs, of_group
+        return italic_i, m_e_rs, mb
+
+    @staticmethod
+    def executor(max_workers, timeout, func, feeds):
+        assert type(feeds) is list, "[ERROR] feeds should be a Python list"
+        executor = get_reusable_executor(max_workers=int(max_workers), timeout=int(timeout))
+        results = executor.map(func, feeds)
+
+        return results
 
     def _moving_one_step_down(self, ka, kb):
         """
@@ -412,9 +391,9 @@ class OptimalKs(object):
             self.kb_array = [kb]
 
         def _sample_and_merge():
-            _ka, _kb, _m_e_rs, _mlist = self._reduced_matrix(self.ka, self.kb, self.m_e_rs)
-            _italic_I = self._cal_italic_i(_m_e_rs)
-            diff_italic_i = _italic_I - self.INIT_ITALIC_I
+            _ka, _kb, _m_e_rs, _mlist = self.merge_matrix(self.ka, self.kb, self.m_e_rs)
+            _italic_I = self.get_italic_i_from_m_e_rs(_m_e_rs)
+            diff_italic_i = _italic_I - self.INIT_ITALIC_I  # diff_italic_i is always negative;
             return _ka, _kb, _m_e_rs, diff_italic_i, _mlist
 
         # how many times that a sample merging takes place
@@ -508,7 +487,7 @@ class OptimalKs(object):
                         # continue moving w/ the new candidate's direction
                         self._update_current_state((ka_moving, kb_moving), t_m_e_rs_cand)
             else:
-                old_of_g = self.confident_of_group[(self.ka, self.kb)]
+                old_of_g = self.trace_mb[(self.ka, self.kb)]
                 new_of_g = list(np.zeros(self.NUM_NODES))
 
                 mlist.sort()
@@ -520,16 +499,10 @@ class OptimalKs(object):
                     else:
                         new_of_g[_node_id] = _g - 1
 
-                # intermediate state infos
-                self.confident_of_group[(ka_moving, kb_moving)] = new_of_g
-                self._save_of_group_info(ka_moving, kb_moving)
-                # self.confident_italic_I[(ka_moving, kb_moving)] = self._cal_italic_i(t_m_e_rs)
-                # self.confident_desc_len[(ka_moving, kb_moving)] = self._cal_desc_len(
-                #     ka_moving, kb_moving, self.confident_italic_I[(ka_moving, kb_moving)]
-                # )
+                self.trace_mb[(ka_moving, kb_moving)] = new_of_g
                 self._update_current_state((ka_moving, kb_moving), t_m_e_rs)
 
-            # for drawing...`
+            # for drawing...
             self._iter_calc_hook(diff_italic_i)
 
         # clean up
@@ -543,25 +516,11 @@ class OptimalKs(object):
             ))
             return self.confident_desc_len
 
-    def _save_of_group_info(self, ka, kb):
-        self.confident_of_group_info[(ka, kb)] = {}
-        for block_id in self.confident_of_group[(ka, kb)]:
-            try:
-                self.confident_of_group_info[(ka, kb)][block_id]
-            except KeyError:
-                self.confident_of_group_info[(ka, kb)][block_id] = 0
-                self.confident_of_group_info[(ka, kb)][block_id] += 1
-            else:
-                self.confident_of_group_info[(ka, kb)][block_id] += 1
-        # sanity check
-        assert sum(self.confident_of_group_info[(ka, kb)].values()) == self.NUM_NODES
-        return self.confident_of_group_info[(ka, kb)]
-
     def _back_to_where_desc_len_is_lowest(self, diff_italic_i):
         self._iter_calc_hook(diff_italic_i)
         self.ka = sorted(self.confident_desc_len, key=self.confident_desc_len.get, reverse=False)[0][0]
         self.kb = sorted(self.confident_desc_len, key=self.confident_desc_len.get, reverse=False)[0][1]
-        self.ITALIC_I_THRESHOLD *= 0.9
+        self.ITALIC_I_THRESHOLD *= self.adaptive_ratio
         self.m_e_rs = self.confident_m_e_rs[(self.ka, self.kb)]
         return self.ka, self.kb
 
@@ -581,15 +540,14 @@ class OptimalKs(object):
     def _calc_and_update(self, point, old_desc_len=0.):
 
         if old_desc_len == 0.:
-            italic_i, m_e_rs, of_group = self._calc_with_hook(point[0], point[1])
+            italic_i, m_e_rs, mb = self._calc_with_hook(point[0], point[1])
         else:
-            italic_i, m_e_rs, of_group = self._calc_with_hook(point[0], point[1], old_desc_len=old_desc_len)
+            italic_i, m_e_rs, mb = self._calc_with_hook(point[0], point[1], old_desc_len=old_desc_len)
         candidate_desc_len = self._cal_desc_len(point[0], point[1], italic_i)
         self.confident_desc_len[point] = candidate_desc_len
-        self.confident_italic_I[point] = italic_i
+        self.confident_italic_i[point] = italic_i
         self.confident_m_e_rs[point] = m_e_rs
-        self.confident_of_group[point] = of_group
-        self._save_of_group_info(point[0], point[1])
+        self.trace_mb[point] = mb
         return candidate_desc_len, m_e_rs, italic_i
 
     def compute_and_update(self, ka, kb):

@@ -22,7 +22,7 @@ class MCMC(object):
 
         # for MCMC
         if not os.path.isfile(f_engine):
-            raise BaseException("Error: MCMC engine binary not found!")
+            raise BaseException("[ERROR] MCMC engine binary not found!")
 
         self.f_engine = f_engine
         self.mcmc_steps_ = int(mcmc_steps)
@@ -139,12 +139,12 @@ class MCMC(object):
 
     @staticmethod
     def _gen_init_n_blocks(na, nb, ka, kb):
-        num_nodes_A = np.arange(na)
-        n_blocks_A = map(len, np.array_split(num_nodes_A, ka))
-        num_nodes_B = np.arange(nb)
-        n_blocks_B = map(len, np.array_split(num_nodes_B, kb))
+        num_nodes_a = np.arange(na)
+        n_blocks_a = map(len, np.array_split(num_nodes_a, ka))
+        num_nodes_b = np.arange(nb)
+        n_blocks_b = map(len, np.array_split(num_nodes_b, kb))
 
-        n_blocks_ = " ".join(map(str, n_blocks_A)) + " " + " ".join(map(str, n_blocks_B))
+        n_blocks_ = " ".join(map(str, n_blocks_a)) + " " + " ".join(map(str, n_blocks_b))
 
         return n_blocks_
 

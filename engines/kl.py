@@ -5,6 +5,7 @@ import hashlib
 from collections import OrderedDict
 import random
 
+
 class KL(object):
     def __init__(self,
                  f_engine="",
@@ -23,11 +24,11 @@ class KL(object):
         self.KL_PARALLELIZATION = bool(kl_is_parallel)
 
         if self.KL_PARALLELIZATION:
-            raise NotImplementedError("KL calculation accross many cores is not supported.")
+            raise NotImplementedError("[ERROR] KL calculation accross many cores is not supported.")
 
         # for KL
         if not os.path.isfile(f_engine):
-            raise BaseException("Error: KL engine binary not found!")
+            raise BaseException("[ERROR] KL engine binary not found!")
 
         self.f_engine = f_engine
         self.kl_itertimes = int(kl_itertimes)
@@ -138,7 +139,7 @@ class KL(object):
             if not parallelization_:
                 out, err, p = run("")
                 if p.returncode == -11:  # when Exception raises from the KL code
-                    raise RuntimeError("Exception from C++ program during inference! -- " + action_str)
+                    raise RuntimeError("[ERROR] Exception from C++ program during inference! -- " + action_str)
                 elif p.returncode == 0:
                     num_sweep_ += 1
                     assert type(self._get_score_by_index(num_sweep_)) == float
@@ -221,12 +222,12 @@ class KL(object):
                     try:
                         g.write(str(int(edge[0]) + 1) + "\t" + str(int(edge[1]) + 1) + "\n")
                     except ValueError as e:
-                        raise ValueError("Please check if the delimiter for the edgelist file is wrong -- {}".format(e))
+                        raise ValueError("[ERROR] Please check if the delimiter for the edgelist file is wrong -- {}".format(e))
 
     @staticmethod
     def _save_types(f_types, na, nb):
-        assert na > 0, "Number of type-a nodes = 0, which is not allowed"
-        assert nb > 0, "Number of type-b nodes = 0, which is not allowed"
+        assert na > 0, "[ERROR] Number of type-a nodes = 0, which is not allowed"
+        assert nb > 0, "[ERROR] Number of type-b nodes = 0, which is not allowed"
         types = [1] * int(na) + [2] * int(nb)
         with open(f_types, "w") as f:
             for line in types:

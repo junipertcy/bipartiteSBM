@@ -38,9 +38,9 @@ Currently, only Python 2 is supported. But extension to Python 3 is in our TODO 
 
 If you are new to Python, we suggest you install [Anaconda](https://www.anaconda.com/download/). It will provide most scientific libraries that we need here.
 
-If you want to enable parallelization for the engine, please additionally install `pathos` via:
+If you want to enable parallelization for the engine, please additionally install `loky` via:
 ```bash
-pip install git+https://github.com/uqfoundation/pathos.git@master
+pip install loky
 ```
 We provide two reference engines to illustrate the applicability of our method. They have been added as submodules to this repository. To clone this project along with the submodules, do:
 ```bash
@@ -128,7 +128,7 @@ oks.confident_desc_len
 ```
 
 We have kept a book-keeping of other useful data, too. 
-They are `confident_italic_I`, `confident_m_e_rs`, `confident_of_group` and `confident_of_group_info`. 
+They are `confident_italic_i`, `confident_m_e_rs`, and `confident_mb`. 
 We will make a quick tutorial with them in a Jupyter Notebook soon later.
 
 

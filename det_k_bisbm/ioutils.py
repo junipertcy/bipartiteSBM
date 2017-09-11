@@ -54,3 +54,21 @@ def get_types(f_types):
             types.append(str(int(line.replace('\n', ""))))
     f.close()
     return types
+
+
+def save_mb_to_file(path, mb):
+    """Save the group membership list to a file path.
+
+    Parameters
+    ----------
+    path : str, required
+        File path for the list to save to.
+
+    mb : list[int], required
+        Group membership list.
+    """
+    assert type(mb) is list, "[ERROR] the type of the second input parameter should be a list"
+    num_nodes = len(mb)
+    with open(path, "w") as f:
+        for i in range(0, num_nodes):
+            f.write(str(mb[i]) + "\n")
