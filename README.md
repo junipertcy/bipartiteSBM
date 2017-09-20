@@ -1,6 +1,7 @@
 # det_k_bisbm
 [![Twitter: @oneofyen](https://img.shields.io/badge/contact-@oneofyen-blue.svg?style=flat)](https://twitter.com/oneofyen) 
 [![License](https://img.shields.io/badge/license-GPL-green.svg?style=flat)](https://github.com/junipertcy/det_k_bisbm/blob/master/LICENSE)
+[![Build Status](https://travis-ci.org/junipertcy/det_k_bisbm.svg?branch=master)](https://travis-ci.org/junipertcy/det_k_bisbm)
 
 Python implementation of a fast community number determination heuristic of the bipartite Stochastic Block Model (biSBM), 
 using the [MCMC sampler](https://github.com/junipertcy/bipartiteSBM-MCMC)
@@ -52,7 +53,7 @@ git submodule update
 ```
 Since both of the two modules are C++ subroutines for graph partitioning. To compile these C++ codes, please run the shell script:
 ```bash
-sh start.sh
+sh scripts/compile_engines.sh
 ```
 If you are good so far, then we are now ready!
 
@@ -100,9 +101,9 @@ We can then feed these three variables into the main class.
 oks = OptimalKs(mcmc, edgelist, types)
 ```
 Although there are default parametric values in the heuristic, we suggest you set new ones on your own. 
-Here, we set `init_ka=50`, `init_kb=50` and `i_th=0.1`.
+Here, we set `init_ka=10`, `init_kb=10` and `i_th=0.1`.
 ```python
-oks.set_params(init_ka=50, init_kb=50, i_th=0.1)
+oks.set_params(init_ka=10, init_kb=10, i_th=0.1)
 ```  
 We now start the heuristic search via,
 ```python

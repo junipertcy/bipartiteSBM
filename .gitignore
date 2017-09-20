@@ -13,6 +13,10 @@ engines/mcmc/src/cmake-build-debug/*
 engines/kl/output/*
 *.gt
 
+# misc
+*.pyc
+__pycache__
+
 # Created by https://www.gitignore.io/api/cmake,c++
 
 ### CMake ###

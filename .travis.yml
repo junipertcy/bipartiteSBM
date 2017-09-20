@@ -1,0 +1,33 @@
+sudo: false
+language: python
+python:
+  - "2.7"
+  - "3.6"
+os:
+  - osx
+  - linux
+cache:
+  directories:
+  - /home/travis/miniconda3
+  - /home/travis/.cache/pip
+env:
+  matrix:
+    - RUN_TESTS="true"
+notifications:
+  email: false
+addons:
+  apt:
+    sources:
+      - llvm-toolchain-precise
+      - ubuntu-toolchain-r-test
+      - boost-latest
+    packages:
+      - clang-3.7
+      - g++-5
+      - gcc-5
+      - libboost1.55-all-dev
+install:
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo unlink /usr/bin/g++; sudo ln -s /usr/bin/g++-5 /usr/bin/g++; fi
+  - source build_tools/travis/install.sh
+  - bash scripts/compile_engines.sh
+script: bash build_tools/travis/test_script.sh
