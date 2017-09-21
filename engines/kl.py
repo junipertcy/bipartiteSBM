@@ -64,7 +64,7 @@ class KL(object):
         except OSError:
             pass
         finally:
-            self.f_kl_output += "/" + hashlib.md5(str(random.random())).hexdigest()
+            self.f_kl_output += "/" + hashlib.md5(str(random.random()).encode()).hexdigest()
             try:
                 os.mkdir(self.f_kl_output)
             except OSError:
@@ -73,7 +73,7 @@ class KL(object):
                 os.mkdir(self.f_kl_output)
                 pass
 
-        filename = hashlib.md5(f_edgelist).hexdigest()
+        filename = hashlib.md5(f_edgelist.encode()).hexdigest()
         f_edgelist_1_indexed = self.f_kl_output + "/" + filename + "_1-indexed.edgelist"
         self._save_edgelist_as_1_indexed(f_edgelist, f_edgelist_1_indexed, delimiter)
 
@@ -149,9 +149,7 @@ class KL(object):
                 # However, in optimalks.py main code, we may calculate each single point in parallel, which
                 # might raise "AssertionError: daemonic processes are not allowed to have children"
                 # TODO: For now, parallel calculation for KL is disabled. (Fix it?)
-                self._par_run(run, num_cores_, range(num_sweeps_))
-                for i in range(num_sweeps_):
-                    kl_output[self._get_score_by_index(i + 1)] = self._get_of_group_by_index(i + 1)
+                raise NotImplementedError
 
         of_group = kl_output[max(kl_output)]
 
@@ -189,11 +187,6 @@ class KL(object):
         )
         return f
 
-    @staticmethod
-    def _par_run(run, num_cores, feeds):
-        from pathos.multiprocessing import ProcessingPool as Pool
-        return Pool(num_cores).map(run, list(feeds))
-
     def _open_biDCSBMcomms_file(self, num_sweep_):
         '''
             :return: file handle
@@ -222,7 +215,9 @@ class KL(object):
                     try:
                         g.write(str(int(edge[0]) + 1) + "\t" + str(int(edge[1]) + 1) + "\n")
                     except ValueError as e:
-                        raise ValueError("[ERROR] Please check if the delimiter for the edgelist file is wrong -- {}".format(e))
+                        raise ValueError(
+                            "[ERROR] Please check if the delimiter for the edgelist file is wrong -- {}".format(e)
+                        )
 
     @staticmethod
     def _save_types(f_types, na, nb):

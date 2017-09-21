@@ -91,6 +91,9 @@ class OptimalKs(object):
         self.debug_str = ""
         self.f_edgelist = "edgelist-" + str(random.random()) + ".tmp"
 
+        # initialize other class attributes
+        self.INIT_ITALIC_I = 0.
+
         pass
 
     def set_params(self, init_ka=10, init_kb=10, i_th=0.1):
@@ -112,7 +115,7 @@ class OptimalKs(object):
         m_e_r = np.sum(m_e_rs, axis=1)
         num_edges = m_e_r.sum() / 2.
         for ind, e_val in enumerate(np.nditer(m_e_rs)):
-            ind_i = int(round(ind / (m_e_rs.shape[0])))
+            ind_i = int(math.floor(ind / (m_e_rs.shape[0])))
             ind_j = ind % (m_e_rs.shape[0])
             if e_val != 0.0:
                 italic_i += e_val / 2. / num_edges * math.log(
@@ -130,8 +133,10 @@ class OptimalKs(object):
 
     @staticmethod
     def get_m_e_rs_from_mb(edgelist, mb):
-        assert type(edgelist) is list, "[ERROR] the type of the first input parameter should be a list"
-        assert type(mb) is list, "[ERROR] the type of the second input parameter should be a list"
+        assert type(edgelist) is list, \
+            "[ERROR] the type of the first input should be a list; however, it is {}".format(str(type(edgelist)))
+        assert type(mb) is list, \
+            "[ERROR] the type of the second input should be a list; however, it is {}".format(str(type(mb)))
         # construct e_rs matrix
         m_e_rs = np.zeros((max(mb) + 1, max(mb) + 1))
         for i in edgelist:
@@ -139,7 +144,7 @@ class OptimalKs(object):
             source_group = int(mb[int(i[0])])
             target_group = int(mb[int(i[1])])
             if source_group == target_group:
-                raise StandardError("[ERROR] This is not a bipartite network!")
+                raise ImportError("[ERROR] This is not a bipartite network!")
             m_e_rs[source_group][target_group] += 1
             m_e_rs[target_group][source_group] += 1
 
@@ -255,7 +260,7 @@ class OptimalKs(object):
         assert np.all(c.transpose() == c), "Error: output m_e_rs matrix is not symmetric!"
         return new_ka, new_kb, c, merge_list
 
-    def _calc_with_hook(self, ka, kb, **kwargs):
+    def _calc_with_hook(self, ka, kb, old_desc_len=None):
         """
         Execute the partitioning code by spawning child processes in the shell; save its output afterwards.
 
@@ -302,15 +307,16 @@ class OptimalKs(object):
         # choose the maximum likelihood result.
         # In other words, we choose the state with minimum entropy.
         results = []
-        try:
-            old_desc_len = float(kwargs["old_desc_len"])
-        except KeyError as _:
+        if old_desc_len is None:
             if self.PARALLELIZATION:
                 # automatically shutdown after idling for 2s
-                results = list(self.executor(self.NUM_CORES, 2, lambda x: run(ka, kb), range(self.MAX_NUM_SWEEPS)))
+                results = list(
+                    self.executor(self.NUM_CORES, 2, lambda x: run(ka, kb), list(range(self.MAX_NUM_SWEEPS)))
+                )
             else:
                 results = [run(ka, kb)]
-        else:  # TODO: better way of writing?
+        else:
+            old_desc_len = float(old_desc_len)
             if not self.PARALLELIZATION:
                 # if old_desc_len is passed
                 # we compare the new_desc_len with the old one
@@ -328,7 +334,9 @@ class OptimalKs(object):
                     else:
                         calculate_times += 1
             else:
-                results = list(self.executor(self.NUM_CORES, 2, lambda x: run(ka, kb), range(self.MAX_NUM_SWEEPS)))
+                results = list(
+                    self.executor(self.NUM_CORES, 2, lambda x: run(ka, kb), list(range(self.MAX_NUM_SWEEPS)))
+                )
 
         result = min(results, key=lambda x: x[2])
         mb = result[3]
@@ -339,7 +347,7 @@ class OptimalKs(object):
 
     @staticmethod
     def executor(max_workers, timeout, func, feeds):
-        assert type(feeds) is list, "[ERROR] feeds should be a Python list"
+        assert type(feeds) is list, "[ERROR] feeds should be a Python list; here it is {}".format(str(type(feeds)))
         executor = get_reusable_executor(max_workers=int(max_workers), timeout=int(timeout))
         results = executor.map(func, feeds)
 
@@ -374,9 +382,7 @@ class OptimalKs(object):
             the two row-indexes of the original affinity matrix that were finally chosen (and merged)
 
         """
-        try:
-            self.INIT_ITALIC_I
-        except AttributeError as _:
+        if self.INIT_ITALIC_I == 0:
             # This is an important step, where we
             # (1) Calculate the heavy biSBM at init (ka, kb)
             # (2) Initiate important variables for logging and drawing
@@ -409,7 +415,6 @@ class OptimalKs(object):
             str(int(_m_e_rs.sum())), str(self.NUM_EDGES * 2)
         )
 
-        # print("After reducing the matrix via merging we reached (ka, kb) = (%s, %s)", str(__ka), str(__kb))
         return _ka, _kb, _m_e_rs, _diff_italic_i, _mlist
 
     def iterator(self):
@@ -423,10 +428,6 @@ class OptimalKs(object):
             old_kb_moving = kb_moving
 
             ka_moving, kb_moving, t_m_e_rs, diff_italic_i, mlist = self._moving_one_step_down(ka_moving, kb_moving)
-            print(
-                "Now trying (Ka, Kb) = ({}, {}) from (Ka, Kb) = ({}, {}) ...".format(
-                    ka_moving, kb_moving, old_ka_moving, old_kb_moving
-            ))
             if abs(diff_italic_i) > self.ITALIC_I_THRESHOLD * self.INIT_ITALIC_I:
                 old_desc_len, _, _ = self._calc_and_update((old_ka_moving, old_kb_moving))
                 if any(i < old_desc_len for i in self.confident_desc_len.values()):
@@ -452,7 +453,7 @@ class OptimalKs(object):
                             if candidate_desc_len > old_desc_len:  # candidate move is not a good choice
                                 # Before we conclude anything,
                                 # we check all the other points near here.
-                                print("check all the other points near here")
+                                print("check all the adjacent points near here")
                                 items = map(lambda x: (
                                     x[0] + old_ka_moving,
                                     x[1] + old_kb_moving
@@ -538,9 +539,9 @@ class OptimalKs(object):
         return
 
     def _calc_and_update(self, point, old_desc_len=0.):
-
+        print("Now computing graph partition at ({}, {})".format(point[0], point[1]) + " ...")
         if old_desc_len == 0.:
-            italic_i, m_e_rs, mb = self._calc_with_hook(point[0], point[1])
+            italic_i, m_e_rs, mb = self._calc_with_hook(point[0], point[1], old_desc_len=None)
         else:
             italic_i, m_e_rs, mb = self._calc_with_hook(point[0], point[1], old_desc_len=old_desc_len)
         candidate_desc_len = self._cal_desc_len(point[0], point[1], italic_i)
@@ -548,6 +549,7 @@ class OptimalKs(object):
         self.confident_italic_i[point] = italic_i
         self.confident_m_e_rs[point] = m_e_rs
         self.trace_mb[point] = mb
+        print("... DONE.")
         return candidate_desc_len, m_e_rs, italic_i
 
     def compute_and_update(self, ka, kb):

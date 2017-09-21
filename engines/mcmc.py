@@ -132,8 +132,8 @@ class MCMC(object):
                 raise RuntimeError("Exception from C++ program during inference! -- " + action_str)
             elif p.returncode == 0:
                 num_sweep_ += 1
-                of_group = out.replace(' \n', '').split(' ')  # Note the space before the line break
-                of_group = map(int, of_group)
+                of_group = out.replace(b' \n', b'').split(b' ')  # Note the space before the line break
+                of_group = list(map(int, of_group))
 
         return of_group
 

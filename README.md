@@ -21,7 +21,7 @@ numbers of communities in the biSBM that best compresses the model and data. Sev
 If you want to sample the whole marginal distribution of the number of communities, rather than a point estimate,
 please check the companion [Markov Chain Monte Carlo](https://github.com/junipertcy/bipartiteSBM-MCMC) program.
 
-Currently, only Python 2 is supported. But extension to Python 3 is in our TODO list.
+Both Python 2.7 and 3.6 are supported and tested.
 
 ## Table of content
 
@@ -94,7 +94,7 @@ Here, we have the number of type-1 nodes as `n1=18`, while number of type-2 node
 Once we specified the engine that we liked, it's time to prepare the dataset.
 ```python
 edgelist = get_edgelist("dataset/southernWomen.edgelist", "\t")
-types= get_types("dataset/southernWomen.types")
+types = get_types("dataset/southernWomen.types")
 ```
 We can then feed these three variables into the main class.
 ```python
@@ -165,7 +165,7 @@ kl.prepare_engine("dataset/bisbm-n_1000-ka_4-kb_6-r-1.0-Ka_30-Ir_1.75.gt.edgelis
 The remaining codes are similar.
 ```python
 edgelist = get_edgelist("dataset/bisbm-n_1000-ka_4-kb_6-r-1.0-Ka_30-Ir_1.75.gt.edgelist", "\t")
-types= kl.gen_types(500, 500)
+types = kl.gen_types(500, 500)
 
 oks = OptimalKs(kl, edgelist, types)
 oks.set_params(init_ka=10, init_kb=10, i_th=0.1)
