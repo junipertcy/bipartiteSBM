@@ -6,3 +6,5 @@ pip install -r requirements.txt
 if [[ "$INSTALL_TEST_REQUIREMENTS" == "true" ]]; then
     pip install -r requirements_test.txt
 fi
+
+pip list

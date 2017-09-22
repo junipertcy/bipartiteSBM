@@ -11,7 +11,7 @@ set -e
 python --version
 
 run_tests() {
-    pytest -v --durations=20
+    pytest -v --durations=0
 }
 
 if [[ "$RUN_TESTS" == "true" ]]; then

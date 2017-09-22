@@ -1,16 +1,7 @@
 #!/bin/bash
-set -e
-
-echo 'List files from cached directories'
-echo 'pip:'
-ls $HOME/.cache/pip
-
-# Deactivate the travis-provided virtual environment and setup a
-# conda-based environment instead
-deactivate
 
 # Add the miniconda bin directory to $PATH
-export PATH=/home/travis/miniconda3/bin:$PATH
+export PATH=$HOME/miniconda3/bin:$PATH
 echo $PATH
 
 # Use the miniconda installer for setup of conda itself
@@ -18,25 +9,25 @@ pushd .
 cd
 mkdir -p download
 cd download
-if [[ ! -f /home/travis/miniconda3/bin/activate ]]
+if [[ ! -f $HOME/miniconda3/bin/activate ]]
     then
     if [[ ! -f miniconda.sh ]]
         then
-            wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh \
-                -O miniconda.sh
+        if [[ "$TRAVIS_OS_NAME" == "linux" ]]
+        then
+            wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
+        elif [[ "$TRAVIS_OS_NAME" == "osx" ]]
+        then
+            wget http://repo.continuum.io/miniconda/Miniconda3-latest-MacOSX-x86_64.sh -O miniconda.sh
+        fi
     fi
     chmod +x miniconda.sh && ./miniconda.sh -b -f
     conda update --yes conda
-    conda create -n testenv --yes python=3.6
+    conda create -n testenv3 --yes python=3.6
+    conda create -n testenv2 --yes python=2.7
 fi
 cd ..
 popd
 
-# Activate the python environment we created.
-source activate testenv
-
-# Install requirements via pip and download data inside our conda environment.
-INSTALL_TEST_REQUIREMENTS="true" bash scripts/install_requirements.sh
-
-# List the packages to get their versions for debugging
-pip list
+export INSTALL_TEST_REQUIREMENTS="true"
+echo $INSTALL_TEST_REQUIREMENTS

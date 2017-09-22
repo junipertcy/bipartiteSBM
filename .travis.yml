@@ -1,18 +1,25 @@
-sudo: false
 language: python
-python:
-  - "2.7"
-  - "3.6"
-os:
-  - osx
-  - linux
+matrix:
+  include:
+    - os: linux
+      env: RUN_TESTS="true" WITH_PYTHON="3.6"
+    - os: linux
+      env: RUN_TESTS="true" WITH_PYTHON="2.7"
+    - os: osx
+      sudo: required
+      language: generic
+      env: RUN_TESTS="true" WITH_PYTHON="3.6"
+    - os: osx
+      sudo: required
+      language: generic
+      env: RUN_TESTS="true" WITH_PYTHON="2.7"
+before_cache:
+  - rm -f /home/travis/.cache/pip/log/debug.log
 cache:
+  apt: true
   directories:
   - /home/travis/miniconda3
   - /home/travis/.cache/pip
-env:
-  matrix:
-    - RUN_TESTS="true"
 notifications:
   email: false
 addons:
@@ -26,8 +33,11 @@ addons:
       - g++-5
       - gcc-5
       - libboost1.55-all-dev
-install:
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo unlink /usr/bin/g++; sudo ln -s /usr/bin/g++-5 /usr/bin/g++; fi
+before_install:
   - source build_tools/travis/install.sh
+  - if [[ "$WITH_PYTHON" == "3.6" ]]; then source activate testenv3; elif [[ "$WITH_PYTHON" == "2.7" ]]; then source activate testenv2; fi
+install: bash scripts/install_requirements.sh
+before_script:
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo unlink /usr/bin/g++; sudo ln -s /usr/bin/g++-5 /usr/bin/g++; fi
   - bash scripts/compile_engines.sh
 script: bash build_tools/travis/test_script.sh
