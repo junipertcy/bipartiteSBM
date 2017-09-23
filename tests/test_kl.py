@@ -9,7 +9,8 @@ kl = KL(f_engine="engines/bipartiteSBM-KL/biSBM",
         is_parallel=True,
         n_cores=1,
         kl_edgelist_delimiter="\t",
-        kl_itertimes=5,
+        kl_steps=5,
+        kl_itertimes=1,
         f_kl_output="engines/bipartiteSBM-KL/f_kl_output"
     )
 

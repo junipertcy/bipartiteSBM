@@ -13,7 +13,8 @@ class KL(object):
                  is_parallel=True,
                  n_cores=4,
                  kl_edgelist_delimiter="\t",
-                 kl_itertimes=10,
+                 kl_steps=5,
+                 kl_itertimes=1,
                  f_kl_output="",
                  kl_verbose=True,
                  kl_is_parallel=False):
@@ -23,6 +24,10 @@ class KL(object):
         self.NUM_CORES = int(n_cores)
         self.KL_PARALLELIZATION = bool(kl_is_parallel)
 
+        # <kl_itertimes> is the number of KL sweeps (<kl_steps> per sweep) performed before returning the optimal result
+        # during each engine run (Note that there are <n_sweeps> engines running in parallel via loky)
+        self.MAX_KL_NUM_SWEEPS = int(kl_itertimes)
+
         if self.KL_PARALLELIZATION:
             raise NotImplementedError("[ERROR] KL calculation accross many cores is not supported.")
 
@@ -31,7 +36,7 @@ class KL(object):
             raise BaseException("[ERROR] KL engine binary not found!")
 
         self.f_engine = f_engine
-        self.kl_itertimes = int(kl_itertimes)
+        self.kl_steps = int(kl_steps)
 
         self.f_kl_output = str(f_kl_output)
         self.kl_verbose = bool(kl_verbose)
@@ -88,7 +93,7 @@ class KL(object):
             str(ka),
             str(kb),
             '1',  # degree-corrected
-            str(self.kl_itertimes)
+            str(self.kl_steps)
         ]
 
         action_str = ' '.join(action_list)
@@ -113,7 +118,7 @@ class KL(object):
         """
         action_str = self.prepare_engine(f_edgelist, na, nb, ka, kb)
 
-        num_sweeps_ = self.MAX_NUM_SWEEPS
+        num_sweeps_ = self.MAX_KL_NUM_SWEEPS
         verbose_ = self.kl_verbose
         parallelization_ = self.KL_PARALLELIZATION
         num_cores_ = self.NUM_CORES
