@@ -16,6 +16,7 @@ engines/kl/output/*
 # misc
 *.pyc
 __pycache__
+.ipynb_checkpoints/*
 
 # Created by https://www.gitignore.io/api/cmake,c++
 

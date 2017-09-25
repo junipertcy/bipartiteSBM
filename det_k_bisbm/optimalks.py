@@ -63,7 +63,7 @@ class OptimalKs(object):
         for _type in types:
             if _type in ["1", 1]:
                 self.NUM_NODES_A += 1
-            elif _type in ["2",  2]:
+            elif _type in ["2", 2]:
                 self.NUM_NODES_B += 1
 
         assert self.NUM_NODES_A > 0, "[ERROR] Number of type-a nodes = 0, which is not allowed"
@@ -93,7 +93,7 @@ class OptimalKs(object):
 
         # initialize other class attributes
         self.INIT_ITALIC_I = 0.
-
+        self.exist_bookkeeping = True
         pass
 
     def set_params(self, init_ka=10, init_kb=10, i_th=0.1):
@@ -101,6 +101,14 @@ class OptimalKs(object):
         self.ka = int(init_ka)
         self.kb = int(init_kb)
         self.ITALIC_I_THRESHOLD = float(i_th)
+
+    def set_adaptive_ratio(self, adaptive_ratio):
+        self.adaptive_ratio = float(adaptive_ratio)
+
+    def set_exist_bookkeeping(self, exist_bookkeeping):
+        self.exist_bookkeeping = bool(exist_bookkeeping)
+        if not exist_bookkeeping:
+            print("[WARNING] Setting <exist_bookkeeping> to false makes bad performance.")
 
     def clean(self):
         self.confident_desc_len = OrderedDict()
@@ -125,8 +133,8 @@ class OptimalKs(object):
 
     def _cal_desc_len(self, ka, kb, italic_i):
         desc_len_b = (
-            self.NUM_NODES_A * math.log(ka) + self.NUM_NODES_B * math.log(kb) - self.NUM_EDGES * italic_i
-        ) / self.NUM_EDGES
+                         self.NUM_NODES_A * math.log(ka) + self.NUM_NODES_B * math.log(kb) - self.NUM_EDGES * italic_i
+                     ) / self.NUM_EDGES
         x = float(ka * kb) / self.NUM_EDGES
         desc_len_b += (1 + x) * math.log(1 + x) - x * math.log(x)
         return desc_len_b
@@ -182,13 +190,21 @@ class OptimalKs(object):
         """
         assert type(m_e_rs) is np.ndarray, "[ERROR] input parameter (m_e_rs) should be of type numpy.ndarray"
         assert np.all(m_e_rs.transpose() == m_e_rs), "[ERROR] input m_e_rs matrix is not symmetric!"
-        from_row = random.sample([0] * ka + [ka] * kb, 1)[0]
-        a = m_e_rs[0:ka, ka:ka+kb]
 
-        merge_list = list([0, 0])    # which two mb label should be merged together?
+        from_row = random.sample([0] * ka + [ka] * kb, 1)[0]
+        a = m_e_rs[0:ka, ka:ka + kb]
+
+        merge_list = list([0, 0])  # which two mb label should be merged together?
         mb_map = OrderedDict()
         new_ka = 0
         new_kb = 0
+
+        if ka == 1:
+            # do not merge type-a rows (this happens when <i_th> is set too high)
+            from_row = ka
+        elif kb == 1:
+            from_row = 0
+
         if from_row == 0:
             perm = np.arange(a.shape[0])
             np.random.shuffle(perm)
@@ -290,10 +306,11 @@ class OptimalKs(object):
         except KeyError as _:
             pass
         else:
-            italic_i = self.confident_italic_i[(ka, kb)]
-            m_e_rs = self.confident_m_e_rs[(ka, kb)]
-            mb = self.trace_mb[(ka, kb)]
-            return italic_i, m_e_rs, mb
+            if self.confident_desc_len[(ka, kb)] != 0:
+                italic_i = self.confident_italic_i[(ka, kb)]
+                m_e_rs = self.confident_m_e_rs[(ka, kb)]
+                mb = self.trace_mb[(ka, kb)]
+                return italic_i, m_e_rs, mb
 
         def run(ka, kb):
             mb = self._engine(self.f_edgelist, self.NUM_NODES_A, self.NUM_NODES_B, ka, kb)
@@ -430,7 +447,7 @@ class OptimalKs(object):
             ka_moving, kb_moving, t_m_e_rs, diff_italic_i, mlist = self._moving_one_step_down(ka_moving, kb_moving)
             if abs(diff_italic_i) > self.ITALIC_I_THRESHOLD * self.INIT_ITALIC_I:
                 old_desc_len, _, _ = self._calc_and_update((old_ka_moving, old_kb_moving))
-                if any(i < old_desc_len for i in self.confident_desc_len.values()):
+                if self._bookkeeping_condition(old_desc_len):
                     ka_moving, kb_moving = self._back_to_where_desc_len_is_lowest(diff_italic_i)
                 else:
                     candidate_desc_len, _, _ = self._calc_and_update((ka_moving, kb_moving), old_desc_len)
@@ -453,7 +470,9 @@ class OptimalKs(object):
                             if candidate_desc_len > old_desc_len:  # candidate move is not a good choice
                                 # Before we conclude anything,
                                 # we check all the other points near here.
-                                print("check all the adjacent points near here")
+                                print("[INFO] check all the adjacent points near ({}, {})".format(
+                                    old_ka_moving, old_kb_moving)
+                                )
                                 items = map(lambda x: (
                                     x[0] + old_ka_moving,
                                     x[1] + old_kb_moving
@@ -462,8 +481,11 @@ class OptimalKs(object):
                                 for item in items:
                                     self._calc_and_update(item, old_desc_len)
 
-                                if any(i < old_desc_len for i in self.confident_desc_len.values()):
-                                    print("New suspected point found....")
+                                if self._bookkeeping_condition(old_desc_len):
+                                    p_estimate = sorted(self.confident_desc_len, key=self.confident_desc_len.get)[0]
+                                    print("[INFO] Found ({}, {}) that gives a even lower description length ...".format(
+                                            p_estimate[0], p_estimate[1])
+                                    )
                                     self._back_to_where_desc_len_is_lowest(diff_italic_i)
                                 else:
                                     # clean up
@@ -472,7 +494,7 @@ class OptimalKs(object):
                                         os.remove("edgelist-*.tmp")
                                     finally:
                                         p_estimate = sorted(self.confident_desc_len, key=self.confident_desc_len.get)[0]
-                                        print("DONE: the MDL point is ({},{})".format(
+                                        print("[INFO] DONE: the MDL point is ({},{})".format(
                                             p_estimate[0], p_estimate[1]
                                         ))
                                         return self.confident_desc_len
@@ -502,20 +524,35 @@ class OptimalKs(object):
 
                 self.trace_mb[(ka_moving, kb_moving)] = new_of_g
                 self._update_current_state((ka_moving, kb_moving), t_m_e_rs)
-
             # for drawing...
             self._iter_calc_hook(diff_italic_i)
 
         # clean up
+        if self.ka == 1 and self.kb == 1:
+            # if we reached (1, 1), check that it's the local optimal point, then we could return (1, 1).
+            points_to_compute = [(1, 1), (1, 2), (2, 1), (2, 2)]
+            for point in points_to_compute:
+                self.compute_and_update(point[0], point[1], recompute=True)
+            p_estimate = sorted(self.confident_desc_len, key=self.confident_desc_len.get)[0]
+            if p_estimate != (1, 1):
+                raise UserWarning(
+                    "[WARNING] merging reached (1, 1); cannot go any further, please set a smaller <i_th>."
+                )
         try:
             os.remove(self.f_edgelist)
             os.remove("edgelist-*.tmp")
         finally:
             p_estimate = sorted(self.confident_desc_len, key=self.confident_desc_len.get)[0]
-            print("DONE: the MDL point is ({},{})".format(
+            print("[INFO] DONE: the MDL point is ({},{})".format(
                 p_estimate[0], p_estimate[1]
             ))
             return self.confident_desc_len
+
+    def _bookkeeping_condition(self, old_desc_len):
+        if self.exist_bookkeeping:
+            return any(i < old_desc_len for i in self.confident_desc_len.values())
+        else:
+            return False
 
     def _back_to_where_desc_len_is_lowest(self, diff_italic_i):
         self._iter_calc_hook(diff_italic_i)
@@ -539,7 +576,7 @@ class OptimalKs(object):
         return
 
     def _calc_and_update(self, point, old_desc_len=0.):
-        print("Now computing graph partition at ({}, {})".format(point[0], point[1]) + " ...")
+        print("[INFO] Now computing graph partition at ({}, {})".format(point[0], point[1]) + " ...")
         if old_desc_len == 0.:
             italic_i, m_e_rs, mb = self._calc_with_hook(point[0], point[1], old_desc_len=None)
         else:
@@ -552,10 +589,12 @@ class OptimalKs(object):
         print("... DONE.")
         return candidate_desc_len, m_e_rs, italic_i
 
-    def compute_and_update(self, ka, kb):
+    def compute_and_update(self, ka, kb, recompute=False):
         with open(self.f_edgelist, "w") as f:
             for edge in self.edgelist:
                 f.write(str(edge[0]) + "\t" + edge[1] + "\n")
+        if recompute:
+            self.confident_desc_len[(ka, kb)] = 0
         self._calc_and_update((ka, kb))
         try:
             os.remove(self.f_edgelist)
