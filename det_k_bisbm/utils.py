@@ -50,14 +50,15 @@ def get_desc_len_from_data(na, nb, n_edges, ka, kb, edgelist, mb):
     m_e_r = np.sum(m_e_rs, axis=1)
     num_edges = m_e_r.sum() / 2.
     for ind, e_val in enumerate(np.nditer(m_e_rs)):
-        ind_i = int(round(ind / (m_e_rs.shape[0])))
+        ind_i = int(math.floor(ind / (m_e_rs.shape[0])))
         ind_j = ind % (m_e_rs.shape[0])
         if e_val != 0.0:
             italic_i += e_val / 2. / num_edges * math.log(
                 e_val / m_e_r[ind_i] / m_e_r[ind_j] * 2 * num_edges
             )
-    assert m_e_rs.shape[0] == m_e_rs.shape[0] and m_e_rs.shape[0] == ka + kb, \
-        "[ERROR] m_e_rs dimension and ka, kb do not match!"
+    assert m_e_rs.shape[0] == ka + kb, "[ERROR] m_e_rs dimension (={}) is not equal to ka (={}) + kb (={})!".format(
+        m_e_rs.shape[0], ka, kb
+    )
 
     # finally, we compute the description length
     desc_len_b = (na * math.log(ka) + nb * math.log(kb) - n_edges * italic_i) / n_edges

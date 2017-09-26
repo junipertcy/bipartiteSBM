@@ -101,6 +101,7 @@ class OptimalKs(object):
         self.ka = int(init_ka)
         self.kb = int(init_kb)
         self.ITALIC_I_THRESHOLD = float(i_th)
+        self.INIT_ITALIC_I = 0.
 
     def set_adaptive_ratio(self, adaptive_ratio):
         self.adaptive_ratio = float(adaptive_ratio)
@@ -517,11 +518,12 @@ class OptimalKs(object):
                 for _node_id, _g in enumerate(old_of_g):
                     if _g == mlist[1]:
                         new_of_g[_node_id] = mlist[0]
-                    elif _g <= mlist[0]:
+                    elif _g < mlist[1]:
                         new_of_g[_node_id] = _g
                     else:
                         new_of_g[_node_id] = _g - 1
-
+                assert max(new_of_g) + 1 == ka_moving + kb_moving, \
+                    "[ERROR] inconsistency between the membership indexes and the number of blocks."
                 self.trace_mb[(ka_moving, kb_moving)] = new_of_g
                 self._update_current_state((ka_moving, kb_moving), t_m_e_rs)
             # for drawing...
@@ -585,6 +587,8 @@ class OptimalKs(object):
         self.confident_desc_len[point] = candidate_desc_len
         self.confident_italic_i[point] = italic_i
         self.confident_m_e_rs[point] = m_e_rs
+        assert max(mb) + 1 == point[0] + point[1], \
+            "[ERROR] inconsistency between the membership indexes and the number of blocks."
         self.trace_mb[point] = mb
         print("... DONE.")
         return candidate_desc_len, m_e_rs, italic_i
