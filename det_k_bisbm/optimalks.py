@@ -1,6 +1,7 @@
 import os
 import math
 import random
+import logging
 import numpy as np
 from collections import OrderedDict
 from loky import get_reusable_executor
@@ -43,7 +44,8 @@ class OptimalKs(object):
                  types,
                  init_ka=10,
                  init_kb=10,
-                 i_th=0.1):
+                 i_th=0.1,
+                 logging_level="info"):
 
         self._engine = engine.engine  # TODO: check that engine is an object
         self.MAX_NUM_SWEEPS = engine.MAX_NUM_SWEEPS
@@ -94,7 +96,23 @@ class OptimalKs(object):
         # initialize other class attributes
         self.INIT_ITALIC_I = 0.
         self.exist_bookkeeping = True
+
+        # logging
+        self._logger = logging.Logger
+        self.set_logging_level(logging_level)
         pass
+
+    def set_logging_level(self, level):
+        _level = 0
+        if level.upper() == "INFO":
+            _level = logging.INFO
+        elif level.upper() == "WARNING":
+            _level = logging.WARNING
+        logging.basicConfig(
+            level=_level,
+            format="%(asctime)s:%(levelname)s:%(message)s"
+        )
+        self._logger = logging.getLogger(__name__)
 
     def set_params(self, init_ka=10, init_kb=10, i_th=0.1):
         # params for the heuristic
@@ -109,7 +127,7 @@ class OptimalKs(object):
     def set_exist_bookkeeping(self, exist_bookkeeping):
         self.exist_bookkeeping = bool(exist_bookkeeping)
         if not exist_bookkeeping:
-            print("[WARNING] Setting <exist_bookkeeping> to false makes bad performance.")
+            self._logger.warning("Setting <exist_bookkeeping> to false makes bad performance.")
 
     def clean(self):
         self.confident_desc_len = OrderedDict()
@@ -311,6 +329,7 @@ class OptimalKs(object):
                 italic_i = self.confident_italic_i[(ka, kb)]
                 m_e_rs = self.confident_m_e_rs[(ka, kb)]
                 mb = self.trace_mb[(ka, kb)]
+                self._logger.info("... fetch calculated data ...")
                 return italic_i, m_e_rs, mb
 
         def run(ka, kb):
@@ -471,9 +490,8 @@ class OptimalKs(object):
                             if candidate_desc_len > old_desc_len:  # candidate move is not a good choice
                                 # Before we conclude anything,
                                 # we check all the other points near here.
-                                print("[INFO] check all the adjacent points near ({}, {})".format(
-                                    old_ka_moving, old_kb_moving)
-                                )
+                                self._logger.info("check all the adjacent points near ({}, {})".format(
+                                    old_ka_moving, old_kb_moving))
                                 items = map(lambda x: (
                                     x[0] + old_ka_moving,
                                     x[1] + old_kb_moving
@@ -484,7 +502,8 @@ class OptimalKs(object):
 
                                 if self._bookkeeping_condition(old_desc_len):
                                     p_estimate = sorted(self.confident_desc_len, key=self.confident_desc_len.get)[0]
-                                    print("[INFO] Found ({}, {}) that gives a even lower description length ...".format(
+                                    self._logger.info(
+                                        "Found ({}, {}) that gives a even lower description length ...".format(
                                             p_estimate[0], p_estimate[1])
                                     )
                                     self._back_to_where_desc_len_is_lowest(diff_italic_i)
@@ -495,7 +514,7 @@ class OptimalKs(object):
                                         os.remove("edgelist-*.tmp")
                                     finally:
                                         p_estimate = sorted(self.confident_desc_len, key=self.confident_desc_len.get)[0]
-                                        print("[INFO] DONE: the MDL point is ({},{})".format(
+                                        self._logger.info("DONE: the MDL point is ({},{})".format(
                                             p_estimate[0], p_estimate[1]
                                         ))
                                         return self.confident_desc_len
@@ -545,7 +564,7 @@ class OptimalKs(object):
             os.remove("edgelist-*.tmp")
         finally:
             p_estimate = sorted(self.confident_desc_len, key=self.confident_desc_len.get)[0]
-            print("[INFO] DONE: the MDL point is ({},{})".format(
+            self._logger.info("DONE: the MDL point is ({},{})".format(
                 p_estimate[0], p_estimate[1]
             ))
             return self.confident_desc_len
@@ -578,7 +597,7 @@ class OptimalKs(object):
         return
 
     def _calc_and_update(self, point, old_desc_len=0.):
-        print("[INFO] Now computing graph partition at ({}, {})".format(point[0], point[1]) + " ...")
+        self._logger.info("Now computing graph partition at ({}, {})".format(point[0], point[1]) + " ...")
         if old_desc_len == 0.:
             italic_i, m_e_rs, mb = self._calc_with_hook(point[0], point[1], old_desc_len=None)
         else:
@@ -590,7 +609,7 @@ class OptimalKs(object):
         assert max(mb) + 1 == point[0] + point[1], \
             "[ERROR] inconsistency between the membership indexes and the number of blocks."
         self.trace_mb[point] = mb
-        print("... DONE.")
+        self._logger.info("... DONE.")
         return candidate_desc_len, m_e_rs, italic_i
 
     def compute_and_update(self, ka, kb, recompute=False):
