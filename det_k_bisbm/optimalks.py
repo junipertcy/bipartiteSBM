@@ -490,8 +490,9 @@ class OptimalKs(object):
                             if candidate_desc_len > old_desc_len:  # candidate move is not a good choice
                                 # Before we conclude anything,
                                 # we check all the other points near here.
-                                self._logger.info("check all the adjacent points near ({}, {})".format(
-                                    old_ka_moving, old_kb_moving))
+                                self._logger.info(
+                                    "check all the adjacent points near ({}, {})".format(old_ka_moving, old_kb_moving)
+                                )
                                 items = map(lambda x: (
                                     x[0] + old_ka_moving,
                                     x[1] + old_kb_moving
@@ -504,9 +505,10 @@ class OptimalKs(object):
                                     p_estimate = sorted(self.confident_desc_len, key=self.confident_desc_len.get)[0]
                                     self._logger.info(
                                         "Found ({}, {}) that gives a even lower description length ...".format(
-                                            p_estimate[0], p_estimate[1])
+                                            p_estimate[0], p_estimate[1]
+                                        )
                                     )
-                                    self._back_to_where_desc_len_is_lowest(diff_italic_i)
+                                    ka_moving, kb_moving = self._back_to_where_desc_len_is_lowest(diff_italic_i)
                                 else:
                                     # clean up
                                     try:
@@ -514,9 +516,9 @@ class OptimalKs(object):
                                         os.remove("edgelist-*.tmp")
                                     finally:
                                         p_estimate = sorted(self.confident_desc_len, key=self.confident_desc_len.get)[0]
-                                        self._logger.info("DONE: the MDL point is ({},{})".format(
-                                            p_estimate[0], p_estimate[1]
-                                        ))
+                                        self._logger.info(
+                                            "DONE: the MDL point is ({},{})".format(p_estimate[0], p_estimate[1])
+                                        )
                                         return self.confident_desc_len
                             else:
                                 # continue moving with the
@@ -564,9 +566,9 @@ class OptimalKs(object):
             os.remove("edgelist-*.tmp")
         finally:
             p_estimate = sorted(self.confident_desc_len, key=self.confident_desc_len.get)[0]
-            self._logger.info("DONE: the MDL point is ({},{})".format(
-                p_estimate[0], p_estimate[1]
-            ))
+            self._logger.info(
+                "DONE: the MDL point is ({},{})".format(p_estimate[0], p_estimate[1])
+            )
             return self.confident_desc_len
 
     def _bookkeeping_condition(self, old_desc_len):

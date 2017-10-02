@@ -25,13 +25,13 @@ Both Python 2.7 and 3.6 are supported and tested.
 
 ## Table of content
 
-1. [Usage](#usage)
-    1. [Installation](#installation)
-    2. [Example MCMC inference](#example-mcmc)
-    3. [Example Kerininghan-Lin inference](#example-kl)
-2. [Dataset](#dataset)
-2. [Versions](#versions)  
-3. [Companion article](#companion-article)
+- [Usage](#usage)
+    - [Installation](#installation)
+    - [Example MCMC inference](#example-mcmc)
+    - [Example Kerininghan-Lin inference](#example-kl)
+- [Dataset](#dataset)
+- [Versions](#versions)  
+- [Companion article](#companion-article)
 
 ## Usage
 
