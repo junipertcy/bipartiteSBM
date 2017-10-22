@@ -1,8 +1,6 @@
 """ utilities """
 import numpy as np
 import math
-import logging
-import inspect
 
 
 def gen_equal_partition(n, total):
@@ -68,3 +66,42 @@ def get_desc_len_from_data(na, nb, n_edges, ka, kb, edgelist, mb):
     desc_len_b += (1 + x) * math.log(1 + x) - x * math.log(x)
 
     return desc_len_b
+
+
+def get_desc_len_from_data_uni(n, n_edges, k, edgelist, mb):
+    '''
+        via PRL 110, 148701 (2013).
+    '''
+    assert type(edgelist) is list, "[ERROR] the type of the input parameter (edgelist) should be a list"
+    assert type(mb) is list, "[ERROR] the type of the input parameter (mb) should be a list"
+    # First, let's compute the m_e_rs from the edgelist and mb
+    m_e_rs = np.zeros((max(mb) + 1, max(mb) + 1))
+    for i in edgelist:
+        # Please do check the index convention of the edgelist
+        source_group = int(mb[int(i[0])])
+        target_group = int(mb[int(i[1])])
+        m_e_rs[source_group][target_group] += 1
+        m_e_rs[target_group][source_group] += 1
+
+    # then, we compute the profile likelihood from the m_e_rs
+    italic_i = 0.
+    m_e_r = np.sum(m_e_rs, axis=1)
+    num_edges = m_e_r.sum() / 2.
+    for ind, e_val in enumerate(np.nditer(m_e_rs)):
+        ind_i = int(math.floor(ind / (m_e_rs.shape[0])))
+        ind_j = ind % (m_e_rs.shape[0])
+        if e_val != 0.0:
+            italic_i += e_val / 2. / num_edges * math.log(
+                e_val / m_e_r[ind_i] / m_e_r[ind_j] * 2 * num_edges
+            )
+    assert m_e_rs.shape[0] == k, "[ERROR] m_e_rs dimension (={}) is not equal to k (={})!".format(
+        m_e_rs.shape[0], k
+    )
+
+    # finally, we compute the description length
+    desc_len_b = (n * math.log(k) - n_edges * italic_i) / n_edges
+    x = float(k * (k + 1)) / 2. / n_edges
+    desc_len_b += (1 + x) * math.log(1 + x) - x * math.log(x)
+
+    return desc_len_b
+

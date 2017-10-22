@@ -420,9 +420,7 @@ class OptimalKs(object):
 
         """
         if self.INIT_ITALIC_I == 0:
-            # This is an important step, where we
-            # (1) Calculate the heavy biSBM at init (ka, kb)
-            # (2) Initiate important variables for logging and drawing
+            # This is an important step, where we calculate the graph partition at init (ka, kb)
             _, m_e_rs, italic_i = self._calc_and_update((ka, kb))
 
             self.INIT_ITALIC_I = italic_i
@@ -612,6 +610,10 @@ class OptimalKs(object):
             "[ERROR] inconsistency between the membership indexes and the number of blocks."
         self.trace_mb[point] = mb
         self._logger.info("... DONE.")
+
+        # update the predefined threshold value, DELTA:
+        self.INIT_ITALIC_I = italic_i
+
         return candidate_desc_len, m_e_rs, italic_i
 
     def compute_and_update(self, ka, kb, recompute=False):
