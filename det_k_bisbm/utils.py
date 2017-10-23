@@ -32,6 +32,18 @@ def get_n_r_from_mb(mb):
 
 
 def get_desc_len_from_data(na, nb, n_edges, ka, kb, edgelist, mb):
+    '''
+        Description length difference to a randomized instance
+
+        :param na: number of nodes in type-a
+        :param nb: number of nodes in type-b
+        :param n_edges: number of edges
+        :param ka: number of communities in type-a
+        :param kb: number of communities in type-b
+        :param edgelist: edgelist in Python list structure
+        :param mb: community membership of each node in Python list structure
+        :return: Description length difference
+    '''
     assert type(edgelist) is list, "[ERROR] the type of the input parameter (edgelist) should be a list"
     assert type(mb) is list, "[ERROR] the type of the input parameter (mb) should be a list"
     # First, let's compute the m_e_rs from the edgelist and mb
@@ -61,16 +73,16 @@ def get_desc_len_from_data(na, nb, n_edges, ka, kb, edgelist, mb):
     )
 
     # finally, we compute the description length
-    desc_len_b = (na * math.log(ka) + nb * math.log(kb) - n_edges * italic_i) / n_edges
+    desc_len_b = (na * math.log(ka) + nb * math.log(kb) - n_edges * (italic_i - math.log(2))) / n_edges
     x = float(ka * kb) / n_edges
     desc_len_b += (1 + x) * math.log(1 + x) - x * math.log(x)
-
+    desc_len_b -= (1 + 1 / n_edges) * math.log(1 + 1 / n_edges) - (1 / n_edges) * math.log(1 / n_edges)
     return desc_len_b
 
 
 def get_desc_len_from_data_uni(n, n_edges, k, edgelist, mb):
     '''
-        via PRL 110, 148701 (2013).
+        Description length difference to a randomized instance, via PRL 110, 148701 (2013).
     '''
     assert type(edgelist) is list, "[ERROR] the type of the input parameter (edgelist) should be a list"
     assert type(mb) is list, "[ERROR] the type of the input parameter (mb) should be a list"
@@ -102,6 +114,6 @@ def get_desc_len_from_data_uni(n, n_edges, k, edgelist, mb):
     desc_len_b = (n * math.log(k) - n_edges * italic_i) / n_edges
     x = float(k * (k + 1)) / 2. / n_edges
     desc_len_b += (1 + x) * math.log(1 + x) - x * math.log(x)
-
+    desc_len_b -= (1 + 1 / n_edges) * math.log(1 + 1 / n_edges) - (1 / n_edges) * math.log(1 / n_edges)
     return desc_len_b
 

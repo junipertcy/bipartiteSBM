@@ -5,6 +5,7 @@ import logging
 import numpy as np
 from collections import OrderedDict
 from loky import get_reusable_executor
+from itertools import product
 
 
 class OptimalKs(object):
@@ -100,6 +101,10 @@ class OptimalKs(object):
         # logging
         self._logger = logging.Logger
         self.set_logging_level(logging_level)
+
+        # hard-coded parameters
+        self._size_rows_to_run = 2
+        self._k_th_neighbor_to_search = 1
         pass
 
     def set_logging_level(self, level):
@@ -123,6 +128,9 @@ class OptimalKs(object):
 
     def set_adaptive_ratio(self, adaptive_ratio):
         self.adaptive_ratio = float(adaptive_ratio)
+
+    def set_k_th_neighbor_to_search(self, k):
+        self._k_th_neighbor_to_search = int(k)
 
     def set_exist_bookkeeping(self, exist_bookkeeping):
         self.exist_bookkeeping = bool(exist_bookkeeping)
@@ -150,12 +158,15 @@ class OptimalKs(object):
                 )
         return italic_i
 
-    def _cal_desc_len(self, ka, kb, italic_i):
-        desc_len_b = (
-                         self.NUM_NODES_A * math.log(ka) + self.NUM_NODES_B * math.log(kb) - self.NUM_EDGES * italic_i
-                     ) / self.NUM_EDGES
-        x = float(ka * kb) / self.NUM_EDGES
+    def _cal_desc_len_diff(self, ka, kb, italic_i):
+        na = self.NUM_NODES_A
+        nb = self.NUM_NODES_B
+        e = self.NUM_EDGES
+        desc_len_b = na * math.log(ka) + nb * math.log(kb) - e * (italic_i - math.log(2))
+        desc_len_b /= e
+        x = float(ka * kb) / e
         desc_len_b += (1 + x) * math.log(1 + x) - x * math.log(x)
+        desc_len_b -= (1. + 1. / e) * math.log(1. + 1. / e) - (1. / e) * math.log(1. / e)
         return desc_len_b
 
     @staticmethod
@@ -336,7 +347,7 @@ class OptimalKs(object):
             mb = self._engine(self.f_edgelist, self.NUM_NODES_A, self.NUM_NODES_B, ka, kb)
             m_e_rs, _ = self.get_m_e_rs_from_mb(self.edgelist, mb)
             italic_i = self.get_italic_i_from_m_e_rs(m_e_rs)
-            new_desc_len = self._cal_desc_len(ka, kb, italic_i)
+            new_desc_len = self._cal_desc_len_diff(ka, kb, italic_i)
 
             return m_e_rs, italic_i, new_desc_len, mb
 
@@ -364,7 +375,7 @@ class OptimalKs(object):
                 while calculate_times < self.MAX_NUM_SWEEPS:
                     result = run(ka, kb)
                     results.append(result)
-                    new_desc_len = self._cal_desc_len(ka, kb, result[1])
+                    new_desc_len = self._cal_desc_len_diff(ka, kb, result[1])
                     if new_desc_len < old_desc_len:
                         # no need to go further
                         calculate_times = self.MAX_NUM_SWEEPS
@@ -438,7 +449,7 @@ class OptimalKs(object):
             return _ka, _kb, _m_e_rs, diff_italic_i, _mlist
 
         # how many times that a sample merging takes place
-        indexes_to_run_ = range(0, (ka + kb) * 2)  # NOTE that the 2 is a hard-coded parameter
+        indexes_to_run_ = range(0, (ka + kb) * self._size_rows_to_run)
 
         results = []
         for _ in indexes_to_run_:
@@ -491,11 +502,12 @@ class OptimalKs(object):
                                 self._logger.info(
                                     "check all the adjacent points near ({}, {})".format(old_ka_moving, old_kb_moving)
                                 )
-                                items = map(lambda x: (
-                                    x[0] + old_ka_moving,
-                                    x[1] + old_kb_moving
-                                ), [(1, 0), (0, 1), (1, -1), (-1, 1), (+1, +1)]
-                                            )
+
+                                adj_nb = self._k_th_neighbor_to_search
+                                items = map(lambda x: (x[0] + old_ka_moving, x[1] + old_kb_moving), product(
+                                    range(-adj_nb, adj_nb), range(-adj_nb, adj_nb))
+                                )
+
                                 for item in items:
                                     self._calc_and_update(item, old_desc_len)
 
@@ -602,7 +614,7 @@ class OptimalKs(object):
             italic_i, m_e_rs, mb = self._calc_with_hook(point[0], point[1], old_desc_len=None)
         else:
             italic_i, m_e_rs, mb = self._calc_with_hook(point[0], point[1], old_desc_len=old_desc_len)
-        candidate_desc_len = self._cal_desc_len(point[0], point[1], italic_i)
+        candidate_desc_len = self._cal_desc_len_diff(point[0], point[1], italic_i)
         self.confident_desc_len[point] = candidate_desc_len
         self.confident_italic_i[point] = italic_i
         self.confident_m_e_rs[point] = m_e_rs
