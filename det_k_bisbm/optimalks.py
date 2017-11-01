@@ -2,6 +2,7 @@ import os
 import math
 import random
 import logging
+import tempfile
 import numpy as np
 from collections import OrderedDict
 from loky import get_reusable_executor
@@ -92,7 +93,9 @@ class OptimalKs(object):
 
         # for debug/temp variables
         self.debug_str = ""
-        self.f_edgelist = "edgelist-" + str(random.random()) + ".tmp"
+        self.f_edgelist = tempfile.NamedTemporaryFile(mode='w', delete=False)
+        # To prevent "TypeError: cannot serialize '_io.TextIOWrapper' object" when using loky
+        self._f_edgelist_name = self.f_edgelist.name
 
         # initialize other class attributes
         self.INIT_ITALIC_I = 0.
@@ -344,7 +347,7 @@ class OptimalKs(object):
                 return italic_i, m_e_rs, mb
 
         def run(ka, kb):
-            mb = self._engine(self.f_edgelist, self.NUM_NODES_A, self.NUM_NODES_B, ka, kb)
+            mb = self._engine(self._f_edgelist_name, self.NUM_NODES_A, self.NUM_NODES_B, ka, kb)
             m_e_rs, _ = self.get_m_e_rs_from_mb(self.edgelist, mb)
             italic_i = self.get_italic_i_from_m_e_rs(m_e_rs)
             new_desc_len = self._cal_desc_len_diff(ka, kb, italic_i)
@@ -464,9 +467,8 @@ class OptimalKs(object):
         return _ka, _kb, _m_e_rs, _diff_italic_i, _mlist
 
     def iterator(self):
-        with open(self.f_edgelist, "w") as f:
-            for edge in self.edgelist:
-                f.write(str(edge[0]) + "\t" + edge[1] + "\n")
+        self._f_edgelist_name = self._get_tempfile_edgelist()
+
         ka_moving = self.ka
         kb_moving = self.kb
         while ka_moving != 1 or kb_moving != 1:
@@ -522,8 +524,7 @@ class OptimalKs(object):
                                 else:
                                     # clean up
                                     try:
-                                        os.remove(self.f_edgelist)
-                                        os.remove("edgelist-*.tmp")
+                                        os.remove(self._f_edgelist_name)
                                     finally:
                                         p_estimate = sorted(self.confident_desc_len, key=self.confident_desc_len.get)[0]
                                         self._logger.info(
@@ -572,8 +573,7 @@ class OptimalKs(object):
                     "[WARNING] merging reached (1, 1); cannot go any further, please set a smaller <i_th>."
                 )
         try:
-            os.remove(self.f_edgelist)
-            os.remove("edgelist-*.tmp")
+            os.remove(self._f_edgelist_name)
         finally:
             p_estimate = sorted(self.confident_desc_len, key=self.confident_desc_len.get)[0]
             self._logger.info(
@@ -629,13 +629,26 @@ class OptimalKs(object):
         return candidate_desc_len, m_e_rs, italic_i
 
     def compute_and_update(self, ka, kb, recompute=False):
-        with open(self.f_edgelist, "w") as f:
-            for edge in self.edgelist:
-                f.write(str(edge[0]) + "\t" + edge[1] + "\n")
+        self._f_edgelist_name = self._get_tempfile_edgelist()
         if recompute:
             self.confident_desc_len[(ka, kb)] = 0
         self._calc_and_update((ka, kb))
         try:
-            os.remove(self.f_edgelist)
+            os.remove(self._f_edgelist_name)
         finally:
             pass
+
+    def _get_tempfile_edgelist(self):
+        try:
+            self.f_edgelist.seek(0)
+        except AttributeError:
+            self.f_edgelist = tempfile.NamedTemporaryFile(mode='w', delete=False)
+        finally:
+            for edge in self.edgelist:
+                self.f_edgelist.write(str(edge[0]) + "\t" + edge[1] + "\n")
+            self.f_edgelist.flush()
+            f_edgelist_name = self.f_edgelist.name
+            del self.f_edgelist
+        return f_edgelist_name
+
+
