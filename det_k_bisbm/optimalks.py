@@ -8,7 +8,6 @@ from collections import OrderedDict
 from loky import get_reusable_executor
 from itertools import product
 
-
 class OptimalKs(object):
     """Base class for OptimalKs.
 
@@ -92,10 +91,10 @@ class OptimalKs(object):
         self.trace_mb = OrderedDict()
 
         # for debug/temp variables
-        self.debug_str = ""
+        self.is_tempfile_existed = True
         self.f_edgelist = tempfile.NamedTemporaryFile(mode='w', delete=False)
         # To prevent "TypeError: cannot serialize '_io.TextIOWrapper' object" when using loky
-        self._f_edgelist_name = self.f_edgelist.name
+        self._f_edgelist_name = self._get_tempfile_edgelist()
 
         # initialize other class attributes
         self.INIT_ITALIC_I = 0.
@@ -106,7 +105,7 @@ class OptimalKs(object):
         self.set_logging_level(logging_level)
 
         # hard-coded parameters
-        self._size_rows_to_run = 2
+        self._size_rows_to_run = 1
         self._k_th_neighbor_to_search = 1
         pass
 
@@ -136,15 +135,61 @@ class OptimalKs(object):
         self._k_th_neighbor_to_search = int(k)
 
     def set_exist_bookkeeping(self, exist_bookkeeping):
+        '''
+            Experimental use only.
+        '''
         self.exist_bookkeeping = bool(exist_bookkeeping)
         if not exist_bookkeeping:
             self._logger.warning("Setting <exist_bookkeeping> to false makes bad performance.")
+
+    def iterator(self):
+        if not self.is_tempfile_existed:
+            self._f_edgelist_name = self._get_tempfile_edgelist()
+
+        while self.ka != 1 or self.kb != 1:
+            ka_, kb_, m_e_rs_, diff_italic_i, mlist = self._moving_one_step_down(self.ka, self.kb)
+            if abs(diff_italic_i) > self.ITALIC_I_THRESHOLD * self.INIT_ITALIC_I:
+                self._update_current_state(ka_, kb_, m_e_rs_)
+                desc_len_, _, _ = self._calc_and_update((self.ka, self.kb))
+                if not self._is_this_mdl(desc_len_):
+                    # merging predicates us to check (ka, kb), however, if it happens to have a higher desc_len
+                    # then it is suspected to overshoot.
+                    self.ITALIC_I_THRESHOLD *= self.adaptive_ratio
+                    ka_, kb_, _, desc_len_ = self._back_to_where_desc_len_is_lowest()
+                is_local_minimum_found = self._check_if_local_minimum(ka_, kb_, desc_len_, self._k_th_neighbor_to_search)
+                if is_local_minimum_found:
+                    self._clean_up_and_record_mdl_point()
+                    return self.confident_desc_len
+            else:
+                self._update_transient_state(ka_, kb_, m_e_rs_, mlist)
+
+        self._check_if_random_bipartite()
+        return self.confident_desc_len
 
     def clean(self):
         self.confident_desc_len = OrderedDict()
         self.confident_m_e_rs = OrderedDict()
         self.confident_italic_i = OrderedDict()
         self.trace_mb = OrderedDict()
+        self.set_params(init_ka=10, init_kb=10, i_th=0.1)
+
+    def compute_and_update(self, ka, kb, recompute=False):
+        try:
+            os.remove(self._f_edgelist_name)
+        except FileNotFoundError as e:
+            self._logger.warning("FileNotFoundError: {}".format(e))
+        finally:
+            self._f_edgelist_name = self._get_tempfile_edgelist()
+            if recompute:
+                self.confident_desc_len[(ka, kb)] = 0
+            self._calc_and_update((ka, kb))
+
+    @staticmethod
+    def executor(max_workers, timeout, func, feeds):
+        assert type(feeds) is list, "[ERROR] feeds should be a Python list; here it is {}".format(str(type(feeds)))
+        executor = get_reusable_executor(max_workers=int(max_workers), timeout=int(timeout))
+        results = executor.map(func, feeds)
+        return results
 
     @staticmethod
     def get_italic_i_from_m_e_rs(m_e_rs):
@@ -160,17 +205,6 @@ class OptimalKs(object):
                     e_val / m_e_r[ind_i] / m_e_r[ind_j] * 2 * num_edges
                 )
         return italic_i
-
-    def _cal_desc_len_diff(self, ka, kb, italic_i):
-        na = self.NUM_NODES_A
-        nb = self.NUM_NODES_B
-        e = self.NUM_EDGES
-        desc_len_b = na * math.log(ka) + nb * math.log(kb) - e * (italic_i - math.log(2))
-        desc_len_b /= e
-        x = float(ka * kb) / e
-        desc_len_b += (1 + x) * math.log(1 + x) - x * math.log(x)
-        desc_len_b -= (1. + 1. / e) * math.log(1. + 1. / e) - (1. / e) * math.log(1. / e)
-        return desc_len_b
 
     @staticmethod
     def get_m_e_rs_from_mb(edgelist, mb):
@@ -195,7 +229,7 @@ class OptimalKs(object):
     @staticmethod
     def merge_matrix(ka, kb, m_e_rs):
         """
-        Merge the rows of the affinity matrix (dim = K) to gain a reduced matrix (dim = K - 1)
+        Merge random two rows of the affinity matrix (dim = K) to gain a reduced matrix (dim = K - 1)
 
         Parameters
         ----------
@@ -309,6 +343,17 @@ class OptimalKs(object):
         assert np.all(c.transpose() == c), "Error: output m_e_rs matrix is not symmetric!"
         return new_ka, new_kb, c, merge_list
 
+    def _cal_desc_len_diff(self, ka, kb, italic_i):
+        na = self.NUM_NODES_A
+        nb = self.NUM_NODES_B
+        e = self.NUM_EDGES
+        desc_len_b = na * math.log(ka) + nb * math.log(kb) - e * (italic_i - math.log(2))
+        desc_len_b /= e
+        x = float(ka * kb) / e
+        desc_len_b += (1 + x) * math.log(1 + x) - x * math.log(x)
+        desc_len_b -= (1. + 1. / e) * math.log(1. + 1. / e) - (1. / e) * math.log(1. / e)
+        return desc_len_b
+
     def _calc_with_hook(self, ka, kb, old_desc_len=None):
         """
         Execute the partitioning code by spawning child processes in the shell; save its output afterwards.
@@ -396,14 +441,6 @@ class OptimalKs(object):
 
         return italic_i, m_e_rs, mb
 
-    @staticmethod
-    def executor(max_workers, timeout, func, feeds):
-        assert type(feeds) is list, "[ERROR] feeds should be a Python list; here it is {}".format(str(type(feeds)))
-        executor = get_reusable_executor(max_workers=int(max_workers), timeout=int(timeout))
-        results = executor.map(func, feeds)
-
-        return results
-
     def _moving_one_step_down(self, ka, kb):
         """
         Apply multiple merges of the original affinity matrix, return the one that least alters the entropy
@@ -440,11 +477,6 @@ class OptimalKs(object):
             self.INIT_ITALIC_I = italic_i
             self.m_e_rs = m_e_rs
 
-            # these are used to track temporarily variables during the heuristic
-            self.diff_italic_I_array = [0.]
-            self.ka_array = [ka]
-            self.kb_array = [kb]
-
         def _sample_and_merge():
             _ka, _kb, _m_e_rs, _mlist = self.merge_matrix(self.ka, self.kb, self.m_e_rs)
             _italic_I = self.get_italic_i_from_m_e_rs(_m_e_rs)
@@ -466,150 +498,90 @@ class OptimalKs(object):
 
         return _ka, _kb, _m_e_rs, _diff_italic_i, _mlist
 
-    def iterator(self):
-        self._f_edgelist_name = self._get_tempfile_edgelist()
+    def _check_if_random_bipartite(self):
+        # if we reached (1, 1), check that it's the local optimal point, then we could return (1, 1).
+        points_to_compute = [(1, 1), (1, 2), (2, 1), (2, 2)]
+        for point in points_to_compute:
+            self.compute_and_update(point[0], point[1], recompute=True)
+        p_estimate = sorted(self.confident_desc_len, key=self.confident_desc_len.get)[0]
 
-        ka_moving = self.ka
-        kb_moving = self.kb
-        while ka_moving != 1 or kb_moving != 1:
-            old_ka_moving = ka_moving
-            old_kb_moving = kb_moving
+        if p_estimate != (1, 1):
+            # TODO: write some documentation here
+            raise UserWarning("[WARNING] merging reached (1, 1); cannot go any further, please set a smaller <i_th>.")
+        self._clean_up_and_record_mdl_point()
 
-            ka_moving, kb_moving, t_m_e_rs, diff_italic_i, mlist = self._moving_one_step_down(ka_moving, kb_moving)
-            if abs(diff_italic_i) > self.ITALIC_I_THRESHOLD * self.INIT_ITALIC_I:
-                old_desc_len, _, _ = self._calc_and_update((old_ka_moving, old_kb_moving))
-                if self._bookkeeping_condition(old_desc_len):
-                    ka_moving, kb_moving = self._back_to_where_desc_len_is_lowest(diff_italic_i)
-                else:
-                    candidate_desc_len, _, _ = self._calc_and_update((ka_moving, kb_moving), old_desc_len)
-                    t_m_e_rs_cand = self.confident_m_e_rs[(ka_moving, kb_moving)]
-                    if candidate_desc_len > old_desc_len:  # candidate move is not a good choice
-                        tmp = [
-                            ka_moving - old_ka_moving,
-                            kb_moving - old_kb_moving
-                        ]
-                        tmp.reverse()
-                        ka_moving = old_ka_moving + tmp[0]
-                        kb_moving = old_kb_moving + tmp[1]
-                        candidate_desc_len, _, _ = self._calc_and_update((ka_moving, kb_moving), old_desc_len)
-                        t_m_e_rs_cand = self.confident_m_e_rs[(ka_moving, kb_moving)]
-                        if candidate_desc_len > old_desc_len:  # candidate move is not a good choice
-                            ka_moving = old_ka_moving - 1
-                            kb_moving = old_kb_moving - 1
-                            candidate_desc_len, _, _ = self._calc_and_update((ka_moving, kb_moving), old_desc_len)
-                            t_m_e_rs_cand = self.confident_m_e_rs[(ka_moving, kb_moving)]
-                            if candidate_desc_len > old_desc_len:  # candidate move is not a good choice
-                                # Before we conclude anything,
-                                # we check all the other points near here.
-                                self._logger.info(
-                                    "check all the adjacent points near ({}, {})".format(old_ka_moving, old_kb_moving)
-                                )
+    def _update_transient_state(self, ka_moving, kb_moving, t_m_e_rs, mlist):
+        old_of_g = self.trace_mb[(self.ka, self.kb)]
+        new_of_g = list(np.zeros(self.NUM_NODES))
 
-                                adj_nb = self._k_th_neighbor_to_search
-                                items = map(lambda x: (x[0] + old_ka_moving, x[1] + old_kb_moving), product(
-                                    range(-adj_nb, adj_nb), range(-adj_nb, adj_nb))
-                                )
-
-                                for item in items:
-                                    self._calc_and_update(item, old_desc_len)
-
-                                if self._bookkeeping_condition(old_desc_len):
-                                    p_estimate = sorted(self.confident_desc_len, key=self.confident_desc_len.get)[0]
-                                    self._logger.info(
-                                        "Found ({}, {}) that gives a even lower description length ...".format(
-                                            p_estimate[0], p_estimate[1]
-                                        )
-                                    )
-                                    ka_moving, kb_moving = self._back_to_where_desc_len_is_lowest(diff_italic_i)
-                                else:
-                                    # clean up
-                                    try:
-                                        os.remove(self._f_edgelist_name)
-                                    finally:
-                                        p_estimate = sorted(self.confident_desc_len, key=self.confident_desc_len.get)[0]
-                                        self._logger.info(
-                                            "DONE: the MDL point is ({},{})".format(p_estimate[0], p_estimate[1])
-                                        )
-                                        return self.confident_desc_len
-                            else:
-                                # continue moving with the
-                                # new candidate's direction
-                                self._update_current_state((ka_moving, kb_moving), t_m_e_rs_cand)
-                        else:
-                            # continue moving w/ the new candidate's direction
-                            self._update_current_state((ka_moving, kb_moving), t_m_e_rs_cand)
-                    else:
-                        # candidate-1 might be a good choice, but ....
-                        # continue moving w/ the new candidate's direction
-                        self._update_current_state((ka_moving, kb_moving), t_m_e_rs_cand)
+        mlist.sort()
+        for _node_id, _g in enumerate(old_of_g):
+            if _g == mlist[1]:
+                new_of_g[_node_id] = mlist[0]
+            elif _g < mlist[1]:
+                new_of_g[_node_id] = _g
             else:
-                old_of_g = self.trace_mb[(self.ka, self.kb)]
-                new_of_g = list(np.zeros(self.NUM_NODES))
+                new_of_g[_node_id] = _g - 1
+        assert max(new_of_g) + 1 == ka_moving + kb_moving, \
+            "[ERROR] inconsistency between the membership indexes and the number of blocks."
+        self.trace_mb[(ka_moving, kb_moving)] = new_of_g
+        self._update_current_state(ka_moving, kb_moving, t_m_e_rs)
 
-                mlist.sort()
-                for _node_id, _g in enumerate(old_of_g):
-                    if _g == mlist[1]:
-                        new_of_g[_node_id] = mlist[0]
-                    elif _g < mlist[1]:
-                        new_of_g[_node_id] = _g
-                    else:
-                        new_of_g[_node_id] = _g - 1
-                assert max(new_of_g) + 1 == ka_moving + kb_moving, \
-                    "[ERROR] inconsistency between the membership indexes and the number of blocks."
-                self.trace_mb[(ka_moving, kb_moving)] = new_of_g
-                self._update_current_state((ka_moving, kb_moving), t_m_e_rs)
-            # for drawing...
-            self._iter_calc_hook(diff_italic_i)
+    def _check_if_local_minimum(self, ka, kb, old_desc_len, k_th):
+        '''
+            The `neighborhood search` as described in the paper.
+        '''
+        self.is_tempfile_existed = True
+        items = map(lambda x: (x[0] + ka, x[1] + kb), product(range(-k_th, k_th + 1), repeat=2))
+        # if any item has values less than 1, delete it. Also, exclude the suspected point.
+        items = [(i, j) for i, j in items if i >= 1 and j >= 1 and (i, j) != (ka, kb)]
+        ka_moving, kb_moving = 0, 0
 
-        # clean up
-        if self.ka == 1 and self.kb == 1:
-            # if we reached (1, 1), check that it's the local optimal point, then we could return (1, 1).
-            points_to_compute = [(1, 1), (1, 2), (2, 1), (2, 2)]
-            for point in points_to_compute:
-                self.compute_and_update(point[0], point[1], recompute=True)
-            p_estimate = sorted(self.confident_desc_len, key=self.confident_desc_len.get)[0]
-            if p_estimate != (1, 1):
-                raise UserWarning(
-                    "[WARNING] merging reached (1, 1); cannot go any further, please set a smaller <i_th>."
-                )
-        try:
-            os.remove(self._f_edgelist_name)
-        finally:
-            p_estimate = sorted(self.confident_desc_len, key=self.confident_desc_len.get)[0]
-            self._logger.info(
-                "DONE: the MDL point is ({},{})".format(p_estimate[0], p_estimate[1])
-            )
-            return self.confident_desc_len
-
-    def _bookkeeping_condition(self, old_desc_len):
-        if self.exist_bookkeeping:
-            return any(i < old_desc_len for i in self.confident_desc_len.values())
+        for item in items:
+            self._calc_and_update(item, old_desc_len)
+            if self._is_this_mdl(self.confident_desc_len[(item[0], item[1])]):
+                p_estimate = sorted(self.confident_desc_len, key=self.confident_desc_len.get)[0]
+                self._logger.info("Found {} that gives an even lower description length ...".format(p_estimate))
+                ka_moving, kb_moving, _, _ = self._back_to_where_desc_len_is_lowest()
+                break
+        if ka_moving * kb_moving == 0:
+            return True
         else:
             return False
 
-    def _back_to_where_desc_len_is_lowest(self, diff_italic_i):
-        self._iter_calc_hook(diff_italic_i)
-        self.ka = sorted(self.confident_desc_len, key=self.confident_desc_len.get, reverse=False)[0][0]
-        self.kb = sorted(self.confident_desc_len, key=self.confident_desc_len.get, reverse=False)[0][1]
-        self.ITALIC_I_THRESHOLD *= self.adaptive_ratio
-        self.m_e_rs = self.confident_m_e_rs[(self.ka, self.kb)]
-        return self.ka, self.kb
+    def _clean_up_and_record_mdl_point(self):
+        try:
+            os.remove(self._f_edgelist_name)
+        except FileNotFoundError as e:
+            self._logger.warning("FileNotFoundError: {}".format(e))
+        finally:
+            self.is_tempfile_existed = False
+            p_estimate = sorted(self.confident_desc_len, key=self.confident_desc_len.get)[0]
+            self._logger.info("DONE: the MDL point is {}".format(p_estimate))
 
-    def _iter_calc_hook(self, diff_italic_i):
-        self.diff_italic_I_array.append(diff_italic_i)
-        self.ka_array.append(self.ka)
-        self.kb_array.append(self.kb)
-        return
+    def _is_this_mdl(self, desc_len):
+        '''
+            Check if `desc_len` is the minimal value so far.
+        '''
+        if self.exist_bookkeeping:
+            return not any([i < desc_len for i in self.confident_desc_len.values()])
+        else:
+            return True
 
-    def _update_current_state(self, point, m_e_rs):
-        self.ka = point[0]
-        self.kb = point[1]
-        # this will be used in _moving_one_step_down function
-        self.m_e_rs = m_e_rs
-        return
+    def _back_to_where_desc_len_is_lowest(self):
+        ka = sorted(self.confident_desc_len, key=self.confident_desc_len.get, reverse=False)[0][0]
+        kb = sorted(self.confident_desc_len, key=self.confident_desc_len.get, reverse=False)[0][1]
+        m_e_rs = self.confident_m_e_rs[(ka, kb)]
+        self._update_current_state(ka, kb, m_e_rs)
+        return ka, kb, m_e_rs, self.confident_desc_len[(self.ka, self.kb)]
+
+    def _update_current_state(self, ka, kb, m_e_rs):
+        self.ka = ka
+        self.kb = kb
+        self.m_e_rs = m_e_rs    # this will be used in _moving_one_step_down function
 
     def _calc_and_update(self, point, old_desc_len=0.):
-        self._logger.info("Now computing graph partition at ({}, {})".format(point[0], point[1]) + " ...")
+        self._logger.info("Now computing graph partition at {} ...".format(point))
         if old_desc_len == 0.:
             italic_i, m_e_rs, mb = self._calc_with_hook(point[0], point[1], old_desc_len=None)
         else:
@@ -618,8 +590,7 @@ class OptimalKs(object):
         self.confident_desc_len[point] = candidate_desc_len
         self.confident_italic_i[point] = italic_i
         self.confident_m_e_rs[point] = m_e_rs
-        assert max(mb) + 1 == point[0] + point[1], \
-            "[ERROR] inconsistency between the membership indexes and the number of blocks."
+        assert max(mb) + 1 == point[0] + point[1], "[ERROR] inconsistency between mb. indexes and #blocks."
         self.trace_mb[point] = mb
         self._logger.info("... DONE.")
 
@@ -627,16 +598,6 @@ class OptimalKs(object):
         self.INIT_ITALIC_I = italic_i
 
         return candidate_desc_len, m_e_rs, italic_i
-
-    def compute_and_update(self, ka, kb, recompute=False):
-        self._f_edgelist_name = self._get_tempfile_edgelist()
-        if recompute:
-            self.confident_desc_len[(ka, kb)] = 0
-        self._calc_and_update((ka, kb))
-        try:
-            os.remove(self._f_edgelist_name)
-        finally:
-            pass
 
     def _get_tempfile_edgelist(self):
         try:

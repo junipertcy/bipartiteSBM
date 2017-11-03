@@ -84,7 +84,7 @@ mcmc = MCMC(f_engine="engines/bipartiteSBM-MCMC/bin/mcmc",  # path to the graph 
 The `mcmc` is a wrapper class for the C++ engine. It can also generate strings that are useful to run in the command line. 
 For example, this code generates a string that tells the C++ program to do graph partition of the `southern women dataset` at `K1=3` and `K2=2`. 
 ```python
-mcmc.prepare_engine("dataset/southernWomen.edgelist", 18, 14, 3, 2)
+mcmc.prepare_engine("dataset/empirical/southernWomen.edgelist", 18, 14, 3, 2)
 # Out[*]: 'engines/bipartiteSBM-MCMC/bin/mcmc -e dataset/southernWomen.edgelist0 -n 6 6 6 7 7 -t 100 -x 1000 --maximize -c exponential -a 10 0.1 -y 18 14 -z 3 2 -E 0.01 --randomize
 ``` 
 In addition, we have to tell the program which are type-1 nodes and which are type-2. 
@@ -94,8 +94,8 @@ Here, we have the number of type-1 nodes as `n1=18`, while number of type-2 node
 
 Once we specified the engine that we liked, it's time to prepare the dataset.
 ```python
-edgelist = get_edgelist("dataset/southernWomen.edgelist", "\t")
-types = get_types("dataset/southernWomen.types")
+edgelist = get_edgelist("dataset/empirical/southernWomen.edgelist", "\t")
+types = get_types("dataset/empirical/southernWomen.types")
 ```
 We can then feed these three variables into the main class.
 ```python
