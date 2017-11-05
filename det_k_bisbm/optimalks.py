@@ -4,9 +4,12 @@ import random
 import logging
 import tempfile
 import numpy as np
+from numba import jit
+
 from collections import OrderedDict
 from loky import get_reusable_executor
 from itertools import product
+
 
 class OptimalKs(object):
     """Base class for OptimalKs.
@@ -28,14 +31,8 @@ class OptimalKs(object):
     i_th :  double, optional
         Threshold for the merging step (as described in the main text).
 
-    n_sweeps : int, optional
-        Number of calculations performed on each (Ka, Kb) point.
-
-    is_parallel : bool, optional
-        Whether the n_sweeps calculation is forked for parallel processes.
-
-    n_cores : int, optional
-        If is_parallel == True, the number of cores that is used.
+    logging_level : str, optional
+        Logging level used. It can be one of "warning" or "info".
 
     """
 
@@ -48,37 +45,37 @@ class OptimalKs(object):
                  i_th=0.1,
                  logging_level="info"):
 
-        self._engine = engine.engine  # TODO: check that engine is an object
-        self.MAX_NUM_SWEEPS = engine.MAX_NUM_SWEEPS
-        self.PARALLELIZATION = engine.PARALLELIZATION
-        self.NUM_CORES = engine.NUM_CORES
+        self.engine_ = engine.engine  # TODO: check that engine is an object
+        self.max_n_sweeps_ = engine.MAX_NUM_SWEEPS
+        self.is_par_ = engine.PARALLELIZATION
+        self.n_cores_ = engine.NUM_CORES
 
         # params for the heuristic
         self.ka = int(init_ka)
         self.kb = int(init_kb)
-        self.ITALIC_I_THRESHOLD = float(i_th)
+        self.i_0 = float(i_th)
         self.adaptive_ratio = 0.9  # adaptive parameter to make the "delta" smaller, if it's too large
 
         # TODO: "types" is only used to compute na and nb. Can be made more generic.
         self.types = types
-        self.NUM_NODES_A = 0
-        self.NUM_NODES_B = 0
+        self.n_a = 0
+        self.n_b = 0
         for _type in types:
             if _type in ["1", 1]:
-                self.NUM_NODES_A += 1
+                self.n_a += 1
             elif _type in ["2", 2]:
-                self.NUM_NODES_B += 1
+                self.n_b += 1
 
-        assert self.NUM_NODES_A > 0, "[ERROR] Number of type-a nodes = 0, which is not allowed"
-        assert self.NUM_NODES_B > 0, "[ERROR] Number of type-b nodes = 0, which is not allowed"
-        self.NUM_NODES = len(types)
+        assert self.n_a > 0, "[ERROR] Number of type-a nodes = 0, which is not allowed"
+        assert self.n_b > 0, "[ERROR] Number of type-b nodes = 0, which is not allowed"
+        self.n = len(types)
 
         self.edgelist = edgelist
-        self.NUM_EDGES = len(self.edgelist)
+        self.e = len(self.edgelist)
 
-        assert self.NUM_NODES == self.NUM_NODES_A + self.NUM_NODES_B, \
+        assert self.n == self.n_a + self.n_b, \
             "[ERROR] num_nodes ({}) does not equal to num_nodes_a ({}) plus num_nodes_b ({})".format(
-                self.NUM_NODES, self.NUM_NODES_A, self.NUM_NODES_B
+                self.n, self.n_a, self.n_b
             )
 
         # These confident_* variable are used to store the "true" data
@@ -97,7 +94,7 @@ class OptimalKs(object):
         self._f_edgelist_name = self._get_tempfile_edgelist()
 
         # initialize other class attributes
-        self.INIT_ITALIC_I = 0.
+        self.init_italic_i = 0.
         self.exist_bookkeeping = True
 
         # logging
@@ -106,7 +103,7 @@ class OptimalKs(object):
 
         # hard-coded parameters
         self._size_rows_to_run = 1
-        self._k_th_neighbor_to_search = 1
+        self._k_th_nb_to_search = 1
         pass
 
     def set_logging_level(self, level):
@@ -125,19 +122,21 @@ class OptimalKs(object):
         # params for the heuristic
         self.ka = int(init_ka)
         self.kb = int(init_kb)
-        self.ITALIC_I_THRESHOLD = float(i_th)
-        self.INIT_ITALIC_I = 0.
+        self.i_0 = float(i_th)
+        self.init_italic_i = 0.
 
     def set_adaptive_ratio(self, adaptive_ratio):
         self.adaptive_ratio = float(adaptive_ratio)
 
     def set_k_th_neighbor_to_search(self, k):
-        self._k_th_neighbor_to_search = int(k)
+        self._k_th_nb_to_search = int(k)
 
     def set_exist_bookkeeping(self, exist_bookkeeping):
-        '''
+        """
             Experimental use only.
-        '''
+        :param exist_bookkeeping: bool
+        :return:
+        """
         self.exist_bookkeeping = bool(exist_bookkeeping)
         if not exist_bookkeeping:
             self._logger.warning("Setting <exist_bookkeeping> to false makes bad performance.")
@@ -148,15 +147,15 @@ class OptimalKs(object):
 
         while self.ka != 1 or self.kb != 1:
             ka_, kb_, m_e_rs_, diff_italic_i, mlist = self._moving_one_step_down(self.ka, self.kb)
-            if abs(diff_italic_i) > self.ITALIC_I_THRESHOLD * self.INIT_ITALIC_I:
+            if abs(diff_italic_i) > self.i_0 * self.init_italic_i:
                 self._update_current_state(ka_, kb_, m_e_rs_)
                 desc_len_, _, _ = self._calc_and_update((self.ka, self.kb))
                 if not self._is_this_mdl(desc_len_):
                     # merging predicates us to check (ka, kb), however, if it happens to have a higher desc_len
                     # then it is suspected to overshoot.
-                    self.ITALIC_I_THRESHOLD *= self.adaptive_ratio
+                    self.i_0 *= self.adaptive_ratio
                     ka_, kb_, _, desc_len_ = self._back_to_where_desc_len_is_lowest()
-                is_local_minimum_found = self._check_if_local_minimum(ka_, kb_, desc_len_, self._k_th_neighbor_to_search)
+                is_local_minimum_found = self._check_if_local_minimum(ka_, kb_, desc_len_, self._k_th_nb_to_search)
                 if is_local_minimum_found:
                     self._clean_up_and_record_mdl_point()
                     return self.confident_desc_len
@@ -227,6 +226,7 @@ class OptimalKs(object):
         return m_e_rs, m_e_r
 
     @staticmethod
+    @jit
     def merge_matrix(ka, kb, m_e_rs):
         """
         Merge random two rows of the affinity matrix (dim = K) to gain a reduced matrix (dim = K - 1)
@@ -272,6 +272,7 @@ class OptimalKs(object):
         elif kb == 1:
             from_row = 0
 
+        b = np.zeros([ka, kb])
         if from_row == 0:
             perm = np.arange(a.shape[0])
             np.random.shuffle(perm)
@@ -344,9 +345,9 @@ class OptimalKs(object):
         return new_ka, new_kb, c, merge_list
 
     def _cal_desc_len_diff(self, ka, kb, italic_i):
-        na = self.NUM_NODES_A
-        nb = self.NUM_NODES_B
-        e = self.NUM_EDGES
+        na = self.n_a
+        nb = self.n_b
+        e = self.e
         desc_len_b = na * math.log(ka) + nb * math.log(kb) - e * (italic_i - math.log(2))
         desc_len_b /= e
         x = float(ka * kb) / e
@@ -392,7 +393,7 @@ class OptimalKs(object):
                 return italic_i, m_e_rs, mb
 
         def run(ka, kb):
-            mb = self._engine(self._f_edgelist_name, self.NUM_NODES_A, self.NUM_NODES_B, ka, kb)
+            mb = self.engine_(self._f_edgelist_name, self.n_a, self.n_b, ka, kb)
             m_e_rs, _ = self.get_m_e_rs_from_mb(self.edgelist, mb)
             italic_i = self.get_italic_i_from_m_e_rs(m_e_rs)
             new_desc_len = self._cal_desc_len_diff(ka, kb, italic_i)
@@ -404,34 +405,34 @@ class OptimalKs(object):
         # In other words, we choose the state with minimum entropy.
         results = []
         if old_desc_len is None:
-            if self.PARALLELIZATION:
+            if self.is_par_:
                 # automatically shutdown after idling for 2s
                 results = list(
-                    self.executor(self.NUM_CORES, 2, lambda x: run(ka, kb), list(range(self.MAX_NUM_SWEEPS)))
+                    self.executor(self.n_cores_, 2, lambda x: run(ka, kb), list(range(self.max_n_sweeps_)))
                 )
             else:
                 results = [run(ka, kb)]
         else:
             old_desc_len = float(old_desc_len)
-            if not self.PARALLELIZATION:
+            if not self.is_par_:
                 # if old_desc_len is passed
                 # we compare the new_desc_len with the old one
                 # --
                 # this option is used when we want to decide whether
                 # we should escape from the local minimum during the heuristic
                 calculate_times = 0
-                while calculate_times < self.MAX_NUM_SWEEPS:
+                while calculate_times < self.max_n_sweeps_:
                     result = run(ka, kb)
                     results.append(result)
                     new_desc_len = self._cal_desc_len_diff(ka, kb, result[1])
                     if new_desc_len < old_desc_len:
                         # no need to go further
-                        calculate_times = self.MAX_NUM_SWEEPS
+                        calculate_times = self.max_n_sweeps_
                     else:
                         calculate_times += 1
             else:
                 results = list(
-                    self.executor(self.NUM_CORES, 2, lambda x: run(ka, kb), list(range(self.MAX_NUM_SWEEPS)))
+                    self.executor(self.n_cores_, 2, lambda x: run(ka, kb), list(range(self.max_n_sweeps_)))
                 )
 
         result = min(results, key=lambda x: x[2])
@@ -470,17 +471,17 @@ class OptimalKs(object):
             the two row-indexes of the original affinity matrix that were finally chosen (and merged)
 
         """
-        if self.INIT_ITALIC_I == 0:
+        if self.init_italic_i == 0:
             # This is an important step, where we calculate the graph partition at init (ka, kb)
             _, m_e_rs, italic_i = self._calc_and_update((ka, kb))
 
-            self.INIT_ITALIC_I = italic_i
+            self.init_italic_i = italic_i
             self.m_e_rs = m_e_rs
 
         def _sample_and_merge():
             _ka, _kb, _m_e_rs, _mlist = self.merge_matrix(self.ka, self.kb, self.m_e_rs)
             _italic_I = self.get_italic_i_from_m_e_rs(_m_e_rs)
-            diff_italic_i = _italic_I - self.INIT_ITALIC_I  # diff_italic_i is always negative;
+            diff_italic_i = _italic_I - self.init_italic_i  # diff_italic_i is always negative;
             return _ka, _kb, _m_e_rs, diff_italic_i, _mlist
 
         # how many times that a sample merging takes place
@@ -492,8 +493,8 @@ class OptimalKs(object):
 
         _ka, _kb, _m_e_rs, _diff_italic_i, _mlist = max(results, key=lambda x: x[3])
 
-        assert int(_m_e_rs.sum()) == int(self.NUM_EDGES * 2), "__m_e_rs.sum() = {}; self.NUM_EDGES * 2 = {}".format(
-            str(int(_m_e_rs.sum())), str(self.NUM_EDGES * 2)
+        assert int(_m_e_rs.sum()) == int(self.e * 2), "__m_e_rs.sum() = {}; self.e * 2 = {}".format(
+            str(int(_m_e_rs.sum())), str(self.e * 2)
         )
 
         return _ka, _kb, _m_e_rs, _diff_italic_i, _mlist
@@ -512,7 +513,7 @@ class OptimalKs(object):
 
     def _update_transient_state(self, ka_moving, kb_moving, t_m_e_rs, mlist):
         old_of_g = self.trace_mb[(self.ka, self.kb)]
-        new_of_g = list(np.zeros(self.NUM_NODES))
+        new_of_g = list(np.zeros(self.n))
 
         mlist.sort()
         for _node_id, _g in enumerate(old_of_g):
@@ -560,9 +561,9 @@ class OptimalKs(object):
             self._logger.info("DONE: the MDL point is {}".format(p_estimate))
 
     def _is_this_mdl(self, desc_len):
-        '''
+        """
             Check if `desc_len` is the minimal value so far.
-        '''
+        """
         if self.exist_bookkeeping:
             return not any([i < desc_len for i in self.confident_desc_len.values()])
         else:
@@ -595,7 +596,7 @@ class OptimalKs(object):
         self._logger.info("... DONE.")
 
         # update the predefined threshold value, DELTA:
-        self.INIT_ITALIC_I = italic_i
+        self.init_italic_i = italic_i
 
         return candidate_desc_len, m_e_rs, italic_i
 

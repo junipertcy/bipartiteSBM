@@ -6,6 +6,9 @@
 # Used when dealing with the affinity matrices.
 numpy
 
+# Used to compile the row_merge function just-in-time
+numba
+
 # Used when parallel computation is needed.
 loky
 
