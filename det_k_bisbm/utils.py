@@ -77,6 +77,7 @@ def get_desc_len_from_data(na, nb, n_edges, ka, kb, edgelist, mb):
     x = float(ka * kb) / n_edges
     desc_len_b += (1 + x) * math.log(1 + x) - x * math.log(x)
     desc_len_b -= (1 + 1 / n_edges) * math.log(1 + 1 / n_edges) - (1 / n_edges) * math.log(1 / n_edges)
+
     return desc_len_b
 
 

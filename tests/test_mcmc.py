@@ -8,15 +8,15 @@ mcmc = MCMC(f_engine="engines/bipartiteSBM-MCMC/bin/mcmc",
             n_sweeps=1,
             is_parallel=True,
             n_cores=1,
-            mcmc_steps=10000000,
-            mcmc_await_steps=1000000,
+            mcmc_steps=1e7,
+            mcmc_await_steps=1e6,
             mcmc_cooling="constant",
             mcmc_cooling_param_1=0.1,
             mcmc_cooling_param_2=0.1,
             mcmc_epsilon=10.
         )
 
-edgelist = get_edgelist("dataset/bisbm-n_1000-ka_4-kb_6-r-1.0-Ka_30-Ir_1.75.gt.edgelist", "\t")
+edgelist = get_edgelist("dataset/test/bisbm-n_1000-ka_4-kb_6-r-1.0-Ka_30-Ir_1.75.gt.edgelist", "\t")
 types = mcmc.gen_types(500, 500)
 
 oks = OptimalKs(mcmc, edgelist, types)

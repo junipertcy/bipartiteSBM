@@ -14,8 +14,8 @@ kl = KL(f_engine="engines/bipartiteSBM-KL/biSBM",
         f_kl_output="engines/bipartiteSBM-KL/f_kl_output"
     )
 
-edgelist = get_edgelist("dataset/empirical/southernWomen.edgelist", "\t")
-types = get_types("dataset/empirical/southernWomen.types")
+edgelist = get_edgelist("dataset/test/southernWomen.edgelist", "\t")
+types = get_types("dataset/test/southernWomen.types")
 
 oks = OptimalKs(kl, edgelist, types)
 oks.set_params(init_ka=10, init_kb=10, i_th=0.1)
