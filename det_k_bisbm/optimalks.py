@@ -55,6 +55,7 @@ class OptimalKs(object):
         self.kb = int(init_kb)
         self.i_0 = float(i_th)
         self.adaptive_ratio = 0.9  # adaptive parameter to make the "delta" smaller, if it's too large
+        assert 0. <= self.i_0 < 1, "[ERROR] Allowed range for i_th is [0, 1)."
 
         # TODO: "types" is only used to compute na and nb. Can be made more generic.
         self.types = types
@@ -68,6 +69,8 @@ class OptimalKs(object):
 
         assert self.n_a > 0, "[ERROR] Number of type-a nodes = 0, which is not allowed"
         assert self.n_b > 0, "[ERROR] Number of type-b nodes = 0, which is not allowed"
+        assert self.ka <= self.n_a, "[ERROR] Number of type-a communities must be smaller than the # nodes in type-a."
+        assert self.kb <= self.n_b, "[ERROR] Number of type-a communities must be smaller than the # nodes in type-b."
         self.n = len(types)
 
         self.edgelist = edgelist
@@ -124,6 +127,9 @@ class OptimalKs(object):
         self.kb = int(init_kb)
         self.i_0 = float(i_th)
         self.init_italic_i = 0.
+        assert 0. <= self.i_0 < 1, "[ERROR] Allowed range for i_th is [0, 1)."
+        assert self.ka <= self.n_a, "[ERROR] Number of type-a communities must be smaller than the # nodes in type-a."
+        assert self.kb <= self.n_b, "[ERROR] Number of type-a communities must be smaller than the # nodes in type-b."
 
     def set_adaptive_ratio(self, adaptive_ratio):
         self.adaptive_ratio = float(adaptive_ratio)
