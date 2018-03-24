@@ -54,7 +54,7 @@ class MCMC(object):
         params_ = ""
         if self.mcmc_cooling_ in ["exponential", "linear", "logarithmic"]:
             params_ = self.mcmc_cooling_param_1 + " " + self.mcmc_cooling_param_2
-        elif self.mcmc_cooling_ == "constant":
+        elif self.mcmc_cooling_ in ["constant", "abrupt_cool"]:
             params_ = self.mcmc_cooling_param_1
 
         # n_blocks_ = " ".join(

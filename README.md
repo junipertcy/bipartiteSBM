@@ -75,8 +75,8 @@ mcmc = MCMC(f_engine="engines/bipartiteSBM-MCMC/bin/mcmc",  # path to the graph 
             n_cores=2,                                      # if `is_parallel == True`, the number of cores used   
             mcmc_steps=1e5,                                 # [MCMC] the number of sweeps
             mcmc_await_steps=1e4,                           # [MCMC] the number of sweeps to await until stopping the algorithm, if max(entropy) and min(entropy) show no change therein  
-            mcmc_cooling="exponential",                     # [MCMC] annealing scheme used. enum: ["exponential", "logarithm", "linear", "constant"].
-            mcmc_cooling_param_1=10,                        # [MCMC] parameter 1 for the annealing
+            mcmc_cooling="abrupt_cool",                     # [MCMC] annealing scheme used. enum: ["exponential", "logarithm", "linear", "constant", "abrupt_cool"].
+            mcmc_cooling_param_1=1e4,                       # [MCMC] parameter 1 for the annealing
             mcmc_cooling_param_2=0.1,                       # [MCMC] parameter 2 for the annealing
             mcmc_epsilon=0.01                               # [MCMC] the "epsilon" value used in the algorithm
         )

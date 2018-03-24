@@ -10,10 +10,8 @@ mcmc = MCMC(f_engine="engines/bipartiteSBM-MCMC/bin/mcmc",
             n_cores=1,
             mcmc_steps=1e7,
             mcmc_await_steps=1e6,
-            mcmc_cooling="constant",
-            mcmc_cooling_param_1=0.1,
-            mcmc_cooling_param_2=0.1,
-            mcmc_epsilon=10.
+            mcmc_cooling="abrupt_cool",
+            mcmc_epsilon=0.01
         )
 
 edgelist = get_edgelist("dataset/test/bisbm-n_1000-ka_4-kb_6-r-1.0-Ka_30-Ir_1.75.gt.edgelist", "\t")
