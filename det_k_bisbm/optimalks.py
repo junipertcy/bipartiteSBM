@@ -412,9 +412,9 @@ class OptimalKs(object):
         results = []
         if old_desc_len is None:
             if self.is_par_:
-                # automatically shutdown after idling for 2s
+                # automatically shutdown after idling for 60s
                 results = list(
-                    self.executor(self.n_cores_, 2, lambda x: run(ka, kb), list(range(self.max_n_sweeps_)))
+                    self.executor(self.n_cores_, 60, lambda x: run(ka, kb), list(range(self.max_n_sweeps_)))
                 )
             else:
                 results = [run(ka, kb)]
@@ -438,7 +438,7 @@ class OptimalKs(object):
                         calculate_times += 1
             else:
                 results = list(
-                    self.executor(self.n_cores_, 2, lambda x: run(ka, kb), list(range(self.max_n_sweeps_)))
+                    self.executor(self.n_cores_, 60, lambda x: run(ka, kb), list(range(self.max_n_sweeps_)))
                 )
 
         result = min(results, key=lambda x: x[2])

@@ -4,3 +4,6 @@
 [submodule "engines/bipartiteSBM-KL"]
 	path = engines/bipartiteSBM-KL
 	url = https://github.com/junipertcy/bipartiteSBM-KL.git
+[submodule "clusim"]
+	path = clusim
+	url = https://github.com/ajgates42/clusim.git
