@@ -4,6 +4,17 @@ import math
 
 
 def gen_equal_partition(n, total):
+    """
+
+    Parameters
+    ----------
+    n
+    total
+
+    Returns
+    -------
+
+    """
     all_nodes = np.arange(total)
     n_blocks = list(map(len, np.array_split(all_nodes, n)))
 
@@ -11,6 +22,19 @@ def gen_equal_partition(n, total):
 
 
 def gen_equal_bipartite_partition(na, nb, ka, kb):
+    """
+
+    Parameters
+    ----------
+    na
+    nb
+    ka
+    kb
+
+    Returns
+    -------
+
+    """
     n_blocks = map(int, gen_equal_partition(ka, na) + gen_equal_partition(kb, nb))
     n = []
     for idx, i in enumerate(n_blocks):
@@ -19,9 +43,18 @@ def gen_equal_bipartite_partition(na, nb, ka, kb):
 
 
 def get_n_r_from_mb(mb):
-    '''
-        Get n_r vector (number of nodes in each group) from the membership vector.
-    '''
+    """
+    Get n_r vector (number of nodes in each group) from the membership vector.
+
+    Parameters
+    ----------
+    mb
+
+    Returns
+    -------
+    n_r
+
+    """
     assert type(mb) is list, "ERROR: the type of the input parameter should be a list"
     import numpy as np
     n_r = np.zeros(max(mb) + 1)
@@ -32,18 +65,32 @@ def get_n_r_from_mb(mb):
 
 
 def get_desc_len_from_data(na, nb, n_edges, ka, kb, edgelist, mb):
-    '''
-        Description length difference to a randomized instance
+    """
+    Description length difference to a randomized instance
 
-        :param na: number of nodes in type-a
-        :param nb: number of nodes in type-b
-        :param n_edges: number of edges
-        :param ka: number of communities in type-a
-        :param kb: number of communities in type-b
-        :param edgelist: edgelist in Python list structure
-        :param mb: community membership of each node in Python list structure
-        :return: Description length difference
-    '''
+    Parameters
+    ----------
+    na: `int`
+        Number of nodes in type-a.
+    nb: `int`
+        Number of nodes in type-b.
+    n_edges: `int`
+        Number of edges.
+    ka: `int`
+        Number of communities in type-a.
+    kb: `int`
+        Number of communities in type-b.
+    edgelist: `list`
+        Edgelist in Python list structure.
+    mb: `list`
+        Community membership of each node in Python list structure.
+
+    Returns
+    -------
+    desc_len_b: `float`
+        Difference of the description length to the bipartite ER network, per edge.
+
+    """
     assert type(edgelist) is list, "[ERROR] the type of the input parameter (edgelist) should be a list"
     assert type(mb) is list, "[ERROR] the type of the input parameter (mb) should be a list"
     # First, let's compute the m_e_rs from the edgelist and mb
@@ -82,9 +129,28 @@ def get_desc_len_from_data(na, nb, n_edges, ka, kb, edgelist, mb):
 
 
 def get_desc_len_from_data_uni(n, n_edges, k, edgelist, mb):
-    '''
-        Description length difference to a randomized instance, via PRL 110, 148701 (2013).
-    '''
+    """
+    Description length difference to a randomized instance, via PRL 110, 148701 (2013).
+
+    Parameters
+    ----------
+    n: `int`
+        Number of nodes.
+    n_edges: `int`
+        Number of edges.
+    k: `int`
+        Number of communities.
+    edgelist: `list`
+        A list of edges.
+    mb: `list`
+        A list of node community membership.
+
+    Returns
+    -------
+    desc_len_b: `float`
+        Difference of the description length to the ER network, per edge.
+
+    """
     assert type(edgelist) is list, "[ERROR] the type of the input parameter (edgelist) should be a list"
     assert type(mb) is list, "[ERROR] the type of the input parameter (mb) should be a list"
     # First, let's compute the m_e_rs from the edgelist and mb

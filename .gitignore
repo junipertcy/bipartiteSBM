@@ -12,7 +12,8 @@ engines/mcmc/src/cmake-build-debug/*
 # empirical data
 dataset/empirical/*
 !dataset/empirical/README.md
-tutorials/figure-2/dataset/*
+tutorials/figure-2/dataset/*.gml
+tutorials/figure-2/dataset/*.edgelist
 
 # outputs
 engines/kl/output/*
@@ -21,10 +22,10 @@ engines/kl/output/*
 # misc
 *.pyc
 __pycache__/
-.ipynb_checkpoints/*
 .cache/*
 .pytest_cache/*
 venv/
+.ipynb_checkpoints
 
 # Created by https://www.gitignore.io/api/cmake,c++
 

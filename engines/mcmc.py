@@ -9,10 +9,10 @@ class MCMC(object):
                  n_sweeps=4,
                  is_parallel=True,
                  n_cores=4,
-                 mcmc_steps=1000,
+                 mcmc_steps=100000,
                  mcmc_await_steps=10000,
-                 mcmc_cooling="exponential",
-                 mcmc_cooling_param_1=100,
+                 mcmc_cooling="abrupt_cool",
+                 mcmc_cooling_param_1=10000,
                  mcmc_cooling_param_2=0.1,
                  mcmc_epsilon=0.001):
 

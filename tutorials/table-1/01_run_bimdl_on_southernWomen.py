@@ -27,7 +27,8 @@ mcmc = MCMC(f_engine="../../engines/bipartiteSBM-MCMC/bin/mcmc",
             mcmc_steps=10000*n,
             mcmc_await_steps=1000*n,
             mcmc_cooling="abrupt_cool",
-            mcmc_epsilon=0.01
+            mcmc_cooling_param_1=1000*n,
+            mcmc_epsilon=0.0001
 )
 
 
