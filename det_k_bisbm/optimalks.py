@@ -4,7 +4,9 @@ import random
 import logging
 import tempfile
 import numpy as np
-from numba import jit
+
+from numba import jit, uint8
+from numba.types import Tuple
 
 from collections import OrderedDict
 from loky import get_reusable_executor
@@ -43,7 +45,7 @@ class OptimalKs(object):
                  init_ka=10,
                  init_kb=10,
                  i_th=0.1,
-                 logging_level="info"):
+                 logging_level="INFO"):
 
         self.engine_ = engine.engine  # TODO: check that engine is an object
         self.max_n_sweeps_ = engine.MAX_NUM_SWEEPS
@@ -102,14 +104,14 @@ class OptimalKs(object):
 
         # logging
         self._logger = logging.Logger
-        self.set_logging_level(logging_level)
+        self.__set_logging_level(logging_level)
 
         # hard-coded parameters
         self._size_rows_to_run = 1
         self._k_th_nb_to_search = 1
         pass
 
-    def set_logging_level(self, level):
+    def __set_logging_level(self, level):
         _level = 0
         if level.upper() == "INFO":
             _level = logging.INFO
@@ -232,7 +234,7 @@ class OptimalKs(object):
         return m_e_rs, m_e_r
 
     @staticmethod
-    @jit
+    @jit(Tuple((uint8, uint8, uint8[:, :], uint8[:]))(uint8, uint8, uint8[:, :]), cache=True)
     def merge_matrix(ka, kb, m_e_rs):
         """
         Merge random two rows of the affinity matrix (dim = K) to gain a reduced matrix (dim = K - 1)
