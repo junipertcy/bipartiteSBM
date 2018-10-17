@@ -234,11 +234,10 @@ class OptimalKs(object):
         return m_e_rs, m_e_r
 
     @staticmethod
-    @jit(Tuple((uint8, uint8, uint8[:, :], uint8[:]))(uint8, uint8, uint8[:, :]), cache=True)
+    @jit(Tuple((uint8, uint8, uint8[:, :], uint8[:]))(uint8, uint8, uint8[:, :]), cache=True, fastmath=True)
     def merge_matrix(ka, kb, m_e_rs):
         """
         Merge random two rows of the affinity matrix (dim = K) to gain a reduced matrix (dim = K - 1)
-
         Parameters
         ----------
         ka : int
@@ -247,26 +246,21 @@ class OptimalKs(object):
             number of type-b communities in the affinity matrix
         m_e_rs : numpy array
             the affinity matrix
-
         Returns
         -------
         new_ka : int
             the new number of type-a communities in the affinity matrix
-
         new_kb : int
             the new number of type-b communities in the affinity matrix
-
         c : numpy array
             the new affinity matrix
-
         merge_list : list(int, int)
             the two row-indexes of the original affinity matrix that were merged
-
         """
         assert type(m_e_rs) is np.ndarray, "[ERROR] input parameter (m_e_rs) should be of type numpy.ndarray"
         assert np.all(m_e_rs.transpose() == m_e_rs), "[ERROR] input m_e_rs matrix is not symmetric!"
 
-        from_row = random.sample([0] * ka + [ka] * kb, 1)[0]
+        from_row = random.choices([0, ka], weights=[ka, kb], k=1)[0]
         a = m_e_rs[0:ka, ka:ka + kb]
 
         merge_list = list([0, 0])  # which two mb label should be merged together?
@@ -274,8 +268,7 @@ class OptimalKs(object):
         new_ka = 0
         new_kb = 0
 
-        if ka == 1:
-            # do not merge type-a rows (this happens when <i_th> is set too high)
+        if ka == 1:  # do not merge type-a rows (this happens when <i_th> is set too high)
             from_row = ka
         elif kb == 1:
             from_row = 0
@@ -333,14 +326,15 @@ class OptimalKs(object):
 
         c = np.zeros([new_ka + new_kb, new_ka + new_kb])
         bt = b.transpose()
-        if not from_row == 0:
+        if from_row == ka:
             b = bt
             bt = b.transpose()
+
         for ind_i, _c in enumerate(c):
-            for ind_j, __c in enumerate(_c):
-                if ind_i >= new_ka and ind_j < new_ka:
+            for ind_j, _ in enumerate(_c):
+                if ind_j < new_ka <= ind_i:
                     c[ind_i][ind_j] = bt[ind_i - new_ka][ind_j]
-                elif ind_i < new_ka and ind_j >= new_ka:
+                elif ind_i < new_ka <= ind_j:
                     c[ind_i][ind_j] = b[ind_i][ind_j - new_ka]
 
         assert new_ka + new_kb == c.shape[0], "new_ka = {}; new_kb = {}; new_mat.shape[0] = {}".format(
@@ -352,7 +346,79 @@ class OptimalKs(object):
         assert np.all(c.transpose() == c), "Error: output m_e_rs matrix is not symmetric!"
         return new_ka, new_kb, c, merge_list
 
-    def _cal_desc_len_diff(self, ka, kb, italic_i):
+    def calc_model_entropy(self):
+        pass
+
+    def _calc_entropy_node_partition(self, b, method="distributed", is_bipartite=True):
+        """
+        Compute the model entropy from a specific prior for the node partition
+
+        Parameters
+        ----------
+        b : array-like
+            Python list for the node partition
+
+        method : str
+            Formulae used to compute the entropy.
+
+        is_bipartite : bool
+            Whether the system is known to be bipartite or not.
+
+        Returns
+        -------
+        ent : float
+            Entropy for the node partition
+
+        Notes
+        -----
+        For ``method``, there are three options:
+
+        1. ``method == "uniform"``
+
+            This corresponds to a non-informative prior, where the node
+            partitions are sampled from an uniform distribution.
+
+        2. ``method == "distributed"``
+
+            This corresponds to a prior for the node partitions conditioned on
+            the group-size distribution, which are themselves sampled from an uniform
+            hyperprior on node counts. This option should be preferred in most cases.
+
+        """
+        ent = 0.
+        if is_bipartite:
+            n_a = self.n_a
+            n_b = self.n_b
+            k_a = len(set(b[:n_a]))
+            k_b = len(set(b[n_a:]))
+            if method == "distributed":
+                pass
+            elif method == "uniform":
+                pass
+        else:
+            n = len(list(b))
+            k = len(set(b))
+            if method == "distributed":
+                ent = 0.
+                pass
+            elif method == "uniform":
+                ent = n * math.log(k) + math.log(n)
+                pass
+        return ent
+
+    @staticmethod
+    def _calc_entropy_edge_counts(self):
+        pass
+
+    @staticmethod
+    def _calc_entropy_node_degree(self):
+        pass
+
+    @staticmethod
+    def _h_func(x):
+        return (1 + x) * math.log(1 + x) - x * math.log(x)
+
+    def _cal_desc_len(self, ka, kb, italic_i):
         na = self.n_a
         nb = self.n_b
         e = self.e
@@ -404,7 +470,7 @@ class OptimalKs(object):
             mb = self.engine_(self._f_edgelist_name, self.n_a, self.n_b, ka, kb)
             m_e_rs, _ = self.get_m_e_rs_from_mb(self.edgelist, mb)
             italic_i = self.get_italic_i_from_m_e_rs(m_e_rs)
-            new_desc_len = self._cal_desc_len_diff(ka, kb, italic_i)
+            new_desc_len = self._cal_desc_len(ka, kb, italic_i)
 
             return m_e_rs, italic_i, new_desc_len, mb
 
@@ -432,7 +498,7 @@ class OptimalKs(object):
                 while calculate_times < self.max_n_sweeps_:
                     result = run(ka, kb)
                     results.append(result)
-                    new_desc_len = self._cal_desc_len_diff(ka, kb, result[1])
+                    new_desc_len = self._cal_desc_len(ka, kb, result[1])
                     if new_desc_len < old_desc_len:
                         # no need to go further
                         calculate_times = self.max_n_sweeps_
@@ -595,7 +661,7 @@ class OptimalKs(object):
             italic_i, m_e_rs, mb = self._calc_with_hook(point[0], point[1], old_desc_len=None)
         else:
             italic_i, m_e_rs, mb = self._calc_with_hook(point[0], point[1], old_desc_len=old_desc_len)
-        candidate_desc_len = self._cal_desc_len_diff(point[0], point[1], italic_i)
+        candidate_desc_len = self._cal_desc_len(point[0], point[1], italic_i)
         self.confident_desc_len[point] = candidate_desc_len
         self.confident_italic_i[point] = italic_i
         self.confident_m_e_rs[point] = m_e_rs
@@ -620,5 +686,3 @@ class OptimalKs(object):
             f_edgelist_name = self.f_edgelist.name
             del self.f_edgelist
         return f_edgelist_name
-
-

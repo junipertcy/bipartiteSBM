@@ -21,7 +21,7 @@ numbers of communities in the biSBM that best compresses the model and data. Sev
 If you want to sample the whole marginal distribution of the number of communities, rather than a point estimate,
 please check the companion [Markov Chain Monte Carlo](https://github.com/junipertcy/bipartiteSBM-MCMC) program.
 
-Both Python 2.7 and 3.6 are supported and tested.
+Supported and tested on Python>=3.6.
 
 ## Table of content
 
