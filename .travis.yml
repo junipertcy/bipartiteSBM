@@ -4,7 +4,7 @@ matrix:
     - os: linux
       env: RUN_TESTS="true" WITH_PYTHON="3.6"
     - os: linux
-      env: RUN_TESTS="true" WITH_PYTHON="2.7"
+      env: RUN_TESTS="true" WITH_PYTHON="3.7"
     - os: osx
       sudo: required
       language: generic
@@ -12,7 +12,7 @@ matrix:
     - os: osx
       sudo: required
       language: generic
-      env: RUN_TESTS="true" WITH_PYTHON="2.7"
+      env: RUN_TESTS="true" WITH_PYTHON="3.7"
 before_cache:
   - rm -f /home/travis/.cache/pip/log/debug.log
 cache:
