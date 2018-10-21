@@ -1,16 +1,5 @@
 """ utilities """
-import numpy as np
-from scipy.special import gammaln
-
-
-def lbinom(n, k):
-    """Return log of binom(n, k)."""
-    if type(n) in [float, int]:
-        n = np.array([n])
-        k = np.array([k])
-    return (gammaln(np.array([float(x) for x in n + 1])) -
-            gammaln(np.array([float(x) for x in n - k + 1])) -
-            gammaln(np.array([float(x) for x in k + 1])))
+from .int_part import *
 
 
 def partition_entropy(ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=None, allow_empty=False):
@@ -129,7 +118,7 @@ def model_entropy(e, ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=None
             l = lbinom(x + e - 1, e)
         else:
             l = lbinom(x + e - 1, e) + partition_entropy(ka=ka, kb=kb, na=na, nb=nb, nr=nr, allow_empty=allow_empty)
-            print("P(e) and P(b|n_r) are {} and {}".format(lbinom(x + e - 1, e), partition_entropy(ka=ka, kb=kb, na=na, nb=nb, nr=nr, allow_empty=allow_empty)))
+            # print("P(e) and P(b|n_r) are {} and {}".format(lbinom(x + e - 1, e), partition_entropy(ka=ka, kb=kb, na=na, nb=nb, nr=nr, allow_empty=allow_empty)))
     else:
         raise AttributeError
     return l
@@ -190,11 +179,10 @@ def get_n_r_from_mb(mb):
 
     """
     assert type(mb) is list, "ERROR: the type of the input parameter should be a list"
-    import numpy as np
-    n_r = np.zeros(max(mb) + 1)
+    n_r = np.zeros(np.max(mb) + 1)
     for block_id in mb:
         n_r[block_id] += 1
-    n_r = list(map(int, n_r))
+    n_r = np.array([int(x) for x in n_r])
     return n_r
 
 
@@ -225,7 +213,63 @@ def get_n_k_from_edgelist(edgelist):
     return n_k
 
 
-def compute_degree_entropy(edgelist, mb, degree_dl_kind="uniform"):
+def get_eta_rk_from_edgelist_and_mb(edgelist, mb):
+    """
+    Get eta_rk, or the number eta_rk of nodes of degree k that belong to group r.
+
+    Parameters
+    ----------
+    edgelist
+
+    Returns
+    -------
+
+    """
+    assert np.min(edgelist).__int__() == 0, "The index of a node must start from 0."
+    assert np.min(mb).__int__() == 0, "The index of a membership label must start from 0."
+
+    max_ = np.max(edgelist).__int__()
+    mb_max_ = np.max(mb).__int__()
+
+    k = np.zeros([mb_max_ + 1, max_ + 1])
+    for edge in edgelist:
+        k[mb[edge[0]]][edge[0]] += 1
+        k[mb[edge[1]]][edge[1]] += 1
+    max_deg_in_each_mb_ = np.max(k, axis=0)
+    max_ = int(np.max(max_deg_in_each_mb_))
+    eta_rk = np.zeros([mb_max_ + 1, max_ + 1])
+    for mb_ in range(mb_max_ + 1):
+        for k_ in k[mb_]:
+            eta_rk[mb_][k_.__int__()] += 1
+
+    return eta_rk.astype(int)
+
+
+def compute_degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree_dl_kind="distributed", q_cache_max_e_r=10000):
+    """
+
+    Parameters
+    ----------
+    edgelist
+    mb
+    __q_cache
+    degree_dl_kind: `str`
+
+        1. ``degree_dl_kind == "uniform"``
+
+        This corresponds to a non-informative prior, where the node
+        degrees are sampled from an uniform distribution.
+
+        2. ``degree_dl_kind == "distributed"``
+
+        This option should be preferred in most cases.
+
+
+    Returns
+    -------
+
+    """
+    import time
     ent = 0
     n_r = np.zeros(max(mb) + 1)
     for mb_ in mb:
@@ -242,7 +286,20 @@ def compute_degree_entropy(edgelist, mb, degree_dl_kind="uniform"):
     if degree_dl_kind == "uniform":
         ent += np.sum(lbinom(n_r + e_r - 1, e_r))
     elif degree_dl_kind == "distributed":
-        raise NotImplementedError
+        if len(__q_cache) == 1:
+            t0 = time.time()
+            __q_cache = init_q_cache(q_cache_max_e_r, __q_cache)  # the pre-computed lookup table affects precision!
+            t1 = time.time()
+            print("[Good news!] log q(m, n) look-up table computed for m <= 1e4; taking {} sec".format(t1 - t0))
+        for ind, n_r_ in enumerate(n_r):
+            ent += log_q(e_r[ind], n_r_, __q_cache)
+        eta_rk = get_eta_rk_from_edgelist_and_mb(edgelist, mb)
+
+        for mb_, eta_rk_ in enumerate(eta_rk):
+            for deg, eta in enumerate(eta_rk_):
+                if deg != 0:
+                    ent -= +loggamma(eta + 1)
+            ent -= -loggamma(n_r[mb_] + 1)
     elif degree_dl_kind == "entropy":
         raise NotImplementedError
     return ent
@@ -284,89 +341,3 @@ def compute_profile_likelihood(edgelist, mb, ka=None, kb=None, k=None):
         )
     return italic_i
 
-
-def get_desc_len_from_data(na, nb, n_edges, ka, kb, edgelist, mb, diff=True, nr=None, allow_empty=False):
-    """
-    Description length difference to a randomized instance
-
-    Parameters
-    ----------
-    na: `int`
-        Number of nodes in type-a.
-    nb: `int`
-        Number of nodes in type-b.
-    n_edges: `int`
-        Number of edges.
-    ka: `int`
-        Number of communities in type-a.
-    kb: `int`
-        Number of communities in type-b.
-    edgelist: `list`
-        Edgelist in Python list structure.
-    mb: `list`
-        Community membership of each node in Python list structure.
-    diff: `bool`
-        When `diff == True`,
-        the returned description value will be the difference to that of a random bipartite network. Otherwise, it will
-        return the entropy (a.k.a. negative log-likelihood) associated with the current block partition.
-    allow_empty: `bool`
-    nr: `array-like`
-
-    Returns
-    -------
-    desc_len_b: `float`
-        Difference of the description length to the bipartite ER network, per edge.
-
-    """
-    edgelist = list(map(lambda e: [int(e[0]), int(e[1])], edgelist))
-
-    italic_i = compute_profile_likelihood(edgelist, mb, ka=ka, kb=kb)
-    desc_len = 0.
-
-    # finally, we compute the description length
-    if diff:  # todo: add more options to it; now, only uniform prior for P(e) is included.
-        desc_len += (na * np.log(ka) + nb * np.log(kb) - n_edges * (italic_i - np.log(2))) / n_edges
-        x = float(ka * kb) / n_edges
-        desc_len += (1 + x) * np.log(1 + x) - x * np.log(x)
-        desc_len -= (1 + 1 / n_edges) * np.log(1 + 1 / n_edges) - (1 / n_edges) * np.log(1 / n_edges)
-    else:
-        num_edges = len(edgelist)
-        desc_len += fitting_entropy(edgelist, mb)
-        print("desc len from fitting {}".format(desc_len))
-        desc_len += model_entropy(num_edges, ka=ka, kb=kb, na=na, nb=nb, nr=nr, allow_empty=allow_empty)  # P(e | b) + P(b | K)
-        desc_len += compute_degree_entropy(edgelist, mb)  # P(k |e, b) - this term is as correct as in graph_tool
-        print("degree dl = {}".format(compute_degree_entropy(edgelist, mb)))
-    return desc_len.__float__()
-
-
-def get_desc_len_from_data_uni(n, n_edges, k, edgelist, mb):
-    """
-    Description length difference to a randomized instance, via PRL 110, 148701 (2013).
-
-    Parameters
-    ----------
-    n: `int`
-        Number of nodes.
-    n_edges: `int`
-        Number of edges.
-    k: `int`
-        Number of communities.
-    edgelist: `list`
-        A list of edges.
-    mb: `list`
-        A list of node community membership.
-
-    Returns
-    -------
-    desc_len_b: `float`
-        Difference of the description length to the ER network, per edge.
-
-    """
-    italic_i = compute_profile_likelihood(edgelist, mb, k=k)
-
-    # finally, we compute the description length
-    desc_len_b = (n * np.log(k) - n_edges * italic_i) / n_edges
-    x = float(k * (k + 1)) / 2. / n_edges
-    desc_len_b += (1 + x) * np.log(1 + x) - x * np.log(x)
-    desc_len_b -= (1 + 1 / n_edges) * np.log(1 + 1 / n_edges) - (1 / n_edges) * np.log(1 / n_edges)
-    return desc_len_b

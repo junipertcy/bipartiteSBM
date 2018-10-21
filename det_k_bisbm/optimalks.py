@@ -3,7 +3,6 @@ import math
 import random
 import logging
 import tempfile
-import numpy as np
 
 from numba import jit, uint8
 from numba.types import Tuple
@@ -11,6 +10,8 @@ from numba.types import Tuple
 from collections import OrderedDict
 from loky import get_reusable_executor
 from itertools import product
+
+from det_k_bisbm.utils import *
 
 
 class OptimalKs(object):
@@ -109,6 +110,11 @@ class OptimalKs(object):
         # hard-coded parameters
         self._size_rows_to_run = 1
         self._k_th_nb_to_search = 1
+
+        # look-up tables
+        self.__q_cache_f_name = os.path.join(tempfile.mkdtemp(), '__q_cache.dat')  # for restricted integer partitions
+        self.__q_cache = np.array([], ndmin=2)
+        self.__q_cache_max_e_r = 10000
         pass
 
     def __set_logging_level(self, level):
@@ -148,6 +154,9 @@ class OptimalKs(object):
         self.exist_bookkeeping = bool(exist_bookkeeping)
         if not exist_bookkeeping:
             self._logger.warning("Setting <exist_bookkeeping> to false makes bad performance.")
+
+    def get__q_cache(self):
+        return self.__q_cache
 
     def iterator(self):
         if not self.is_tempfile_existed:
@@ -192,10 +201,10 @@ class OptimalKs(object):
             self._calc_and_update((ka, kb))
 
     @staticmethod
-    def executor(max_workers, timeout, func, feeds):
+    def loky_executor(max_workers, timeout, func, feeds):
         assert type(feeds) is list, "[ERROR] feeds should be a Python list; here it is {}".format(str(type(feeds)))
-        executor = get_reusable_executor(max_workers=int(max_workers), timeout=int(timeout))
-        results = executor.map(func, feeds)
+        loky_executor = get_reusable_executor(max_workers=int(max_workers), timeout=int(timeout))
+        results = loky_executor.map(func, feeds)
         return results
 
     @staticmethod
@@ -346,65 +355,98 @@ class OptimalKs(object):
         assert np.all(c.transpose() == c), "Error: output m_e_rs matrix is not symmetric!"
         return new_ka, new_kb, c, merge_list
 
-    def calc_model_entropy(self):
-        pass
-
-    def _calc_entropy_node_partition(self, b, method="distributed", is_bipartite=True):
+    def get_desc_len_from_data(self, na, nb, n_edges, ka, kb, edgelist, mb, diff=True, nr=None, allow_empty=False,
+                               degree_dl_kind="distributed"):
         """
-        Compute the model entropy from a specific prior for the node partition
+        Description length difference to a randomized instance
 
         Parameters
         ----------
-        b : array-like
-            Python list for the node partition
-
-        method : str
-            Formulae used to compute the entropy.
-
-        is_bipartite : bool
-            Whether the system is known to be bipartite or not.
+        na: `int`
+            Number of nodes in type-a.
+        nb: `int`
+            Number of nodes in type-b.
+        n_edges: `int`
+            Number of edges.
+        ka: `int`
+            Number of communities in type-a.
+        kb: `int`
+            Number of communities in type-b.
+        edgelist: `list`
+            Edgelist in Python list structure.
+        mb: `list`
+            Community membership of each node in Python list structure.
+        diff: `bool`
+            When `diff == True`,
+            the returned description value will be the difference to that of a random bipartite network. Otherwise, it will
+            return the entropy (a.k.a. negative log-likelihood) associated with the current block partition.
+        allow_empty: `bool`
+        nr: `array-like`
+        degree_dl_kind: `str`
 
         Returns
         -------
-        ent : float
-            Entropy for the node partition
-
-        Notes
-        -----
-        For ``method``, there are three options:
-
-        1. ``method == "uniform"``
-
-            This corresponds to a non-informative prior, where the node
-            partitions are sampled from an uniform distribution.
-
-        2. ``method == "distributed"``
-
-            This corresponds to a prior for the node partitions conditioned on
-            the group-size distribution, which are themselves sampled from an uniform
-            hyperprior on node counts. This option should be preferred in most cases.
+        desc_len_b: `float`
+            Difference of the description length to the bipartite ER network, per edge.
 
         """
-        ent = 0.
-        if is_bipartite:
-            n_a = self.n_a
-            n_b = self.n_b
-            k_a = len(set(b[:n_a]))
-            k_b = len(set(b[n_a:]))
-            if method == "distributed":
-                pass
-            elif method == "uniform":
-                pass
+        edgelist = list(map(lambda e: [int(e[0]), int(e[1])], edgelist))
+
+        italic_i = compute_profile_likelihood(edgelist, mb, ka=ka, kb=kb)
+        desc_len = 0.
+
+        # finally, we compute the description length
+        if diff:  # todo: add more options to it; now, only uniform prior for P(e) is included.
+            desc_len += (na * np.log(ka) + nb * np.log(kb) - n_edges * (italic_i - np.log(2))) / n_edges
+            x = float(ka * kb) / n_edges
+            desc_len += (1 + x) * np.log(1 + x) - x * np.log(x)
+            desc_len -= (1 + 1 / n_edges) * np.log(1 + 1 / n_edges) - (1 / n_edges) * np.log(1 / n_edges)
         else:
-            n = len(list(b))
-            k = len(set(b))
-            if method == "distributed":
-                ent = 0.
-                pass
-            elif method == "uniform":
-                ent = n * math.log(k) + math.log(n)
-                pass
-        return ent
+            desc_len += fitting_entropy(edgelist, mb)
+            # print("desc len from fitting {}".format(desc_len))
+            desc_len += model_entropy(n_edges, ka=ka, kb=kb, na=na, nb=nb, nr=nr,
+                                      allow_empty=allow_empty)  # P(e | b) + P(b | K)
+            if degree_dl_kind == "distributed":
+                ent = compute_degree_entropy(edgelist, mb, __q_cache=self.__q_cache,
+                                             degree_dl_kind=degree_dl_kind)  # P(k |e, b)
+            else:
+                ent = compute_degree_entropy(edgelist, mb, degree_dl_kind=degree_dl_kind)  # P(k |e, b)
+            desc_len += ent
+            # print("degree dl = {}".format(ent))
+        return desc_len.__float__()
+
+    @staticmethod
+    def get_desc_len_from_data_uni(n, n_edges, k, edgelist, mb):
+        """
+        Description length difference to a randomized instance, via PRL 110, 148701 (2013).
+
+        Parameters
+        ----------
+        n: `int`
+            Number of nodes.
+        n_edges: `int`
+            Number of edges.
+        k: `int`
+            Number of communities.
+        edgelist: `list`
+            A list of edges.
+        mb: `list`
+            A list of node community membership.
+
+        Returns
+        -------
+        desc_len_b: `float`
+            Difference of the description length to the ER network, per edge.
+
+        """
+        italic_i = compute_profile_likelihood(edgelist, mb, k=k)
+
+        # finally, we compute the description length
+        desc_len_b = (n * np.log(k) - n_edges * italic_i) / n_edges
+        x = float(k * (k + 1)) / 2. / n_edges
+        desc_len_b += (1 + x) * np.log(1 + x) - x * np.log(x)
+        desc_len_b -= (1 + 1 / n_edges) * np.log(1 + 1 / n_edges) - (1 / n_edges) * np.log(1 / n_edges)
+        return desc_len_b
 
     @staticmethod
     def _calc_entropy_edge_counts(self):
@@ -418,16 +460,16 @@ class OptimalKs(object):
     def _h_func(x):
         return (1 + x) * math.log(1 + x) - x * math.log(x)
 
-    def _cal_desc_len(self, ka, kb, italic_i):
-        na = self.n_a
-        nb = self.n_b
-        e = self.e
-        desc_len_b = na * math.log(ka) + nb * math.log(kb) - e * (italic_i - math.log(2))
-        desc_len_b /= e
-        x = float(ka * kb) / e
-        desc_len_b += (1 + x) * math.log(1 + x) - x * math.log(x)
-        desc_len_b -= (1. + 1. / e) * math.log(1. + 1. / e) - (1. / e) * math.log(1. / e)
-        return desc_len_b
+    # def _cal_desc_len(self, ka, kb, italic_i):
+    #     na = self.n_a
+    #     nb = self.n_b
+    #     e = self.e
+    #     desc_len_b = na * math.log(ka) + nb * math.log(kb) - e * (italic_i - math.log(2))
+    #     desc_len_b /= e
+    #     x = float(ka * kb) / e
+    #     desc_len_b += (1 + x) * math.log(1 + x) - x * math.log(x)
+    #     desc_len_b -= (1. + 1. / e) * math.log(1. + 1. / e) - (1. / e) * math.log(1. / e)
+    #     return desc_len_b
 
     def _calc_with_hook(self, ka, kb, old_desc_len=None):
         """
@@ -468,11 +510,7 @@ class OptimalKs(object):
 
         def run(ka, kb):
             mb = self.engine_(self._f_edgelist_name, self.n_a, self.n_b, ka, kb)
-            m_e_rs, _ = self.get_m_e_rs_from_mb(self.edgelist, mb)
-            italic_i = self.get_italic_i_from_m_e_rs(m_e_rs)
-            new_desc_len = self._cal_desc_len(ka, kb, italic_i)
-
-            return m_e_rs, italic_i, new_desc_len, mb
+            return mb
 
         # Calculate the biSBM inference several times,
         # choose the maximum likelihood result.
@@ -482,13 +520,18 @@ class OptimalKs(object):
             if self.is_par_:
                 # automatically shutdown after idling for 60s
                 results = list(
-                    self.executor(self.n_cores_, 60, lambda x: run(ka, kb), list(range(self.max_n_sweeps_)))
+                    self.loky_executor(self.n_cores_, 60, lambda x: run(ka, kb), list(range(self.max_n_sweeps_)))
                 )
             else:
                 results = [run(ka, kb)]
         else:
             old_desc_len = float(old_desc_len)
-            if not self.is_par_:
+            if self.is_par_:
+                self.__q_cache = np.array([], ndmin=2)
+                results = list(
+                    self.loky_executor(self.n_cores_, 60, lambda x: run(ka, kb), list(range(self.max_n_sweeps_)))
+                )
+            else:
                 # if old_desc_len is passed
                 # we compare the new_desc_len with the old one
                 # --
@@ -498,23 +541,44 @@ class OptimalKs(object):
                 while calculate_times < self.max_n_sweeps_:
                     result = run(ka, kb)
                     results.append(result)
-                    new_desc_len = self._cal_desc_len(ka, kb, result[1])
+                    # new_desc_len = self._cal_desc_len(ka, kb, result[1])
+                    nr = get_n_r_from_mb(result)
+                    new_desc_len = self.get_desc_len_from_data(
+                        self.n_a, self.n_b, self.e, ka, kb, list(self.edgelist), result, diff=False, nr=nr,
+                        allow_empty=False)
                     if new_desc_len < old_desc_len:
                         # no need to go further
                         calculate_times = self.max_n_sweeps_
                     else:
                         calculate_times += 1
-            else:
-                results = list(
-                    self.executor(self.n_cores_, 60, lambda x: run(ka, kb), list(range(self.max_n_sweeps_)))
-                )
 
-        result = min(results, key=lambda x: x[2])
-        mb = result[3]
-        italic_i = result[1]
-        m_e_rs = result[0]
+        max_e_r = self.__q_cache_max_e_r
+        if old_desc_len is None and len(self.__q_cache) == 1:
+            fp = np.memmap(self.__q_cache_f_name, dtype='uint8', mode="w+", shape=(max_e_r + 1, max_e_r + 1))
+            self.__q_cache = init_q_cache(max_e_r, np.array([], ndmin=2))
+            fp[:] = self.__q_cache[:]
+            del fp
+        else:
+            self.__q_cache = np.memmap(self.__q_cache_f_name, dtype='uint8', mode='r', shape=(max_e_r + 1, max_e_r + 1))
 
+        result_ = [self.__compute_desc_len(
+            self.n_a, self.n_b, self.e, ka, kb, r
+        ) for r in results]
+        result = min(result_, key=lambda x: x[3])
+        italic_i = result[0]
+        m_e_rs = result[1]
+        mb = result[2]
         return italic_i, m_e_rs, mb
+
+    def __compute_desc_len(self, n_a, n_b, e, ka, kb, mb):
+        m_e_rs, _ = self.get_m_e_rs_from_mb(self.edgelist, mb)
+        italic_i = self.get_italic_i_from_m_e_rs(m_e_rs)
+        nr = get_n_r_from_mb(mb)
+
+        desc_len = self.get_desc_len_from_data(
+            n_a, n_b, e, ka, kb, list(self.edgelist), mb, diff=False, nr=nr, allow_empty=False
+        )
+        return italic_i, m_e_rs, mb, desc_len
 
     def _moving_one_step_down(self, ka, kb):
         """
@@ -603,9 +667,9 @@ class OptimalKs(object):
         self._update_current_state(ka_moving, kb_moving, t_m_e_rs)
 
     def _check_if_local_minimum(self, ka, kb, old_desc_len, k_th):
-        '''
+        """
             The `neighborhood search` as described in the paper.
-        '''
+        """
         self.is_tempfile_existed = True
         items = map(lambda x: (x[0] + ka, x[1] + kb), product(range(-k_th, k_th + 1), repeat=2))
         # if any item has values less than 1, delete it. Also, exclude the suspected point.
@@ -653,7 +717,7 @@ class OptimalKs(object):
     def _update_current_state(self, ka, kb, m_e_rs):
         self.ka = ka
         self.kb = kb
-        self.m_e_rs = m_e_rs    # this will be used in _moving_one_step_down function
+        self.m_e_rs = m_e_rs  # this will be used in _moving_one_step_down function
 
     def _calc_and_update(self, point, old_desc_len=0.):
         self._logger.info("Now computing graph partition at {} ...".format(point))
@@ -661,7 +725,12 @@ class OptimalKs(object):
             italic_i, m_e_rs, mb = self._calc_with_hook(point[0], point[1], old_desc_len=None)
         else:
             italic_i, m_e_rs, mb = self._calc_with_hook(point[0], point[1], old_desc_len=old_desc_len)
-        candidate_desc_len = self._cal_desc_len(point[0], point[1], italic_i)
+        # candidate_desc_len = self._cal_desc_len(point[0], point[1], italic_i)
+        nr = get_n_r_from_mb(mb)
+        candidate_desc_len = self.get_desc_len_from_data(
+            self.n_a, self.n_b, self.e, point[0], point[1], list(self.edgelist), mb, diff=False, nr=nr,
+            allow_empty=False)
+
         self.confident_desc_len[point] = candidate_desc_len
         self.confident_italic_i[point] = italic_i
         self.confident_m_e_rs[point] = m_e_rs

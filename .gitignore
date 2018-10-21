@@ -27,6 +27,9 @@ __pycache__/
 venv/
 .ipynb_checkpoints
 
+# unless otherwise forcefully added
+tutorials/ 
+
 # Created by https://www.gitignore.io/api/cmake,c++
 
 ### CMake ###
