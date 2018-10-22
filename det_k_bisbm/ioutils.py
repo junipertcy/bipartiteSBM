@@ -3,21 +3,20 @@
 
 def get_edgelist(f_edgelist, delimiter=','):
     """
-        This function returns an edgelist list from a file.
+    This function returns an edgelist list from a file.
 
-        Parameters
-        ----------
-        f_edgelist : str
-            The path to the edgelist file
+    Parameters
+    ----------
+    f_edgelist : str
+        The path to the edgelist file
 
-        delimiter : str
-            The delimiter in the file
+    delimiter : str
+        The delimiter in the file
 
-        Returns
-        -------
-        edgelist : list
-            The list of tupled edges.
-
+    Returns
+    -------
+    edgelist : list
+        The list of tupled edges.
     """
     edgelist = []
     with open(f_edgelist, "r") as f:
@@ -31,22 +30,21 @@ def get_edgelist(f_edgelist, delimiter=','):
 
 def get_types(f_types):
     """
-        This function returns an edgelist list from a file.
+    This function returns an edgelist list from a file.
 
-        Parameters
-        ----------
-        f_edgelist : str
-            The path to the types file
+    Parameters
+    ----------
+    f_edgelist : str
+        The path to the types file
 
-        Returns
-        -------
-        edgelist : list
-            The list of types of each node.
+    Returns
+    -------
+    edgelist : list
+        The list of types of each node.
 
-        >>> import ioutils
-        >>> edgelist = get_types(f_types)
-        >>> print(edgelist)
-
+    >>> import ioutils
+    >>> edgelist = get_types(f_types)
+    >>> print(edgelist)
     """
     types = []
     with open(f_types, "r") as f:

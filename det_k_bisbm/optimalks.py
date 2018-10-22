@@ -101,7 +101,6 @@ class OptimalKs(object):
 
         # initialize other class attributes
         self.init_italic_i = 0.
-        self.exist_bookkeeping = True
 
         # logging
         self._logger = logging.Logger
@@ -114,7 +113,7 @@ class OptimalKs(object):
         # look-up tables
         self.__q_cache_f_name = os.path.join(tempfile.mkdtemp(), '__q_cache.dat')  # for restricted integer partitions
         self.__q_cache = np.array([], ndmin=2)
-        self.__q_cache_max_e_r = 10000
+        self.__q_cache_max_e_r = self.e
         pass
 
     def __set_logging_level(self, level):
@@ -144,16 +143,6 @@ class OptimalKs(object):
 
     def set_k_th_neighbor_to_search(self, k):
         self._k_th_nb_to_search = int(k)
-
-    def set_exist_bookkeeping(self, exist_bookkeeping):
-        """
-            Experimental use only.
-        :param exist_bookkeeping: bool
-        :return:
-        """
-        self.exist_bookkeeping = bool(exist_bookkeeping)
-        if not exist_bookkeeping:
-            self._logger.warning("Setting <exist_bookkeeping> to false makes bad performance.")
 
     def get__q_cache(self):
         return self.__q_cache
@@ -406,11 +395,8 @@ class OptimalKs(object):
             # print("desc len from fitting {}".format(desc_len))
             desc_len += model_entropy(n_edges, ka=ka, kb=kb, na=na, nb=nb, nr=nr,
                                       allow_empty=allow_empty)  # P(e | b) + P(b | K)
-            if degree_dl_kind == "distributed":
-                ent = compute_degree_entropy(edgelist, mb, __q_cache=self.__q_cache,
-                                             degree_dl_kind=degree_dl_kind)  # P(k |e, b)
-            else:
-                ent = compute_degree_entropy(edgelist, mb, degree_dl_kind=degree_dl_kind)  # P(k |e, b)
+            # P(k |e, b)
+            ent = compute_degree_entropy(edgelist, mb, __q_cache=self.__q_cache, degree_dl_kind=degree_dl_kind)
             desc_len += ent
             # print("degree dl = {}".format(ent))
         return desc_len.__float__()
@@ -667,9 +653,7 @@ class OptimalKs(object):
         self._update_current_state(ka_moving, kb_moving, t_m_e_rs)
 
     def _check_if_local_minimum(self, ka, kb, old_desc_len, k_th):
-        """
-            The `neighborhood search` as described in the paper.
-        """
+        """The `neighborhood search` as described in the paper."""
         self.is_tempfile_existed = True
         items = map(lambda x: (x[0] + ka, x[1] + kb), product(range(-k_th, k_th + 1), repeat=2))
         # if any item has values less than 1, delete it. Also, exclude the suspected point.
@@ -699,13 +683,8 @@ class OptimalKs(object):
             self._logger.info("DONE: the MDL point is {}".format(p_estimate))
 
     def _is_this_mdl(self, desc_len):
-        """
-            Check if `desc_len` is the minimal value so far.
-        """
-        if self.exist_bookkeeping:
-            return not any([i < desc_len for i in self.confident_desc_len.values()])
-        else:
-            return True
+        """Check if `desc_len` is the minimal value so far."""
+        return not any([i < desc_len for i in self.confident_desc_len.values()])
 
     def _back_to_where_desc_len_is_lowest(self):
         ka = sorted(self.confident_desc_len, key=self.confident_desc_len.get, reverse=False)[0][0]
