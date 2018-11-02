@@ -15,7 +15,7 @@ from det_k_bisbm.utils import *
 
 
 class OptimalKs(object):
-    """Base class for OptimalKs.
+    r"""Base class for OptimalKs.
 
     Parameters
     ----------
@@ -46,7 +46,8 @@ class OptimalKs(object):
                  init_ka=10,
                  init_kb=10,
                  i_th=0.1,
-                 logging_level="INFO"):
+                 logging_level="INFO",
+                 prior_args={}):
 
         self.engine_ = engine.engine  # TODO: check that engine is an object
         self.max_n_sweeps_ = engine.MAX_NUM_SWEEPS
@@ -83,6 +84,8 @@ class OptimalKs(object):
             "[ERROR] num_nodes ({}) does not equal to num_nodes_a ({}) plus num_nodes_b ({})".format(
                 self.n, self.n_a, self.n_b
             )
+        # arguments for setting the prior
+        self.prior_args = prior_args
 
         # These confident_* variable are used to store the "true" data
         # that is, not the sloppy temporarily results via matrix merging
@@ -146,6 +149,9 @@ class OptimalKs(object):
 
     def get__q_cache(self):
         return self.__q_cache
+
+    def set__q_cache(self, q_cache):
+        self.__q_cache = q_cache
 
     def iterator(self):
         if not self.is_tempfile_existed:
@@ -345,7 +351,7 @@ class OptimalKs(object):
         return new_ka, new_kb, c, merge_list
 
     def get_desc_len_from_data(self, na, nb, n_edges, ka, kb, edgelist, mb, diff=True, nr=None, allow_empty=False,
-                               degree_dl_kind="distributed"):
+                            partition_dl_kind="distributed", degree_dl_kind="distributed", edge_dl_kind="bipartite"):
         """
         Description length difference to a randomized instance
 
@@ -371,7 +377,22 @@ class OptimalKs(object):
             return the entropy (a.k.a. negative log-likelihood) associated with the current block partition.
         allow_empty: `bool`
         nr: `array-like`
-        degree_dl_kind: `str`
+
+        partition_dl_allow_empty: `bool` (optional, default: `False`)
+        partition_dl_kind: `str` (optional, default: `"distributed"`)
+            1. `partition_dl_kind == "uniform"`
+            2. `partition_dl_kind == "distributed"` (default)
+
+
+        degree_dl_kind: `str` (optional, default: `"distributed"`)
+            1. `degree_dl_kind == "uniform"`
+            2. `degree_dl_kind == "distributed"` (default)
+            3. `degree_dl_kind == "entropy"`
+
+        edge_dl_kind: `str` (optional, default: `"bipartite"`)
+            1. `edge_dl_kind == "unipartite"`
+            2. `edge_dl_kind == "bipartite"` (default)
+
 
         Returns
         -------
@@ -395,6 +416,8 @@ class OptimalKs(object):
             # print("desc len from fitting {}".format(desc_len))
             desc_len += model_entropy(n_edges, ka=ka, kb=kb, na=na, nb=nb, nr=nr,
                                       allow_empty=allow_empty)  # P(e | b) + P(b | K)
+            # desc_len += model_entropy(n_edges, k=ka+kb, n=na+nb, nr=nr,
+            #                           allow_empty=allow_empty)  # P(e | b) + P(b | K)
             # P(k |e, b)
             ent = compute_degree_entropy(edgelist, mb, __q_cache=self.__q_cache, degree_dl_kind=degree_dl_kind)
             desc_len += ent
