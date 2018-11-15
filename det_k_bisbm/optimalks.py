@@ -152,6 +152,9 @@ class OptimalKs(object):
 
     def set__q_cache(self, q_cache):
         self.__q_cache = q_cache
+        fp = np.memmap(self.__q_cache_f_name, dtype='uint8', mode="w+", shape=(q_cache.shape[0], q_cache.shape[1]))
+        fp[:] = self.__q_cache[:]
+        del fp
 
     def iterator(self):
         if not self.is_tempfile_existed:

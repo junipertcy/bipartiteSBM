@@ -1,5 +1,6 @@
 """ utilities """
 from .int_part import *
+from scipy.special import factorial2
 
 
 def partition_entropy(ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=None, allow_empty=False):
@@ -55,7 +56,7 @@ def partition_entropy(ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=Non
     return ent
 
 
-def fitting_entropy(edgelist, mb):
+def fitting_entropy(edgelist, mb, exact=True):
     """
     Calculate the entropy (a.k.a. negative log-likelihood) associated with the current block partition. It does not
     include the model entropy.
@@ -66,6 +67,7 @@ def fitting_entropy(edgelist, mb):
 
     mb: `array-like`
 
+    exact: `bool`
 
     Returns
     -------
@@ -86,23 +88,43 @@ def fitting_entropy(edgelist, mb):
 
     italic_i = 0.
     m_e_r = np.sum(m_e_rs, axis=1)
+
+    sum_e_rs = 0.
+    sum_e_rr = 0.
+    sum_e_r = 0.
+
+    if exact:
+        for _m_e_r in m_e_r:
+            if _m_e_r != 0.0:
+                sum_e_r += gammaln(_m_e_r)
+
     for ind, e_val in enumerate(np.nditer(m_e_rs)):
         ind_i = int(np.floor(ind / (m_e_rs.shape[0])))
         ind_j = ind % (m_e_rs.shape[0])
         if e_val != 0.0:
-            italic_i += e_val * np.log(
-                e_val / m_e_r[ind_i] / m_e_r[ind_j]
-            )
-    ent += -italic_i / 2
+            if exact:
+                if ind_j > ind_i:
+                    sum_e_rs += gammaln(e_val)
+                elif ind_j == ind_i:
+                    sum_e_rr += np.log(factorial2(e_val))
+            else:
+                italic_i += e_val * np.log(
+                    e_val / m_e_r[ind_i] / m_e_r[ind_j]
+                )
 
+    ent += -italic_i / 2
     n_k = get_n_k_from_edgelist(edgelist)
-    ent_ = 0
+
+    ent_deg = 0
     for deg, k in enumerate(n_k):
         if deg != 0 and k != 0:
-            ent_ -= k * gammaln(deg)
-    ent += ent_
+            ent_deg -= k * gammaln(deg)
 
-    return ent
+    ent += ent_deg
+    if exact:
+        return ent_deg - sum_e_rs - sum_e_rr + sum_e_r
+    else:
+        return ent
 
 
 def model_entropy(e, ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=None, allow_empty=False):
