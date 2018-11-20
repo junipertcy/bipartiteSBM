@@ -43,8 +43,8 @@ class OptimalKs(object):
                  engine,
                  edgelist,
                  types,
-                 init_ka=10,
-                 init_kb=10,
+                 init_ka=1,
+                 init_kb=1,
                  i_th=0.1,
                  logging_level="INFO",
                  prior_args={}):
@@ -415,12 +415,11 @@ class OptimalKs(object):
             desc_len += (1 + x) * np.log(1 + x) - x * np.log(x)
             desc_len -= (1 + 1 / n_edges) * np.log(1 + 1 / n_edges) - (1 / n_edges) * np.log(1 / n_edges)
         else:
-            desc_len += fitting_entropy(edgelist, mb)
+            desc_len += adjacency_entropy(edgelist, mb)
             # print("desc len from fitting {}".format(desc_len))
             desc_len += model_entropy(n_edges, ka=ka, kb=kb, na=na, nb=nb, nr=nr,
                                       allow_empty=allow_empty)  # P(e | b) + P(b | K)
-            # desc_len += model_entropy(n_edges, k=ka+kb, n=na+nb, nr=nr,
-            #                           allow_empty=allow_empty)  # P(e | b) + P(b | K)
+            # desc_len += model_entropy(n_edges, k=ka+kb, n=na+nb, nr=nr, allow_empty=allow_empty)  # P(e | b) + P(b | K)
             # P(k |e, b)
             ent = compute_degree_entropy(edgelist, mb, __q_cache=self.__q_cache, degree_dl_kind=degree_dl_kind)
             desc_len += ent

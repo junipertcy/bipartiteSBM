@@ -1,6 +1,14 @@
 """ utilities """
 from .int_part import *
-from scipy.special import factorial2
+from scipy.sparse import lil_matrix
+
+
+def db_factorial_ln(val):
+    m = int(val)
+    if m & 0x1 == 1:  # m is odd
+        return gammaln(m + 1) - gammaln((m - 1) / 2 + 1) - ((m - 1) / 2) * np.log(2)
+    else:
+        return gammaln(m / 2 + 1) + (m / 2) * np.log(2)
 
 
 def partition_entropy(ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=None, allow_empty=False):
@@ -56,7 +64,7 @@ def partition_entropy(ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=Non
     return ent
 
 
-def fitting_entropy(edgelist, mb, exact=True):
+def adjacency_entropy(edgelist, mb, exact=True, multigraph=True):
     """
     Calculate the entropy (a.k.a. negative log-likelihood) associated with the current block partition. It does not
     include the model entropy.
@@ -69,61 +77,71 @@ def fitting_entropy(edgelist, mb, exact=True):
 
     exact: `bool`
 
+    multigraph: `bool`
+
     Returns
     -------
     ent: `float`
         the entropy.
     """
     ent = 0.
-    num_edges = len(edgelist)
-    ent += -num_edges
-
     m_e_rs = np.zeros((max(mb) + 1, max(mb) + 1))
+    m_ij = lil_matrix((len(mb), len(mb)), dtype=np.int8)
     for i in edgelist:
         # Please do check the index convention of the edgelist
         source_group = int(mb[int(i[0])])
         target_group = int(mb[int(i[1])])
         m_e_rs[source_group][target_group] += 1
         m_e_rs[target_group][source_group] += 1
-
+        m_ij[int(i[0]), int(i[1])] += 1  # we only update the upper triangular part of the adj-matrix
     italic_i = 0.
     m_e_r = np.sum(m_e_rs, axis=1)
-
+    sum_m_ii = 0.
+    sum_m_ij = 0.
     sum_e_rs = 0.
     sum_e_rr = 0.
     sum_e_r = 0.
-
     if exact:
+        if multigraph:
+            ind_i, ind_j = m_ij.nonzero()
+            for ind in zip(ind_i, ind_j):
+                val = m_ij[ind[0], ind[1]]
+                if val > 1:
+                    if ind[0] == ind[1]:
+                        sum_m_ii += db_factorial_ln(val)
+                    else:
+                        sum_m_ij += gammaln(val + 1)
         for _m_e_r in m_e_r:
-            if _m_e_r != 0.0:
-                sum_e_r += gammaln(_m_e_r)
+            sum_e_r += gammaln(_m_e_r + 1)
 
     for ind, e_val in enumerate(np.nditer(m_e_rs)):
         ind_i = int(np.floor(ind / (m_e_rs.shape[0])))
         ind_j = ind % (m_e_rs.shape[0])
-        if e_val != 0.0:
-            if exact:
-                if ind_j > ind_i:
-                    sum_e_rs += gammaln(e_val)
-                elif ind_j == ind_i:
-                    sum_e_rr += np.log(factorial2(e_val))
-            else:
+        if exact:
+            if ind_j > ind_i:
+                sum_e_rs += gammaln(e_val + 1)
+            elif ind_j == ind_i:
+                sum_e_rr += db_factorial_ln(e_val)
+        else:
+            if e_val != 0.0:
                 italic_i += e_val * np.log(
                     e_val / m_e_r[ind_i] / m_e_r[ind_j]
                 )
 
     ent += -italic_i / 2
-    n_k = get_n_k_from_edgelist(edgelist)
+    n_k = get_n_k_from_edgelist(edgelist, mb)
 
     ent_deg = 0
     for deg, k in enumerate(n_k):
         if deg != 0 and k != 0:
-            ent_deg -= k * gammaln(deg)
+            ent_deg -= k * gammaln(deg + 1)
 
     ent += ent_deg
     if exact:
-        return ent_deg - sum_e_rs - sum_e_rr + sum_e_r
+        return ent_deg - sum_e_rs - sum_e_rr + sum_e_r + sum_m_ii + sum_m_ij
     else:
+        num_edges = len(edgelist)
+        ent += -num_edges
         return ent
 
 
@@ -208,22 +226,21 @@ def get_n_r_from_mb(mb):
     return n_r
 
 
-def get_n_k_from_edgelist(edgelist):
+def get_n_k_from_edgelist(edgelist, mb):
     """
     Get n_k, or the number n_k of nodes of degree k.
 
     Parameters
     ----------
     edgelist: array-like
+    mb: array-like
 
     Returns
     -------
     n_k: array-like
 
     """
-    assert np.min(edgelist).__int__() == 0, "The index of a node must start from 0."
-    max_ = np.max(edgelist).__int__()
-    k = np.zeros(max_ + 1)
+    k = np.zeros(len(mb) + 1)
     for edge in edgelist:
         k[edge[0]] += 1
         k[edge[1]] += 1
@@ -247,13 +264,11 @@ def get_eta_rk_from_edgelist_and_mb(edgelist, mb):
     -------
 
     """
-    assert np.min(edgelist).__int__() == 0, "The index of a node must start from 0."
     assert np.min(mb).__int__() == 0, "The index of a membership label must start from 0."
 
-    max_ = np.max(edgelist).__int__()
     mb_max_ = np.max(mb).__int__()
 
-    k = np.zeros([mb_max_ + 1, max_ + 1])
+    k = np.zeros([mb_max_ + 1, len(mb)])
     for edge in edgelist:
         k[mb[edge[0]]][edge[0]] += 1
         k[mb[edge[1]]][edge[1]] += 1
@@ -261,8 +276,9 @@ def get_eta_rk_from_edgelist_and_mb(edgelist, mb):
     max_ = int(np.max(max_deg_in_each_mb_))
     eta_rk = np.zeros([mb_max_ + 1, max_ + 1])
     for mb_ in range(mb_max_ + 1):
-        for k_ in k[mb_]:
-            eta_rk[mb_][k_.__int__()] += 1
+        for node_idx, k_ in enumerate(k[mb_]):
+            if mb[node_idx] == mb_:
+                eta_rk[mb_][k_.__int__()] += 1
 
     return eta_rk.astype(int)
 
@@ -293,9 +309,7 @@ def compute_degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree
     """
     import time
     ent = 0
-    n_r = np.zeros(max(mb) + 1)
-    for mb_ in mb:
-        n_r[mb_] += 1
+    n_r = get_n_r_from_mb(mb)
 
     e_r = np.zeros(max(mb) + 1)
     for i in edgelist:
@@ -314,16 +328,18 @@ def compute_degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree
             t1 = time.time()
             print("[Good news!] log q(m, n) look-up table computed for m <= 1e4; taking {} sec".format(t1 - t0))
         for ind, n_r_ in enumerate(n_r):
+            # print("e_r[ind]: {}; n_r_: {}; val: {}".format(e_r[ind], n_r_, log_q(e_r[ind], n_r_, __q_cache)))
             ent += log_q(e_r[ind], n_r_, __q_cache)
         eta_rk = get_eta_rk_from_edgelist_and_mb(edgelist, mb)
 
         for mb_, eta_rk_ in enumerate(eta_rk):
-            for deg, eta in enumerate(eta_rk_):
-                if deg != 0:
-                    ent -= +loggamma(eta + 1)
+            for eta in eta_rk_:
+                # print("loggamma(eta + 1): ", loggamma(eta + 1))
+                ent -= +loggamma(eta + 1)  #TODO
             ent -= -loggamma(n_r[mb_] + 1)
     elif degree_dl_kind == "entropy":
         raise NotImplementedError
+    print("degree_dl: {}".format(ent))
     return ent
 
 
