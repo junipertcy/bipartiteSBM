@@ -46,11 +46,11 @@ def log_q_approx(n, k):
 
 @jit(cache=True)
 def init_q_cache(n_max, __q_cache):
-    old_n = 1
+    old_n = __q_cache.shape[0]
     if old_n >= n_max:
         return
     __q_cache = np.resize(__q_cache, [n_max + 1, n_max + 1])
-    __q_cache.fill(0)
+    __q_cache.fill(-np.inf)
 
     for n in range(1, n_max + 1):
         __q_cache[n][1] = 0

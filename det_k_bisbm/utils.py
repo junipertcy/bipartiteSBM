@@ -149,19 +149,18 @@ def model_entropy(e, ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=None
     if ka is None and kb is None and k is not None:
         x = (k * (k + 1)) / 2
         if nr is False:
-            l = lbinom(x + e - 1, e)
+            dl = lbinom(x + e - 1, e)
         else:
-            l = lbinom(x + e - 1, e) + partition_entropy(k=k, n=n, nr=nr, allow_empty=allow_empty)
+            dl = lbinom(x + e - 1, e) + partition_entropy(k=k, n=n, nr=nr, allow_empty=allow_empty)
     elif ka is not None and kb is not None and k is None:
         x = ka * kb
         if nr is False:
-            l = lbinom(x + e - 1, e)
+            dl = lbinom(x + e - 1, e)
         else:
-            l = lbinom(x + e - 1, e) + partition_entropy(ka=ka, kb=kb, na=na, nb=nb, nr=nr, allow_empty=allow_empty)
-            # print("P(e) and P(b|n_r) are {} and {}".format(lbinom(x + e - 1, e), partition_entropy(ka=ka, kb=kb, na=na, nb=nb, nr=nr, allow_empty=allow_empty)))
+            dl = lbinom(x + e - 1, e) + partition_entropy(ka=ka, kb=kb, na=na, nb=nb, nr=nr, allow_empty=allow_empty)
     else:
         raise AttributeError
-    return l
+    return dl
 
 
 def gen_equal_partition(n, total):
@@ -232,12 +231,12 @@ def get_n_k_from_edgelist(edgelist, mb):
 
     Parameters
     ----------
-    edgelist: array-like
-    mb: array-like
+    edgelist: `array-like`
+    mb: `array-like`
 
     Returns
     -------
-    n_k: array-like
+    n_k: `array-like`
 
     """
     k = np.zeros(len(mb) + 1)
@@ -258,7 +257,8 @@ def get_eta_rk_from_edgelist_and_mb(edgelist, mb):
 
     Parameters
     ----------
-    edgelist
+    edgelist: `array-like`
+    mb: `array-like`
 
     Returns
     -------
@@ -328,18 +328,15 @@ def compute_degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree
             t1 = time.time()
             print("[Good news!] log q(m, n) look-up table computed for m <= 1e4; taking {} sec".format(t1 - t0))
         for ind, n_r_ in enumerate(n_r):
-            # print("e_r[ind]: {}; n_r_: {}; val: {}".format(e_r[ind], n_r_, log_q(e_r[ind], n_r_, __q_cache)))
             ent += log_q(e_r[ind], n_r_, __q_cache)
         eta_rk = get_eta_rk_from_edgelist_and_mb(edgelist, mb)
 
         for mb_, eta_rk_ in enumerate(eta_rk):
             for eta in eta_rk_:
-                # print("loggamma(eta + 1): ", loggamma(eta + 1))
-                ent -= +loggamma(eta + 1)  #TODO
+                ent -= +loggamma(eta + 1)
             ent -= -loggamma(n_r[mb_] + 1)
     elif degree_dl_kind == "entropy":
         raise NotImplementedError
-    print("degree_dl: {}".format(ent))
     return ent
 
 
@@ -378,4 +375,3 @@ def compute_profile_likelihood(edgelist, mb, ka=None, kb=None, k=None):
             m_e_rs.shape[0], k
         )
     return italic_i
-
