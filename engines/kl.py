@@ -12,6 +12,7 @@ class KL(object):
                  n_sweeps=4,
                  is_parallel=True,
                  n_cores=4,
+                 algm_name="kl",
                  kl_edgelist_delimiter="\t",
                  kl_steps=5,
                  kl_itertimes=1,
@@ -23,6 +24,7 @@ class KL(object):
         self.PARALLELIZATION = bool(is_parallel)
         self.NUM_CORES = int(n_cores)
         self.KL_PARALLELIZATION = bool(kl_is_parallel)
+        self.ALGM_NAME = str(algm_name)
 
         # <kl_itertimes> is the number of KL sweeps (<kl_steps> per sweep) performed before returning the optimal result
         # during each engine run (Note that there are <n_sweeps> engines running in parallel via loky)

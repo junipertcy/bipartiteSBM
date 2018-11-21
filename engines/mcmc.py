@@ -9,16 +9,18 @@ class MCMC(object):
                  n_sweeps=4,
                  is_parallel=True,
                  n_cores=4,
-                 mcmc_steps=100000,
-                 mcmc_await_steps=10000,
+                 algm_name="mcmc",
+                 mcmc_steps=1e6,
+                 mcmc_await_steps=1e5,
                  mcmc_cooling="abrupt_cool",
-                 mcmc_cooling_param_1=10000,
+                 mcmc_cooling_param_1=1e5,
                  mcmc_cooling_param_2=0.1,
                  mcmc_epsilon=0.001):
 
         self.MAX_NUM_SWEEPS = int(n_sweeps)
         self.PARALLELIZATION = bool(is_parallel)
         self.NUM_CORES = int(n_cores)
+        self.ALGM_NAME = str(algm_name)
 
         # for MCMC
         if not os.path.isfile(f_engine):
@@ -33,6 +35,24 @@ class MCMC(object):
         self.mcmc_epsilon_ = str(mcmc_epsilon)
 
         pass
+
+    def set_steps(self, steps):
+        self.mcmc_steps_ = int(steps)
+
+    def set_await_steps(self, await_steps):
+        self.mcmc_await_steps_ = int(await_steps)
+
+    def set_cooling(self, cooling):
+        self.mcmc_cooling_ = str(cooling)
+
+    def set_cooling_param_1(self, cooling_param_1):
+        self.mcmc_cooling_param_1 = str(cooling_param_1)
+
+    def set_cooling_param_2(self, cooling_param_2):
+        self.mcmc_cooling_param_2 = str(cooling_param_2)
+
+    def set_epsilon(self, epsilon):
+        self.mcmc_epsilon_ = str(epsilon)
 
     def prepare_engine(self, f_edgelist, na, nb, ka, kb):
         """Output shell commands for graph partitioning calculation.

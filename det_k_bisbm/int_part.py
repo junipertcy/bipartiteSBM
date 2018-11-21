@@ -1,9 +1,11 @@
 import numpy as np
-from numba import jit  # TODO: make argument types explicit
+from numba import jit, uint8, float32  # TODO: why adding signatures does not make it faster??
+
 from scipy.special import gammaln, spence, loggamma
 
 
 # for computing the number of restricted partitions of the integer m into at most n pairs
+# @jit(float32(uint8, uint8, float32[:, :]), cache=True)
 @jit(cache=True)
 def log_q(n, k, __q_cache):
     n = int(n)
@@ -17,6 +19,7 @@ def log_q(n, k, __q_cache):
     return log_q_approx(n, k)
 
 
+# @jit(uint8(uint8, float32), cache=True)
 @jit(cache=True)
 def get_v(u, epsilon=1e-8):
     v = u
@@ -28,11 +31,13 @@ def get_v(u, epsilon=1e-8):
     return v
 
 
+# @jit(float32(uint8, uint8), cache=True)
 @jit(cache=True)
 def log_q_approx_small(n, k):
     return lbinom(n - 1, k - 1) - loggamma(k + 1)
 
 
+# @jit(float32(uint8, uint8), cache=True)
 @jit(cache=True)
 def log_q_approx(n, k):
     if k < pow(n, 1/4.):
@@ -44,6 +49,7 @@ def log_q_approx(n, k):
     return lf - np.log(n) + np.sqrt(n) * g
 
 
+# @jit(float32(uint8, float32[:, :]), cache=True)
 @jit(cache=True)
 def init_q_cache(n_max, __q_cache):
     old_n = __q_cache.shape[0]
@@ -51,7 +57,6 @@ def init_q_cache(n_max, __q_cache):
         return
     __q_cache = np.resize(__q_cache, [n_max + 1, n_max + 1])
     __q_cache.fill(-np.inf)
-
     for n in range(1, n_max + 1):
         __q_cache[n][1] = 0
         for k in range(2, n + 1):
@@ -61,6 +66,7 @@ def init_q_cache(n_max, __q_cache):
     return __q_cache
 
 
+# @jit(float32(float32, float32), cache=True)
 @jit(cache=True)
 def log_sum(a, b):
     return np.maximum(a, b) + np.log1p(np.exp(-np.abs(a - b)))

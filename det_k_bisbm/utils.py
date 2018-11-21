@@ -337,6 +337,7 @@ def compute_degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree
             ent -= -loggamma(n_r[mb_] + 1)
     elif degree_dl_kind == "entropy":
         raise NotImplementedError
+    # print("degree_dl: {}".format(ent))
     return ent
 
 

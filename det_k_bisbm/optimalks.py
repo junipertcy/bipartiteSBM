@@ -4,7 +4,6 @@ import random
 import logging
 import tempfile
 
-from numba import jit, uint8
 from numba.types import Tuple
 
 from collections import OrderedDict
@@ -31,7 +30,7 @@ class OptimalKs(object):
     init_kb : int, required
         Initial Ka for successive merging and searching for the optimum.
 
-    i_th :  double, optional
+    i_0 :  double, optional
         Threshold for the merging step (as described in the main text).
 
     logging_level : str, optional
@@ -43,23 +42,15 @@ class OptimalKs(object):
                  engine,
                  edgelist,
                  types,
-                 init_ka=1,
-                 init_kb=1,
-                 i_th=0.1,
                  logging_level="INFO",
-                 prior_args={}):
+                 default_args=True,
+                 random_init_k=False,
+                 prior_args=None):
 
         self.engine_ = engine.engine  # TODO: check that engine is an object
         self.max_n_sweeps_ = engine.MAX_NUM_SWEEPS
         self.is_par_ = engine.PARALLELIZATION
         self.n_cores_ = engine.NUM_CORES
-
-        # params for the heuristic
-        self.ka = int(init_ka)
-        self.kb = int(init_kb)
-        self.i_0 = float(i_th)
-        self.adaptive_ratio = 0.9  # adaptive parameter to make the "delta" smaller, if it's too large
-        assert 0. <= self.i_0 < 1, "[ERROR] Allowed range for i_th is [0, 1)."
 
         # TODO: "types" is only used to compute na and nb. Can be made more generic.
         self.types = types
@@ -73,8 +64,7 @@ class OptimalKs(object):
 
         assert self.n_a > 0, "[ERROR] Number of type-a nodes = 0, which is not allowed"
         assert self.n_b > 0, "[ERROR] Number of type-b nodes = 0, which is not allowed"
-        assert self.ka <= self.n_a, "[ERROR] Number of type-a communities must be smaller than the # nodes in type-a."
-        assert self.kb <= self.n_b, "[ERROR] Number of type-a communities must be smaller than the # nodes in type-b."
+
         self.n = len(types)
 
         self.edgelist = edgelist
@@ -84,7 +74,28 @@ class OptimalKs(object):
             "[ERROR] num_nodes ({}) does not equal to num_nodes_a ({}) plus num_nodes_b ({})".format(
                 self.n, self.n_a, self.n_b
             )
-        # arguments for setting the prior
+
+        if engine.ALGM_NAME == "mcmc" and default_args:
+            engine.set_steps(self.n * 1e4)
+            engine.set_await_steps(self.n * 1e3)
+            engine.set_cooling("abrupt_cool")
+            engine.set_cooling_param_1(self.n * 1e3)
+            engine.set_epsilon(0.0001)
+        if default_args:
+            self.ka = int(self.e ** 0.5 / 2)
+            self.kb = int(self.e ** 0.5 / 2)
+            self.i_0 = 0.1
+            self.adaptive_ratio = 0.9  # adaptive parameter to make the "delta" smaller, if it's too large
+            self._k_th_nb_to_search = 1
+            self._size_rows_to_run = 1
+        else:
+            self.ka = self.kb = self.i_0 = \
+                self.adaptive_ratio = self._k_th_nb_to_search = self._size_rows_to_run = None
+        if random_init_k:
+            self.ka = np.random.randint(1, self.ka + 1)
+            self.kb = np.random.randint(1, self.kb + 1)
+
+        # arguments for setting the prior (TODO)
         self.prior_args = prior_args
 
         # These confident_* variable are used to store the "true" data
@@ -102,22 +113,24 @@ class OptimalKs(object):
         # To prevent "TypeError: cannot serialize '_io.TextIOWrapper' object" when using loky
         self._f_edgelist_name = self._get_tempfile_edgelist()
 
-        # initialize other class attributes
+        # initialize other class attributes (TODO: what??)
         self.init_italic_i = 0.
 
         # logging
         self._logger = logging.Logger
         self.__set_logging_level(logging_level)
-
-        # hard-coded parameters
-        self._size_rows_to_run = 1
-        self._k_th_nb_to_search = 1
+        self._summary = OrderedDict()
+        self._summary["init_ka"] = self.ka
+        self._summary["init_kb"] = self.kb
+        self._summary["na"] = self.n_a
+        self._summary["nb"] = self.n_b
+        self._summary["e"] = self.e
+        self._summary["avg_k"] = 2 * self.e / (self.n_a + self.n_b)
 
         # look-up tables
         self.__q_cache_f_name = os.path.join(tempfile.mkdtemp(), '__q_cache.dat')  # for restricted integer partitions
         self.__q_cache = np.array([], ndmin=2)
         self.__q_cache_max_e_r = self.e
-        pass
 
     def __set_logging_level(self, level):
         _level = 0
@@ -131,21 +144,25 @@ class OptimalKs(object):
         )
         self._logger = logging.getLogger(__name__)
 
-    def set_params(self, init_ka=10, init_kb=10, i_th=0.1):
+    def set_params(self, init_ka=10, init_kb=10, i_0=0.1):
         # params for the heuristic
         self.ka = int(init_ka)
         self.kb = int(init_kb)
-        self.i_0 = float(i_th)
-        self.init_italic_i = 0.
-        assert 0. <= self.i_0 < 1, "[ERROR] Allowed range for i_th is [0, 1)."
+        self.i_0 = float(i_0)
+        assert 0. <= self.i_0 < 1, "[ERROR] Allowed range for i_0 is [0, 1)."
         assert self.ka <= self.n_a, "[ERROR] Number of type-a communities must be smaller than the # nodes in type-a."
-        assert self.kb <= self.n_b, "[ERROR] Number of type-a communities must be smaller than the # nodes in type-b."
+        assert self.kb <= self.n_b, "[ERROR] Number of type-b communities must be smaller than the # nodes in type-b."
+        self._summary["init_ka"] = self.ka
+        self._summary["init_kb"] = self.kb
 
     def set_adaptive_ratio(self, adaptive_ratio):
         self.adaptive_ratio = float(adaptive_ratio)
 
     def set_k_th_neighbor_to_search(self, k):
         self._k_th_nb_to_search = int(k)
+
+    def set_size_rows_to_run(self, s):
+        self._size_rows_to_run = int(s)
 
     def get__q_cache(self):
         return self.__q_cache
@@ -156,7 +173,18 @@ class OptimalKs(object):
         fp[:] = self.__q_cache[:]
         del fp
 
+    def _prerunning_checks(self):
+        if self.ka is None or self.kb is None or self.i_0 is None:
+            raise AttributeError("Arguments missing! Please assign `init_ka`, `init_kb`, and `i_0`.")
+        if self.adaptive_ratio is None:
+            raise AttributeError("Arguments missing! Please assign `adaptive_ratio`.")
+        if self._k_th_nb_to_search is None:
+            raise AttributeError("Arguments missing! Please assign `k_th_nb_to_search`.")
+        if self._size_rows_to_run is None:
+            raise AttributeError("Arguments missing! Please assign `size_rows_to_run`.")
+
     def iterator(self):
+        self._prerunning_checks()
         if not self.is_tempfile_existed:
             self._f_edgelist_name = self._get_tempfile_edgelist()
 
@@ -180,12 +208,20 @@ class OptimalKs(object):
         self._check_if_random_bipartite()
         return self.confident_desc_len
 
+    def summary(self):
+        ka, kb = sorted(self.confident_desc_len, key=self.confident_desc_len.get)[0]
+        self._summary["ka"] = ka
+        self._summary["kb"] = kb
+        self._summary["mdl"] = self.confident_desc_len[(ka, kb)]
+        self._summary["engine_args"] = OrderedDict()
+        return self._summary
+
     def clean(self):
         self.confident_desc_len = OrderedDict()
         self.confident_m_e_rs = OrderedDict()
         self.confident_italic_i = OrderedDict()
         self.trace_mb = OrderedDict()
-        self.set_params(init_ka=10, init_kb=10, i_th=0.1)
+        self.set_params(init_ka=10, init_kb=10, i_0=0.1)
 
     def compute_and_update(self, ka, kb, recompute=False):
         try:
@@ -275,7 +311,7 @@ class OptimalKs(object):
         new_ka = 0
         new_kb = 0
 
-        if ka == 1:  # do not merge type-a rows (this happens when <i_th> is set too high)
+        if ka == 1:  # do not merge type-a rows (this happens when <i_0> is set too high)
             from_row = ka
         elif kb == 1:
             from_row = 0
@@ -633,7 +669,7 @@ class OptimalKs(object):
             diff_italic_i = _italic_I - self.init_italic_i  # diff_italic_i is always negative;
             return _ka, _kb, _m_e_rs, diff_italic_i, _mlist
 
-        # how many times that a sample merging takes place
+        # how many times that a sample merging takes place (todo: better description??)
         indexes_to_run_ = range(0, (ka + kb) * self._size_rows_to_run)
 
         results = []
@@ -657,7 +693,7 @@ class OptimalKs(object):
 
         if p_estimate != (1, 1):
             # TODO: write some documentation here
-            raise UserWarning("[WARNING] merging reached (1, 1); cannot go any further, please set a smaller <i_th>.")
+            raise UserWarning("[WARNING] merging reached (1, 1); cannot go any further, please set a smaller <i_0>.")
         self._clean_up_and_record_mdl_point()
 
     def _update_transient_state(self, ka_moving, kb_moving, t_m_e_rs, mlist):

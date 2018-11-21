@@ -17,8 +17,7 @@ kl = KL(f_engine="engines/bipartiteSBM-KL/biSBM",
 edgelist = get_edgelist("dataset/test/southernWomen.edgelist", "\t")
 types = get_types("dataset/test/southernWomen.types")
 
-oks = OptimalKs(kl, edgelist, types)
-oks.set_params(init_ka=10, init_kb=10, i_th=0.1)
+oks = OptimalKs(kl, edgelist, types, default_args=True, random_init_k=False)
 
 
 def test_answer():

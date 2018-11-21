@@ -11,16 +11,17 @@ mcmc = MCMC(f_engine="engines/bipartiteSBM-MCMC/bin/mcmc",
             mcmc_steps=1e6,
             mcmc_await_steps=1e5,
             mcmc_cooling="abrupt_cool",
-            mcmc_epsilon=0.01
+            mcmc_epsilon=0.001
         )
 
 edgelist = get_edgelist("dataset/test/bisbm-n_1000-ka_4-kb_6-r-1.0-Ka_30-Ir_1.75.gt.edgelist", "\t")
 types = mcmc.gen_types(500, 500)
 
-oks = OptimalKs(mcmc, edgelist, types)
-
-oks.set_params(init_ka=10, init_kb=10, i_th=0.1)
+oks = OptimalKs(mcmc, edgelist, types, default_args=False, random_init_k=False)
+oks.set_params(10, 10, 0.1)
+oks.set_adaptive_ratio(0.9)
 oks.set_k_th_neighbor_to_search(1)
+oks.set_size_rows_to_run(1)
 
 
 def test_answer():
