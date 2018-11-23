@@ -283,7 +283,7 @@ def get_eta_rk_from_edgelist_and_mb(edgelist, mb):
     return eta_rk.astype(int)
 
 
-def compute_degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree_dl_kind="distributed", q_cache_max_e_r=10000):
+def compute_degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree_dl_kind="distributed", q_cache_max_e_r=int(1e4)):
     """
 
     Parameters

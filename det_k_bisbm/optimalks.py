@@ -130,7 +130,7 @@ class OptimalKs(object):
         # look-up tables
         self.__q_cache_f_name = os.path.join(tempfile.mkdtemp(), '__q_cache.dat')  # for restricted integer partitions
         self.__q_cache = np.array([], ndmin=2)
-        self.__q_cache_max_e_r = self.e
+        self.__q_cache_max_e_r = self.e if self.e <= int(1e4) else int(1e4)
 
     def __set_logging_level(self, level):
         _level = 0
@@ -390,7 +390,7 @@ class OptimalKs(object):
         return new_ka, new_kb, c, merge_list
 
     def get_desc_len_from_data(self, na, nb, n_edges, ka, kb, edgelist, mb, diff=True, nr=None, allow_empty=False,
-                            partition_dl_kind="distributed", degree_dl_kind="distributed", edge_dl_kind="bipartite"):
+                               partition_dl_kind="distributed", degree_dl_kind="distributed", edge_dl_kind="bipartite"):
         """
         Description length difference to a randomized instance
 
