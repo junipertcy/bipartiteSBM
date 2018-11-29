@@ -169,7 +169,7 @@ class OptimalKs(object):
 
     def set__q_cache(self, q_cache):
         self.__q_cache = q_cache
-        fp = np.memmap(self.__q_cache_f_name, dtype='uint8', mode="w+", shape=(q_cache.shape[0], q_cache.shape[1]))
+        fp = np.memmap(self.__q_cache_f_name, dtype='uint32', mode="w+", shape=(q_cache.shape[0], q_cache.shape[1]))
         fp[:] = self.__q_cache[:]
         del fp
 
@@ -277,7 +277,7 @@ class OptimalKs(object):
         return m_e_rs, m_e_r
 
     @staticmethod
-    @jit(Tuple((uint8, uint8, uint8[:, :], uint8[:]))(uint8, uint8, uint8[:, :]), cache=True, fastmath=True)
+    @jit(Tuple((uint32, uint32, uint32[:, :], uint32[:]))(uint32, uint32, uint32[:, :]), cache=True, fastmath=True)
     def merge_matrix(ka, kb, m_e_rs):
         """
         Merge random two rows of the affinity matrix (dim = K) to gain a reduced matrix (dim = K - 1)
@@ -601,12 +601,12 @@ class OptimalKs(object):
 
         max_e_r = self.__q_cache_max_e_r
         if old_desc_len is None and len(self.__q_cache) == 1:
-            fp = np.memmap(self.__q_cache_f_name, dtype='uint8', mode="w+", shape=(max_e_r + 1, max_e_r + 1))
+            fp = np.memmap(self.__q_cache_f_name, dtype='uint32', mode="w+", shape=(max_e_r + 1, max_e_r + 1))
             self.__q_cache = init_q_cache(max_e_r, np.array([], ndmin=2))
             fp[:] = self.__q_cache[:]
             del fp
         else:
-            self.__q_cache = np.memmap(self.__q_cache_f_name, dtype='uint8', mode='r', shape=(max_e_r + 1, max_e_r + 1))
+            self.__q_cache = np.memmap(self.__q_cache_f_name, dtype='uint32', mode='r', shape=(max_e_r + 1, max_e_r + 1))
 
         result_ = [self.__compute_desc_len(
             self.n_a, self.n_b, self.e, ka, kb, r
