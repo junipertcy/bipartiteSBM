@@ -1,6 +1,7 @@
 """ utilities """
 from .int_part import *
 from scipy.sparse import lil_matrix
+from itertools import product
 
 
 def db_factorial_ln(val):
@@ -180,6 +181,40 @@ def gen_equal_partition(n, total):
     n_blocks = list(map(len, np.array_split(all_nodes, n)))
 
     return n_blocks
+
+
+def gen_e_rs(b, n_edges, p):
+    """
+
+    Parameters
+    ----------
+    b: `int`
+        The number of communities within each type. (suppose Ka = Kb)
+    n_edges: `int`
+        The number of edges planted in the system.
+    p: `float`
+        The edge propensity between groups; i.e., the ratio c_out / c_in
+
+    Returns
+    -------
+
+    """
+    c = n_edges / (b + (b ** 2 - b) * p)
+    c_in = c
+    c_out = c * p
+    e_rs = np.zeros([b * 2, b * 2], dtype=int)
+
+    perm = product(range(0, b), range(b, b * 2))
+    idx_in = np.linspace(0, b ** 2 - 1, b, dtype=int)
+    for idx, p in enumerate(perm):
+        i = p[0]
+        j = p[1]
+        if idx in idx_in:
+            e_rs[i][j] = c_in
+        else:
+            e_rs[i][j] = c_out
+        e_rs[j][i] = e_rs[i][j]
+    return e_rs
 
 
 def gen_equal_bipartite_partition(na, nb, ka, kb):

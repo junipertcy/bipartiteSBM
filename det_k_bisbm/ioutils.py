@@ -28,6 +28,7 @@ def get_edgelist(f_edgelist, delimiter=','):
     f.close()
     return edgelist
 
+
 def get_types(f_types):
     """
     This function returns an edgelist list from a file.
