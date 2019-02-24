@@ -28,5 +28,4 @@ def test_answer():
     confident_desc_len = oks.iterator()
     p_estimate = sorted(confident_desc_len, key=confident_desc_len.get)[0]
     # YES. We may not obtain (4, 6), as non-identifiable blocks may exist.
-    # assert p_estimate in [(4, 6), (4, 5), (4, 7), (5, 6)]
-    assert p_estimate in [(4, 6)]
+    assert p_estimate in [(4, 6), (4, 5), (4, 7), (5, 6)]

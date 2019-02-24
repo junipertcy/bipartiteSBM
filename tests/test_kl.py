@@ -23,4 +23,4 @@ oks = OptimalKs(kl, edgelist, types, default_args=True, random_init_k=False)
 def test_answer():
     confident_desc_len = oks.iterator()
     p_estimate = sorted(confident_desc_len, key=confident_desc_len.get)[0]
-    assert p_estimate == (1, 1)
+    assert p_estimate == (2, 3)  # there exists community structure in the southernWomen dataset
