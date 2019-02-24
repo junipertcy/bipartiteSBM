@@ -507,17 +507,6 @@ class OptimalKs(object):
     def _h_func(x):
         return (1 + x) * math.log(1 + x) - x * math.log(x)
 
-    # def _cal_desc_len(self, ka, kb, italic_i):
-    #     na = self.n_a
-    #     nb = self.n_b
-    #     e = self.e
-    #     desc_len_b = na * math.log(ka) + nb * math.log(kb) - e * (italic_i - math.log(2))
-    #     desc_len_b /= e
-    #     x = float(ka * kb) / e
-    #     desc_len_b += (1 + x) * math.log(1 + x) - x * math.log(x)
-    #     desc_len_b -= (1. + 1. / e) * math.log(1. + 1. / e) - (1. / e) * math.log(1. / e)
-    #     return desc_len_b
-
     def _calc_with_hook(self, ka, kb, old_desc_len=None):
         """
         Execute the partitioning code by spawning child processes in the shell; save its output afterwards.

@@ -217,6 +217,38 @@ def gen_e_rs(b, n_edges, p):
     return e_rs
 
 
+@jit()
+def gen_e_rs_unequal(ka, kb, n_edges):
+    """
+
+    Parameters
+    ----------
+    ka: `int`
+        The number of communities within type-a.
+    kb: `int`
+        The number of communities within type-b.
+    n_edges: `int`
+        The number of edges planted in the system.
+
+    Returns
+    -------
+
+    """
+    c = list(map(int, np.random.dirichlet([1] * ka * kb, 1)[0] * n_edges))
+    remain_c = n_edges - sum(c)
+    for idx, _ in enumerate(range(remain_c)):
+        c[idx] += 1
+    e_rs = np.zeros([ka + kb, ka + kb], dtype=int)
+
+    perm = product(range(0, ka), range(ka, ka + kb))
+    for idx, p in enumerate(perm):
+        i = p[0]
+        j = p[1]
+        e_rs[i][j] = c[idx]
+        e_rs[j][i] = e_rs[i][j]
+    return e_rs
+
+
 def gen_equal_bipartite_partition(na, nb, ka, kb):
     """
 
@@ -410,4 +442,19 @@ def compute_profile_likelihood(edgelist, mb, ka=None, kb=None, k=None):
         assert m_e_rs.shape[0] == k, "[ERROR] m_e_rs dimension (={}) is not equal to k (={})!".format(
             m_e_rs.shape[0], k
         )
+    return italic_i
+
+
+@jit()
+def compute_profile_likelihood_from_e_rs(e_rs):
+    italic_i = 0.
+    e_r = np.sum(e_rs, axis=1)
+    num_edges = e_r.sum() / 2.
+    for ind, e_val in enumerate(np.nditer(e_rs)):
+        ind_i = int(np.floor(ind / (e_rs.shape[0])))
+        ind_j = ind % (e_rs.shape[0])
+        if e_val != 0.0:
+            italic_i += e_val / 2. / num_edges * np.log(
+                e_val / e_r[ind_i] / e_r[ind_j] * 2 * num_edges
+            )
     return italic_i
