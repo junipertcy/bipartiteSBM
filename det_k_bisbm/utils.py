@@ -183,6 +183,44 @@ def gen_equal_partition(n, total):
     return n_blocks
 
 
+def gen_unequal_partition(n, total, avg_deg, alpha):
+    """
+
+    Parameters
+    ----------
+    n: `int`
+        The number of communities.
+    total: `int`
+        The number of nodes.
+    avg_deg: `float`
+        The average degree of the network.
+    alpha: `float`
+        The parameter of the Dirichlet distribution (the smaller the unevener the distribution is).
+        We usually use alpha=1 to generate a case and
+        filter it out if the lowest size of a community is less than (2 * total / avg_deg) ** 0.5 (resolution limit).
+
+    Returns
+    -------
+    a: `list`
+        The sizes of communities to sum to `total`.
+    _: `float`
+        The ratio of largest-sized community to the lowest-sized one.
+
+    """
+    cutoff = (2 * total / avg_deg) ** 0.5
+    d = np.random.dirichlet([alpha] * n, 1)[0]
+
+    while not np.all(d * total > cutoff):
+        d = np.random.dirichlet([alpha] * n, 1)[0]
+
+    a = list(map(int, d * total))
+    remain_a = int(total - sum(a))
+    for idx, _ in enumerate(range(remain_a)):
+        a[idx] += 1
+
+    return a, max(a) / min(a)
+
+
 def gen_e_rs(b, n_edges, p):
     """
 
