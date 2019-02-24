@@ -110,6 +110,7 @@ class OptimalKs(object):
         # for debug/temp variables
         self.is_tempfile_existed = True
         self.f_edgelist = tempfile.NamedTemporaryFile(mode='w', delete=False)
+        # self.f_edgelist = tempfile.NamedTemporaryFile(mode='w', dir='/scratch/Users/tzye5331/.tmp/', delete=False)
         # To prevent "TypeError: cannot serialize '_io.TextIOWrapper' object" when using loky
         self._f_edgelist_name = self._get_tempfile_edgelist()
 
@@ -129,6 +130,7 @@ class OptimalKs(object):
 
         # look-up tables
         self.__q_cache_f_name = os.path.join(tempfile.mkdtemp(), '__q_cache.dat')  # for restricted integer partitions
+        # self.__q_cache_f_name = os.path.join(tempfile.mkdtemp(dir='/scratch/Users/tzye5331/.tmp/'), '__q_cache.dat')
         self.__q_cache = np.array([], ndmin=2)
         self.__q_cache_max_e_r = self.e if self.e <= int(1e4) else int(1e4)
 
@@ -731,6 +733,7 @@ class OptimalKs(object):
             self.is_tempfile_existed = False
             p_estimate = sorted(self.confident_desc_len, key=self.confident_desc_len.get)[0]
             self._logger.info("DONE: the MDL point is {}".format(p_estimate))
+            os.remove(self.__q_cache_f_name)
 
     def _is_this_mdl(self, desc_len):
         """Check if `desc_len` is the minimal value so far."""
