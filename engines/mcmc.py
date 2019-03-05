@@ -110,7 +110,6 @@ class MCMC(object):
         ]
 
         action_str = ' '.join(action_list)
-
         return action_str
 
     def engine(self, f_edgelist, na, nb, ka, kb):  # TODO: bug when assigned verbose=False

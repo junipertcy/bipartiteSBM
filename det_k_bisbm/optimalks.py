@@ -76,18 +76,18 @@ class OptimalKs(object):
             )
 
         if engine.ALGM_NAME == "mcmc" and default_args:
-            engine.set_steps(self.n * 1e4)
-            engine.set_await_steps(self.n * 1e3)
+            engine.set_steps(self.n * 1e5)
+            engine.set_await_steps(self.n * 2e3)
             engine.set_cooling("abrupt_cool")
             engine.set_cooling_param_1(self.n * 1e3)
-            engine.set_epsilon(0.0001)
+            engine.set_epsilon(1.)
         if default_args:
             self.ka = int(self.e ** 0.5 / 2)
             self.kb = int(self.e ** 0.5 / 2)
             self.i_0 = 0.1
             self.adaptive_ratio = 0.9  # adaptive parameter to make the "delta" smaller, if it's too large
             self._k_th_nb_to_search = 1
-            self._size_rows_to_run = 1
+            self._size_rows_to_run = 2
         else:
             self.ka = self.kb = self.i_0 = \
                 self.adaptive_ratio = self._k_th_nb_to_search = self._size_rows_to_run = None
@@ -232,6 +232,9 @@ class OptimalKs(object):
             self._logger.warning("FileNotFoundError: {}".format(e))
         finally:
             self._f_edgelist_name = self._get_tempfile_edgelist()
+            q_cache = np.array([], ndmin=2)
+            q_cache = init_q_cache(self.__q_cache_max_e_r, q_cache)
+            self.set__q_cache(q_cache)  # todo: add some checks here
             if recompute:
                 self.confident_desc_len[(ka, kb)] = 0
             self._calc_and_update((ka, kb))
