@@ -2,6 +2,9 @@
 from .int_part import *
 from scipy.sparse import lil_matrix
 from itertools import product
+import random
+from numba.types import Tuple
+from collections import OrderedDict
 
 
 def db_factorial_ln(val):
@@ -356,6 +359,26 @@ def get_n_k_from_edgelist(edgelist, mb):
     return n_k
 
 
+def get_m_e_rs_from_mb(edgelist, mb):
+    assert type(edgelist) is list, \
+        "[ERROR] the type of the first input should be a list; however, it is {}".format(str(type(edgelist)))
+    assert type(mb) is list, \
+        "[ERROR] the type of the second input should be a list; however, it is {}".format(str(type(mb)))
+    # construct e_rs matrix
+    m_e_rs = np.zeros((max(mb) + 1, max(mb) + 1))
+    for i in edgelist:
+        # Please do check the index convention of the edgelist
+        source_group = int(mb[int(i[0])])
+        target_group = int(mb[int(i[1])])
+        if source_group == target_group:
+            raise ImportError("[ERROR] This is not a bipartite network!")
+        m_e_rs[source_group][target_group] += 1
+        m_e_rs[target_group][source_group] += 1
+
+    m_e_r = np.sum(m_e_rs, axis=1)
+    return m_e_rs, m_e_r
+
+
 def get_eta_rk_from_edgelist_and_mb(edgelist, mb):
     """
     Get eta_rk, or the number eta_rk of nodes of degree k that belong to group r.
@@ -485,6 +508,7 @@ def compute_profile_likelihood(edgelist, mb, ka=None, kb=None, k=None):
 
 @jit()
 def compute_profile_likelihood_from_e_rs(e_rs):
+    assert type(e_rs) is np.ndarray, "[ERROR] input parameter (m_e_rs) should be of type numpy.ndarray"
     italic_i = 0.
     e_r = np.sum(e_rs, axis=1)
     num_edges = e_r.sum() / 2.
@@ -496,3 +520,152 @@ def compute_profile_likelihood_from_e_rs(e_rs):
                 e_val / e_r[ind_i] / e_r[ind_j] * 2 * num_edges
             )
     return italic_i
+
+
+
+
+def get_desc_len_from_data_uni(n, n_edges, k, edgelist, mb):
+    """
+    Description length difference to a randomized instance, via PRL 110, 148701 (2013).
+
+    Parameters
+    ----------
+    n: `int`
+        Number of nodes.
+    n_edges: `int`
+        Number of edges.
+    k: `int`
+        Number of communities.
+    edgelist: `list`
+        A list of edges.
+    mb: `list`
+        A list of node community membership.
+
+    Returns
+    -------
+    desc_len_b: `float`
+        Difference of the description length to the ER network, per edge.
+
+    """
+    italic_i = compute_profile_likelihood(edgelist, mb, k=k)
+
+    # finally, we compute the description length
+    desc_len_b = (n * np.log(k) - n_edges * italic_i) / n_edges
+    x = float(k * (k + 1)) / 2. / n_edges
+    desc_len_b += (1 + x) * np.log(1 + x) - x * np.log(x)
+    desc_len_b -= (1 + 1 / n_edges) * np.log(1 + 1 / n_edges) - (1 / n_edges) * np.log(1 / n_edges)
+    return desc_len_b
+
+
+@jit(Tuple((uint32, uint32, uint32[:, :], uint32[:]))(uint32, uint32, uint32[:, :]), cache=True, fastmath=True)
+def merge_matrix(ka, kb, m_e_rs):
+    """
+    Merge random two rows of the affinity matrix (dim = K) to gain a reduced matrix (dim = K - 1)
+    Parameters
+    ----------
+    ka : int
+        number of type-a communities in the affinity matrix
+    kb : int
+        number of type-b communities in the affinity matrix
+    m_e_rs : numpy array
+        the affinity matrix
+    Returns
+    -------
+    new_ka : int
+        the new number of type-a communities in the affinity matrix
+    new_kb : int
+        the new number of type-b communities in the affinity matrix
+    c : numpy array
+        the new affinity matrix
+    merge_list : list(int, int)
+        the two row-indexes of the original affinity matrix that were merged
+    """
+    assert type(m_e_rs) is np.ndarray, "[ERROR] input parameter (m_e_rs) should be of type numpy.ndarray"
+    assert np.all(m_e_rs.transpose() == m_e_rs), "[ERROR] input m_e_rs matrix is not symmetric!"
+
+    from_row = random.choices([0, ka], weights=[ka, kb], k=1)[0]
+    a = m_e_rs[0:ka, ka:ka + kb]
+
+    merge_list = list([0, 0])  # which two mb label should be merged together?
+    mb_map = OrderedDict()
+    new_ka = 0
+    new_kb = 0
+
+    if ka == 1:  # do not merge type-a rows (this happens when <i_0> is set too high)
+        from_row = ka
+    elif kb == 1:
+        from_row = 0
+
+    b = np.zeros([ka, kb])
+    if from_row == 0:
+        perm = np.arange(a.shape[0])
+        np.random.shuffle(perm)
+        for _ind in np.arange(a.shape[0]):
+            mb_map[_ind] = perm[_ind]
+        a = a[perm]
+
+        new_ka = ka - 1
+        new_kb = kb
+        b = np.zeros([new_ka, new_kb])
+        for ind_i, _a in enumerate(a):
+            for ind_j, __a in enumerate(_a):
+                if ind_i < from_row:
+                    b[ind_i][ind_j] = __a
+                elif ind_i > from_row + 1:
+                    b[ind_i - 1][ind_j] = __a
+                elif ind_i == from_row:
+                    b[ind_i][ind_j] += __a
+                elif ind_i == from_row + 1:
+                    b[ind_i - 1][ind_j] += __a
+
+        merge_list[0] = mb_map[from_row]
+        merge_list[1] = mb_map[from_row + 1]
+
+    elif from_row == ka:
+        perm = np.arange(a.shape[1])
+        np.random.shuffle(perm)
+        for _ind in np.arange(a.shape[1]):
+            mb_map[_ind] = perm[_ind]
+
+        new_ka = ka
+        new_kb = kb - 1
+        a = a.transpose()
+
+        a = a[perm]
+
+        b = np.zeros([new_kb, new_ka])
+        for ind_i, _a in enumerate(a):
+            for ind_j, __a in enumerate(_a):
+                if ind_i < from_row - new_ka:
+                    b[ind_i][ind_j] = __a
+                elif ind_i > from_row + 1 - new_ka:
+                    b[ind_i - 1][ind_j] = __a
+                elif ind_i == from_row - new_ka:
+                    b[ind_i][ind_j] += __a
+                elif ind_i == from_row + 1 - new_ka:
+                    b[ind_i - 1][ind_j] += __a
+        merge_list[0] = mb_map[from_row - ka] + ka
+        merge_list[1] = mb_map[from_row + 1 - ka] + ka
+
+    c = np.zeros([new_ka + new_kb, new_ka + new_kb])
+    bt = b.transpose()
+    if from_row == ka:
+        b = bt
+        bt = b.transpose()
+
+    for ind_i, _c in enumerate(c):
+        for ind_j, _ in enumerate(_c):
+            if ind_j < new_ka <= ind_i:
+                c[ind_i][ind_j] = bt[ind_i - new_ka][ind_j]
+            elif ind_i < new_ka <= ind_j:
+                c[ind_i][ind_j] = b[ind_i][ind_j - new_ka]
+
+    assert new_ka + new_kb == c.shape[0], "new_ka = {}; new_kb = {}; new_mat.shape[0] = {}".format(
+        new_ka, new_kb, c.shape[0]
+    )
+    assert new_ka + new_kb == c.shape[1], "new_ka = {}; new_kb = {}; new_mat.shape[1] = {}".format(
+        new_ka, new_kb, c.shape[1]
+    )
+    assert np.all(c.transpose() == c), "Error: output m_e_rs matrix is not symmetric!"
+    return new_ka, new_kb, c, merge_list
+
