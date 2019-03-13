@@ -5,6 +5,7 @@ from itertools import product
 import random
 from numba.types import Tuple
 from collections import OrderedDict
+from loky import get_reusable_executor
 
 
 def db_factorial_ln(val):
@@ -14,11 +15,15 @@ def db_factorial_ln(val):
     else:
         return gammaln(m / 2 + 1) + (m / 2) * np.log(2)
 
+# #################
+# ENTROPY FUNCTIONS
+# #################
+
 
 def partition_entropy(ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=None, allow_empty=False):
     """
     Compute the partition entropy, P(b), for the current partition. It has several variations depending on the priors
-    used. In the crudest way (`nr == None`), we formulate P(b) = P(b | B) * P(B). Or, by a two-level Bayesian hierarchy,
+    used. In the crudest way (`compute_profile_likelihood_from_e_rsnr == None`), we formulate P(b) = P(b | B) * P(B). Or, by a two-level Bayesian hierarchy,
     we can do P(b) = P(b | n) * P(n | B) * P(B).
 
     Parameters
@@ -89,17 +94,17 @@ def adjacency_entropy(edgelist, mb, exact=True, multigraph=True):
         the entropy.
     """
     ent = 0.
-    m_e_rs = np.zeros((max(mb) + 1, max(mb) + 1))
+    e_rs = np.zeros((max(mb) + 1, max(mb) + 1))
     m_ij = lil_matrix((len(mb), len(mb)), dtype=np.int8)
     for i in edgelist:
         # Please do check the index convention of the edgelist
         source_group = int(mb[int(i[0])])
         target_group = int(mb[int(i[1])])
-        m_e_rs[source_group][target_group] += 1
-        m_e_rs[target_group][source_group] += 1
+        e_rs[source_group][target_group] += 1
+        e_rs[target_group][source_group] += 1
         m_ij[int(i[0]), int(i[1])] += 1  # we only update the upper triangular part of the adj-matrix
     italic_i = 0.
-    m_e_r = np.sum(m_e_rs, axis=1)
+    e_r = np.sum(e_rs, axis=1)
     sum_m_ii = 0.
     sum_m_ij = 0.
     sum_e_rs = 0.
@@ -115,12 +120,12 @@ def adjacency_entropy(edgelist, mb, exact=True, multigraph=True):
                         sum_m_ii += db_factorial_ln(val)
                     else:
                         sum_m_ij += gammaln(val + 1)
-        for _m_e_r in m_e_r:
-            sum_e_r += gammaln(_m_e_r + 1)
+        for _e_r in e_r:
+            sum_e_r += gammaln(_e_r + 1)
 
-    for ind, e_val in enumerate(np.nditer(m_e_rs)):
-        ind_i = int(np.floor(ind / (m_e_rs.shape[0])))
-        ind_j = ind % (m_e_rs.shape[0])
+    for ind, e_val in enumerate(np.nditer(e_rs)):
+        ind_i = int(np.floor(ind / (e_rs.shape[0])))
+        ind_j = ind % (e_rs.shape[0])
         if exact:
             if ind_j > ind_i:
                 sum_e_rs += gammaln(e_val + 1)
@@ -129,11 +134,11 @@ def adjacency_entropy(edgelist, mb, exact=True, multigraph=True):
         else:
             if e_val != 0.0:
                 italic_i += e_val * np.log(
-                    e_val / m_e_r[ind_i] / m_e_r[ind_j]
+                    e_val / e_r[ind_i] / e_r[ind_j]
                 )
 
     ent += -italic_i / 2
-    n_k = get_n_k_from_edgelist(edgelist, mb)
+    n_k = assemble_n_k_from_edgelist(edgelist, mb)
 
     ent_deg = 0
     for deg, k in enumerate(n_k):
@@ -165,6 +170,74 @@ def model_entropy(e, ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=None
     else:
         raise AttributeError
     return dl
+
+
+def compute_degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree_dl_kind="distributed", q_cache_max_e_r=int(1e4)):
+    """
+
+    Parameters
+    ----------
+    edgelist
+    mb
+    __q_cache
+    degree_dl_kind: `str`
+
+        1. ``degree_dl_kind == "uniform"``
+
+        This corresponds to a non-informative prior, where the node
+        degrees are sampled from an uniform distribution.
+
+        2. ``degree_dl_kind == "distributed"``
+
+        This option should be preferred in most cases.
+
+
+    Returns
+    -------
+
+    """
+    import time
+    ent = 0
+    n_r = assemble_n_r_from_mb(mb)
+
+    e_r = np.zeros(max(mb) + 1)
+    for i in edgelist:
+        # Please do check the index convention of the edgelist
+        source_group = int(mb[int(i[0])])
+        target_group = int(mb[int(i[1])])
+        e_r[source_group] += 1
+        e_r[target_group] += 1
+
+    if degree_dl_kind == "uniform":
+        ent += np.sum(lbinom(n_r + e_r - 1, e_r))
+    elif degree_dl_kind == "distributed":
+        if len(__q_cache) == 1:
+            t0 = time.time()
+            __q_cache = init_q_cache(q_cache_max_e_r, __q_cache)  # the pre-computed lookup table affects precision!
+            t1 = time.time()
+            print("[Good news!] log q(m, n) look-up table computed for m <= 1e4; taking {} sec".format(t1 - t0))
+        for ind, n_r_ in enumerate(n_r):
+            ent += log_q(e_r[ind], n_r_, __q_cache)
+        eta_rk = assemble_eta_rk_from_edgelist_and_mb(edgelist, mb)
+
+        for mb_, eta_rk_ in enumerate(eta_rk):
+            for eta in eta_rk_:
+                ent -= +loggamma(eta + 1)
+            ent -= -loggamma(n_r[mb_] + 1)
+    elif degree_dl_kind == "entropy":
+        raise NotImplementedError
+    # print("degree_dl: {}".format(ent))
+    return ent
+
+
+
+def compute_adjacency_entropy_from_e_rs(e_rs):
+    pass
+
+
+# ####################
+# GENERATION FUNCTIONS
+# ####################
 
 
 def gen_equal_partition(n, total):
@@ -312,7 +385,12 @@ def gen_equal_bipartite_partition(na, nb, ka, kb):
     return n
 
 
-def get_n_r_from_mb(mb):
+# ##################
+# ASSEMBLE FUNCTIONS
+# ##################
+
+
+def assemble_n_r_from_mb(mb):
     """
     Get n_r vector (number of nodes in each group) from the membership vector.
 
@@ -333,7 +411,7 @@ def get_n_r_from_mb(mb):
     return n_r
 
 
-def get_n_k_from_edgelist(edgelist, mb):
+def assemble_n_k_from_edgelist(edgelist, mb):
     """
     Get n_k, or the number n_k of nodes of degree k.
 
@@ -359,27 +437,27 @@ def get_n_k_from_edgelist(edgelist, mb):
     return n_k
 
 
-def get_m_e_rs_from_mb(edgelist, mb):
+def assemble_e_rs_from_mb(edgelist, mb):
     assert type(edgelist) is list, \
         "[ERROR] the type of the first input should be a list; however, it is {}".format(str(type(edgelist)))
     assert type(mb) is list, \
         "[ERROR] the type of the second input should be a list; however, it is {}".format(str(type(mb)))
     # construct e_rs matrix
-    m_e_rs = np.zeros((max(mb) + 1, max(mb) + 1))
+    e_rs = np.zeros((max(mb) + 1, max(mb) + 1))
     for i in edgelist:
         # Please do check the index convention of the edgelist
         source_group = int(mb[int(i[0])])
         target_group = int(mb[int(i[1])])
         if source_group == target_group:
             raise ImportError("[ERROR] This is not a bipartite network!")
-        m_e_rs[source_group][target_group] += 1
-        m_e_rs[target_group][source_group] += 1
+        e_rs[source_group][target_group] += 1
+        e_rs[target_group][source_group] += 1
 
-    m_e_r = np.sum(m_e_rs, axis=1)
-    return m_e_rs, m_e_r
+    e_r = np.sum(e_rs, axis=1)
+    return e_rs, e_r
 
 
-def get_eta_rk_from_edgelist_and_mb(edgelist, mb):
+def assemble_eta_rk_from_edgelist_and_mb(edgelist, mb):
     """
     Get eta_rk, or the number eta_rk of nodes of degree k that belong to group r.
 
@@ -409,64 +487,6 @@ def get_eta_rk_from_edgelist_and_mb(edgelist, mb):
                 eta_rk[mb_][k_.__int__()] += 1
 
     return eta_rk.astype(int)
-
-
-def compute_degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree_dl_kind="distributed", q_cache_max_e_r=int(1e4)):
-    """
-
-    Parameters
-    ----------
-    edgelist
-    mb
-    __q_cache
-    degree_dl_kind: `str`
-
-        1. ``degree_dl_kind == "uniform"``
-
-        This corresponds to a non-informative prior, where the node
-        degrees are sampled from an uniform distribution.
-
-        2. ``degree_dl_kind == "distributed"``
-
-        This option should be preferred in most cases.
-
-
-    Returns
-    -------
-
-    """
-    import time
-    ent = 0
-    n_r = get_n_r_from_mb(mb)
-
-    e_r = np.zeros(max(mb) + 1)
-    for i in edgelist:
-        # Please do check the index convention of the edgelist
-        source_group = int(mb[int(i[0])])
-        target_group = int(mb[int(i[1])])
-        e_r[source_group] += 1
-        e_r[target_group] += 1
-
-    if degree_dl_kind == "uniform":
-        ent += np.sum(lbinom(n_r + e_r - 1, e_r))
-    elif degree_dl_kind == "distributed":
-        if len(__q_cache) == 1:
-            t0 = time.time()
-            __q_cache = init_q_cache(q_cache_max_e_r, __q_cache)  # the pre-computed lookup table affects precision!
-            t1 = time.time()
-            print("[Good news!] log q(m, n) look-up table computed for m <= 1e4; taking {} sec".format(t1 - t0))
-        for ind, n_r_ in enumerate(n_r):
-            ent += log_q(e_r[ind], n_r_, __q_cache)
-        eta_rk = get_eta_rk_from_edgelist_and_mb(edgelist, mb)
-
-        for mb_, eta_rk_ in enumerate(eta_rk):
-            for eta in eta_rk_:
-                ent -= +loggamma(eta + 1)
-            ent -= -loggamma(n_r[mb_] + 1)
-    elif degree_dl_kind == "entropy":
-        raise NotImplementedError
-    # print("degree_dl: {}".format(ent))
-    return ent
 
 
 def compute_profile_likelihood(edgelist, mb, ka=None, kb=None, k=None):
@@ -522,6 +542,66 @@ def compute_profile_likelihood_from_e_rs(e_rs):
     return italic_i
 
 
+def get_desc_len_from_data(na, nb, n_edges, ka, kb, edgelist, mb, diff=False, nr=None, allow_empty=False,
+                        degree_dl_kind="distributed", q_cache=np.array([], ndmin=2)):
+    """
+    Description length difference to a randomized instance
+
+    Parameters
+    ----------
+    na: `int`
+        Number of nodes in type-a.
+    nb: `int`
+        Number of nodes in type-b.
+    n_edges: `int`
+        Number of edges.
+    ka: `int`
+        Number of communities in type-a.
+    kb: `int`
+        Number of communities in type-b.
+    edgelist: `list`
+        Edgelist in Python list structure.
+    mb: `list`
+        Community membership of each node in Python list structure.
+    diff: `bool`
+        When `diff == True`,
+        the returned description value will be the difference to that of a random bipartite network. Otherwise, it will
+        return the entropy (a.k.a. negative log-likelihood) associated with the current block partition.
+    allow_empty: `bool`
+    nr: `array-like`
+    partition_dl_allow_empty: `bool` (optional, default: `False`)
+    partition_dl_kind: `str` (optional, default: `"distributed"`)
+        1. `partition_dl_kind == "uniform"`
+        2. `partition_dl_kind == "distributed"` (default)
+    degree_dl_kind: `str` (optional, default: `"distributed"`)
+        1. `degree_dl_kind == "uniform"`
+        2. `degree_dl_kind == "distributed"` (default)
+        3. `degree_dl_kind == "entropy"`
+    edge_dl_kind: `str` (optional, default: `"bipartite"`)
+        1. `edge_dl_kind == "unipartite"`
+        2. `edge_dl_kind == "bipartite"` (default)
+
+    Returns
+    -------
+    desc_len_b: `float`
+        Difference of the description length to the bipartite ER network, per edge.
+
+    """
+    edgelist = list(map(lambda e: [int(e[0]), int(e[1])], edgelist))
+    desc_len = 0.
+    # finally, we compute the description length
+    if diff:  # todo: add more options to it; now, only uniform prior for P(e) is included.
+        italic_i = compute_profile_likelihood(edgelist, mb, ka=ka, kb=kb)
+        desc_len += (na * np.log(ka) + nb * np.log(kb) - n_edges * (italic_i - np.log(2))) / n_edges
+        x = float(ka * kb) / n_edges
+        desc_len += (1 + x) * np.log(1 + x) - x * np.log(x)
+        desc_len -= (1 + 1 / n_edges) * np.log(1 + 1 / n_edges) - (1 / n_edges) * np.log(1 / n_edges)
+    else:
+        desc_len += adjacency_entropy(edgelist, mb)
+        desc_len += model_entropy(n_edges, ka=ka, kb=kb, na=na, nb=nb, nr=nr, allow_empty=allow_empty)
+        # desc_len += model_entropy(n_edges, k=ka+kb, n=na+nb, nr=nr, allow_empty=allow_empty)  # P(e | b) + P(b | K)
+        desc_len += compute_degree_entropy(edgelist, mb, __q_cache=q_cache, degree_dl_kind=degree_dl_kind)
+    return desc_len.__float__()
 
 
 def get_desc_len_from_data_uni(n, n_edges, k, edgelist, mb):
@@ -668,4 +748,16 @@ def merge_matrix(ka, kb, m_e_rs):
     )
     assert np.all(c.transpose() == c), "Error: output m_e_rs matrix is not symmetric!"
     return new_ka, new_kb, c, merge_list
+
+
+# ###############
+# Parallelization
+# ###############
+
+
+def loky_executor(max_workers, timeout, func, feeds):
+    assert type(feeds) is list, "[ERROR] feeds should be a Python list; here it is {}".format(str(type(feeds)))
+    loky_executor = get_reusable_executor(max_workers=int(max_workers), timeout=int(timeout))
+    results = loky_executor.map(func, feeds)
+    return results
 

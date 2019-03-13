@@ -1,8 +1,6 @@
 import os
-import math
 import logging
 import tempfile
-from loky import get_reusable_executor
 
 from det_k_bisbm.utils import *
 
@@ -38,8 +36,7 @@ class OptimalKs(object):
                  types,
                  logging_level="INFO",
                  default_args=True,
-                 random_init_k=False,
-                 prior_args=None):
+                 random_init_k=False):
 
         self.engine_ = engine.engine  # TODO: check that engine is an object
         self.max_n_sweeps_ = engine.MAX_NUM_SWEEPS
@@ -80,9 +77,6 @@ class OptimalKs(object):
             self.ka = np.random.randint(1, self.ka + 1)
             self.kb = np.random.randint(1, self.kb + 1)
 
-        # arguments for setting the prior (TODO)
-        self.prior_args = prior_args
-
         # These confident_* variable are used to store the "true" data
         # that is, not the sloppy temporarily results via matrix merging
         self.bookkeeping_DL = OrderedDict()
@@ -119,22 +113,6 @@ class OptimalKs(object):
         self.__q_cache = np.array([], ndmin=2)
         self.__q_cache_max_e_r = self.e if self.e <= int(1e4) else int(1e4)
 
-    def _prerunning_checks(self):
-        assert self.n_a > 0, "[ERROR] Number of type-a nodes = 0, which is not allowed"
-        assert self.n_b > 0, "[ERROR] Number of type-b nodes = 0, which is not allowed"
-        assert self.n == self.n_a + self.n_b, \
-            "[ERROR] num_nodes ({}) does not equal to num_nodes_a ({}) plus num_nodes_b ({})".format(
-                self.n, self.n_a, self.n_b
-            )
-        if self.ka is None or self.kb is None or self.i_0 is None:
-            raise AttributeError("Arguments missing! Please assign `init_ka`, `init_kb`, and `i_0`.")
-        if self.adaptive_ratio is None:
-            raise AttributeError("Arguments missing! Please assign `adaptive_ratio`.")
-        if self._k_th_nb_to_search is None:
-            raise AttributeError("Arguments missing! Please assign `k_th_nb_to_search`.")
-        if self._size_rows_to_run is None:
-            raise AttributeError("Arguments missing! Please assign `size_rows_to_run`.")
-
     def iterator(self):
         self._prerunning_checks()
         if not self.is_tempfile_existed:
@@ -165,7 +143,6 @@ class OptimalKs(object):
         self._summary["ka"] = ka
         self._summary["kb"] = kb
         self._summary["mdl"] = self.bookkeeping_DL[(ka, kb)]
-        self._summary["engine_args"] = OrderedDict()
         return self._summary
 
     def clean(self):
@@ -188,98 +165,6 @@ class OptimalKs(object):
             if recompute:
                 self.bookkeeping_DL[(ka, kb)] = 0
             self._calc_and_update((ka, kb))
-
-    def get_desc_len_from_data(self, na, nb, n_edges, ka, kb, edgelist, mb, diff=False, nr=None, allow_empty=False,
-                               partition_dl_kind="distributed", degree_dl_kind="distributed", edge_dl_kind="bipartite"):
-        """
-        Description length difference to a randomized instance
-
-        Parameters
-        ----------
-        na: `int`
-            Number of nodes in type-a.
-        nb: `int`
-            Number of nodes in type-b.
-        n_edges: `int`
-            Number of edges.
-        ka: `int`
-            Number of communities in type-a.
-        kb: `int`
-            Number of communities in type-b.
-        edgelist: `list`
-            Edgelist in Python list structure.
-        mb: `list`
-            Community membership of each node in Python list structure.
-        diff: `bool`
-            When `diff == True`,
-            the returned description value will be the difference to that of a random bipartite network. Otherwise, it will
-            return the entropy (a.k.a. negative log-likelihood) associated with the current block partition.
-        allow_empty: `bool`
-        nr: `array-like`
-
-        partition_dl_allow_empty: `bool` (optional, default: `False`)
-        partition_dl_kind: `str` (optional, default: `"distributed"`)
-            1. `partition_dl_kind == "uniform"`
-            2. `partition_dl_kind == "distributed"` (default)
-
-
-        degree_dl_kind: `str` (optional, default: `"distributed"`)
-            1. `degree_dl_kind == "uniform"`
-            2. `degree_dl_kind == "distributed"` (default)
-            3. `degree_dl_kind == "entropy"`
-
-        edge_dl_kind: `str` (optional, default: `"bipartite"`)
-            1. `edge_dl_kind == "unipartite"`
-            2. `edge_dl_kind == "bipartite"` (default)
-
-
-        Returns
-        -------
-        desc_len_b: `float`
-            Difference of the description length to the bipartite ER network, per edge.
-
-        """
-        edgelist = list(map(lambda e: [int(e[0]), int(e[1])], edgelist))
-
-        italic_i = compute_profile_likelihood(edgelist, mb, ka=ka, kb=kb)
-        desc_len = 0.
-
-        # finally, we compute the description length
-        if diff:  # todo: add more options to it; now, only uniform prior for P(e) is included.
-            desc_len += (na * np.log(ka) + nb * np.log(kb) - n_edges * (italic_i - np.log(2))) / n_edges
-            x = float(ka * kb) / n_edges
-            desc_len += (1 + x) * np.log(1 + x) - x * np.log(x)
-            desc_len -= (1 + 1 / n_edges) * np.log(1 + 1 / n_edges) - (1 / n_edges) * np.log(1 / n_edges)
-        else:
-            desc_len += adjacency_entropy(edgelist, mb)
-            # print("desc len from fitting {}".format(desc_len))
-            desc_len += model_entropy(n_edges, ka=ka, kb=kb, na=na, nb=nb, nr=nr,
-                                      allow_empty=allow_empty)  # P(e | b) + P(b | K)
-            # desc_len += model_entropy(n_edges, k=ka+kb, n=na+nb, nr=nr, allow_empty=allow_empty)  # P(e | b) + P(b | K)
-            # P(k |e, b)
-            ent = compute_degree_entropy(edgelist, mb, __q_cache=self.__q_cache, degree_dl_kind=degree_dl_kind)
-            desc_len += ent
-            # print("degree dl = {}".format(ent))
-        return desc_len.__float__()
-
-    @staticmethod
-    def loky_executor(max_workers, timeout, func, feeds):
-        assert type(feeds) is list, "[ERROR] feeds should be a Python list; here it is {}".format(str(type(feeds)))
-        loky_executor = get_reusable_executor(max_workers=int(max_workers), timeout=int(timeout))
-        results = loky_executor.map(func, feeds)
-        return results
-
-    @staticmethod
-    def _calc_entropy_edge_counts(self):
-        pass
-
-    @staticmethod
-    def _calc_entropy_node_degree(self):
-        pass
-
-    @staticmethod
-    def _h_func(x):
-        return (1 + x) * math.log(1 + x) - x * math.log(x)
 
     def _calc_with_hook(self, ka, kb, old_desc_len=None):
         """
@@ -327,19 +212,15 @@ class OptimalKs(object):
         results = []
         if old_desc_len is None:
             if self.is_par_:
-                # automatically shutdown after idling for 60s
-                results = list(
-                    self.loky_executor(self.n_cores_, 60, lambda x: run(ka, kb), list(range(self.max_n_sweeps_)))
-                )
+                # automatically shutdown after idling for 600s
+                results = list(loky_executor(self.n_cores_, 600, lambda x: run(ka, kb), list(range(self.max_n_sweeps_))))
             else:
                 results = [run(ka, kb)]
         else:
             old_desc_len = float(old_desc_len)
             if self.is_par_:
                 self.__q_cache = np.array([], ndmin=2)
-                results = list(
-                    self.loky_executor(self.n_cores_, 60, lambda x: run(ka, kb), list(range(self.max_n_sweeps_)))
-                )
+                results = list(loky_executor(self.n_cores_, 600, lambda x: run(ka, kb), list(range(self.max_n_sweeps_))))
             else:
                 # if old_desc_len is passed
                 # we compare the new_desc_len with the old one
@@ -351,9 +232,9 @@ class OptimalKs(object):
                     result = run(ka, kb)
                     results.append(result)
                     # new_desc_len = self._cal_desc_len(ka, kb, result[1])
-                    nr = get_n_r_from_mb(result)
-                    new_desc_len = self.get_desc_len_from_data(
-                        self.n_a, self.n_b, self.e, ka, kb, list(self.edgelist), result, nr=nr)
+                    nr = assemble_n_r_from_mb(result)
+                    new_desc_len = get_desc_len_from_data(
+                        self.n_a, self.n_b, self.e, ka, kb, list(self.edgelist), result, nr=nr, q_cache=self.__q_cache)
                     if new_desc_len < old_desc_len:
                         # no need to go further
                         calculate_times = self.max_n_sweeps_
@@ -379,11 +260,12 @@ class OptimalKs(object):
         return italic_i, m_e_rs, mb
 
     def __compute_desc_len(self, n_a, n_b, e, ka, kb, mb):
-        m_e_rs, _ = get_m_e_rs_from_mb(self.edgelist, mb)
-        italic_i = compute_profile_likelihood_from_e_rs(m_e_rs)
-        nr = get_n_r_from_mb(mb)
-        desc_len = self.get_desc_len_from_data(n_a, n_b, e, ka, kb, list(self.edgelist), mb, nr=nr)
-        return italic_i, m_e_rs, mb, desc_len
+        e_rs, _ = assemble_e_rs_from_mb(self.edgelist, mb)
+        italic_i = compute_profile_likelihood_from_e_rs(e_rs)
+        nr = assemble_n_r_from_mb(mb)
+        desc_len = get_desc_len_from_data(n_a, n_b, e, ka, kb, list(self.edgelist), mb, nr=nr, q_cache=self.__q_cache)
+
+        return italic_i, e_rs, mb, desc_len
 
     def _moving_one_step_down(self, ka, kb):
         """
@@ -442,18 +324,6 @@ class OptimalKs(object):
 
         return _ka, _kb, _m_e_rs, _diff_italic_i, _mlist
 
-    def _check_if_random_bipartite(self):
-        # if we reached (1, 1), check that it's the local optimal point, then we could return (1, 1).
-        points_to_compute = [(1, 1), (1, 2), (2, 1), (2, 2)]
-        for point in points_to_compute:
-            self.compute_and_update(point[0], point[1], recompute=True)
-        p_estimate = sorted(self.bookkeeping_DL, key=self.bookkeeping_DL.get)[0]
-
-        if p_estimate != (1, 1):
-            # TODO: write some documentation here
-            raise UserWarning("[WARNING] merging reached (1, 1); cannot go any further, please set a smaller <i_0>.")
-        self._clean_up_and_record_mdl_point()
-
     def _update_transient_state(self, ka_moving, kb_moving, t_m_e_rs, mlist):
         old_of_g = self.trace_mb[(self.ka, self.kb)]
         new_of_g = list(np.zeros(self.n))
@@ -470,6 +340,59 @@ class OptimalKs(object):
             "[ERROR] inconsistency between the membership indexes and the number of blocks."
         self.trace_mb[(ka_moving, kb_moving)] = new_of_g
         self._update_current_state(ka_moving, kb_moving, t_m_e_rs)
+
+    def _clean_up_and_record_mdl_point(self):
+        try:
+            os.remove(self._f_edgelist_name)
+        except FileNotFoundError as e:
+            self._logger.warning("FileNotFoundError: {}".format(e))
+        finally:
+            self.is_tempfile_existed = False
+            p_estimate = sorted(self.bookkeeping_DL, key=self.bookkeeping_DL.get)[0]
+            self._logger.info("DONE: the MDL point is {}".format(p_estimate))
+            os.remove(self.__q_cache_f_name)
+
+    def _back_to_where_desc_len_is_lowest(self):
+        ka = sorted(self.bookkeeping_DL, key=self.bookkeeping_DL.get, reverse=False)[0][0]
+        kb = sorted(self.bookkeeping_DL, key=self.bookkeeping_DL.get, reverse=False)[0][1]
+        m_e_rs = self.bookkeeping_e_rs[(ka, kb)]
+        self._update_current_state(ka, kb, m_e_rs)
+        return ka, kb, m_e_rs, self.bookkeeping_DL[(self.ka, self.kb)]
+
+    def _update_current_state(self, ka, kb, m_e_rs):
+        self.ka = ka
+        self.kb = kb
+        self.m_e_rs = m_e_rs  # this will be used in _moving_one_step_down function
+
+    def _calc_and_update(self, point, old_desc_len=0.):
+        self._logger.info("Now computing graph partition at {} ...".format(point))
+        if old_desc_len == 0.:
+            italic_i, m_e_rs, mb = self._calc_with_hook(point[0], point[1], old_desc_len=None)
+        else:
+            italic_i, m_e_rs, mb = self._calc_with_hook(point[0], point[1], old_desc_len=old_desc_len)
+        # candidate_desc_len = self._cal_desc_len(point[0], point[1], italic_i)
+        nr = assemble_n_r_from_mb(mb)
+        candidate_desc_len = get_desc_len_from_data(
+            self.n_a, self.n_b, self.e, point[0], point[1], list(self.edgelist), mb, nr=nr, q_cache=self.__q_cache)
+
+        self.bookkeeping_DL[point] = candidate_desc_len
+        self.bookkeeping_profile_likelihood[point] = italic_i
+        self.bookkeeping_e_rs[point] = m_e_rs
+        assert max(mb) + 1 == point[0] + point[1], "[ERROR] inconsistency between mb. indexes and #blocks."
+        self.trace_mb[point] = mb
+        self._logger.info("... DONE.")
+
+        # update the predefined threshold value, DELTA:
+        self.init_italic_i = italic_i
+
+        return candidate_desc_len, m_e_rs, italic_i
+
+    # ###########
+    # Checkpoints
+    # ###########
+    def _is_mdl_so_far(self, desc_len):
+        """Check if `desc_len` is the minimal value so far."""
+        return not any([i < desc_len for i in self.bookkeeping_DL.values()])
 
     def _check_if_local_minimum(self, ka, kb, old_desc_len, k_th):
         """The `neighborhood search` as described in the paper."""
@@ -491,72 +414,37 @@ class OptimalKs(object):
         else:
             return False
 
-    def _clean_up_and_record_mdl_point(self):
-        try:
-            os.remove(self._f_edgelist_name)
-        except FileNotFoundError as e:
-            self._logger.warning("FileNotFoundError: {}".format(e))
-        finally:
-            self.is_tempfile_existed = False
-            p_estimate = sorted(self.bookkeeping_DL, key=self.bookkeeping_DL.get)[0]
-            self._logger.info("DONE: the MDL point is {}".format(p_estimate))
-            os.remove(self.__q_cache_f_name)
+    def _check_if_random_bipartite(self):
+        # if we reached (1, 1), check that it's the local optimal point, then we could return (1, 1).
+        points_to_compute = [(1, 1), (1, 2), (2, 1), (2, 2)]
+        for point in points_to_compute:
+            self.compute_and_update(point[0], point[1], recompute=True)
+        p_estimate = sorted(self.bookkeeping_DL, key=self.bookkeeping_DL.get)[0]
 
-    def _is_mdl_so_far(self, desc_len):
-        """Check if `desc_len` is the minimal value so far."""
-        return not any([i < desc_len for i in self.bookkeeping_DL.values()])
+        if p_estimate != (1, 1):
+            # TODO: write some documentation here
+            raise UserWarning("[WARNING] merging reached (1, 1); cannot go any further, please set a smaller <i_0>.")
+        self._clean_up_and_record_mdl_point()
 
-    def _back_to_where_desc_len_is_lowest(self):
-        ka = sorted(self.bookkeeping_DL, key=self.bookkeeping_DL.get, reverse=False)[0][0]
-        kb = sorted(self.bookkeeping_DL, key=self.bookkeeping_DL.get, reverse=False)[0][1]
-        m_e_rs = self.bookkeeping_e_rs[(ka, kb)]
-        self._update_current_state(ka, kb, m_e_rs)
-        return ka, kb, m_e_rs, self.bookkeeping_DL[(self.ka, self.kb)]
+    def _prerunning_checks(self):
+        assert self.n_a > 0, "[ERROR] Number of type-a nodes = 0, which is not allowed"
+        assert self.n_b > 0, "[ERROR] Number of type-b nodes = 0, which is not allowed"
+        assert self.n == self.n_a + self.n_b, \
+            "[ERROR] num_nodes ({}) does not equal to num_nodes_a ({}) plus num_nodes_b ({})".format(
+                self.n, self.n_a, self.n_b
+            )
+        if self.ka is None or self.kb is None or self.i_0 is None:
+            raise AttributeError("Arguments missing! Please assign `init_ka`, `init_kb`, and `i_0`.")
+        if self.adaptive_ratio is None:
+            raise AttributeError("Arguments missing! Please assign `adaptive_ratio`.")
+        if self._k_th_nb_to_search is None:
+            raise AttributeError("Arguments missing! Please assign `k_th_nb_to_search`.")
+        if self._size_rows_to_run is None:
+            raise AttributeError("Arguments missing! Please assign `size_rows_to_run`.")
 
-    def _update_current_state(self, ka, kb, m_e_rs):
-        self.ka = ka
-        self.kb = kb
-        self.m_e_rs = m_e_rs  # this will be used in _moving_one_step_down function
-
-    def _calc_and_update(self, point, old_desc_len=0.):
-        self._logger.info("Now computing graph partition at {} ...".format(point))
-        if old_desc_len == 0.:
-            italic_i, m_e_rs, mb = self._calc_with_hook(point[0], point[1], old_desc_len=None)
-        else:
-            italic_i, m_e_rs, mb = self._calc_with_hook(point[0], point[1], old_desc_len=old_desc_len)
-        # candidate_desc_len = self._cal_desc_len(point[0], point[1], italic_i)
-        nr = get_n_r_from_mb(mb)
-        candidate_desc_len = self.get_desc_len_from_data(
-            self.n_a, self.n_b, self.e, point[0], point[1], list(self.edgelist), mb, nr=nr)
-
-        self.bookkeeping_DL[point] = candidate_desc_len
-        self.bookkeeping_profile_likelihood[point] = italic_i
-        self.bookkeeping_e_rs[point] = m_e_rs
-        assert max(mb) + 1 == point[0] + point[1], "[ERROR] inconsistency between mb. indexes and #blocks."
-        self.trace_mb[point] = mb
-        self._logger.info("... DONE.")
-
-        # update the predefined threshold value, DELTA:
-        self.init_italic_i = italic_i
-
-        return candidate_desc_len, m_e_rs, italic_i
-
-    def _get_tempfile_edgelist(self):
-        try:
-            self.f_edgelist.seek(0)
-        except AttributeError:
-            self.f_edgelist = tempfile.NamedTemporaryFile(mode='w', delete=False)
-        finally:
-            for edge in self.edgelist:
-                self.f_edgelist.write(str(edge[0]) + "\t" + edge[1] + "\n")
-            self.f_edgelist.flush()
-            f_edgelist_name = self.f_edgelist.name
-            del self.f_edgelist
-        return f_edgelist_name
-
-    #
-    #  Set & Get of parameters
-    #
+    # #######################
+    # Set & Get of parameters
+    # #######################
     def set_logging_level(self, level):
         _level = 0
         if level.upper() == "INFO":
@@ -597,3 +485,16 @@ class OptimalKs(object):
         fp = np.memmap(self.__q_cache_f_name, dtype='uint32', mode="w+", shape=(q_cache.shape[0], q_cache.shape[1]))
         fp[:] = self.__q_cache[:]
         del fp
+
+    def _get_tempfile_edgelist(self):
+        try:
+            self.f_edgelist.seek(0)
+        except AttributeError:
+            self.f_edgelist = tempfile.NamedTemporaryFile(mode='w', delete=False)
+        finally:
+            for edge in self.edgelist:
+                self.f_edgelist.write(str(edge[0]) + "\t" + edge[1] + "\n")
+            self.f_edgelist.flush()
+            f_edgelist_name = self.f_edgelist.name
+            del self.f_edgelist
+        return f_edgelist_name
