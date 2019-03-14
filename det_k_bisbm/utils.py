@@ -20,6 +20,7 @@ def db_factorial_ln(val):
 # #################
 
 
+@jit()
 def partition_entropy(ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=None, allow_empty=False):
     """
     Compute the partition entropy, P(b), for the current partition. It has several variations depending on the priors
@@ -73,6 +74,7 @@ def partition_entropy(ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=Non
     return ent
 
 
+@jit()
 def adjacency_entropy(edgelist, mb, exact=True, multigraph=True):
     """
     Calculate the entropy (a.k.a. negative log-likelihood) associated with the current block partition. It does not
@@ -95,7 +97,7 @@ def adjacency_entropy(edgelist, mb, exact=True, multigraph=True):
     """
     ent = 0.
     e_rs = np.zeros((max(mb) + 1, max(mb) + 1))
-    m_ij = lil_matrix((len(mb), len(mb)), dtype=np.int8)
+    m_ij = lil_matrix((len(mb), len(mb)), dtype=np.int32)
     for i in edgelist:
         # Please do check the index convention of the edgelist
         source_group = int(mb[int(i[0])])
@@ -154,6 +156,7 @@ def adjacency_entropy(edgelist, mb, exact=True, multigraph=True):
         return ent
 
 
+@jit()
 def model_entropy(e, ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=None, allow_empty=False):
     if ka is None and kb is None and k is not None:
         x = (k * (k + 1)) / 2
@@ -172,7 +175,8 @@ def model_entropy(e, ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=None
     return dl
 
 
-def compute_degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree_dl_kind="distributed", q_cache_max_e_r=int(1e4)):
+@jit()
+def degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree_dl_kind="distributed", q_cache_max_e_r=int(1e4)):
     """
 
     Parameters
@@ -196,7 +200,6 @@ def compute_degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree
     -------
 
     """
-    import time
     ent = 0
     n_r = assemble_n_r_from_mb(mb)
 
@@ -212,10 +215,7 @@ def compute_degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree
         ent += np.sum(lbinom(n_r + e_r - 1, e_r))
     elif degree_dl_kind == "distributed":
         if len(__q_cache) == 1:
-            t0 = time.time()
             __q_cache = init_q_cache(q_cache_max_e_r, __q_cache)  # the pre-computed lookup table affects precision!
-            t1 = time.time()
-            print("[Good news!] log q(m, n) look-up table computed for m <= 1e4; taking {} sec".format(t1 - t0))
         for ind, n_r_ in enumerate(n_r):
             ent += log_q(e_r[ind], n_r_, __q_cache)
         eta_rk = assemble_eta_rk_from_edgelist_and_mb(edgelist, mb)
@@ -230,9 +230,37 @@ def compute_degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree
     return ent
 
 
+@jit()
+def virtual_move_entropy_diff(e_rs, ori_e_rs):
+    e_r = np.sum(e_rs, axis=1)
+    ori_e_r = np.sum(ori_e_rs, axis=1)
+    sum_e_rs = 0.
+    sum_e_rr = 0.
+    sum_e_r = 0.
 
-def compute_adjacency_entropy_from_e_rs(e_rs):
-    pass
+    for _e_r in e_r:
+        sum_e_r += gammaln(_e_r + 1)
+
+    for _e_r in ori_e_r:
+        sum_e_r -= gammaln(_e_r + 1)
+
+    for ind, e_val in enumerate(np.nditer(e_rs)):
+        ind_i = int(np.floor(ind / (e_rs.shape[0])))
+        ind_j = ind % (e_rs.shape[0])
+        if ind_j > ind_i:
+            sum_e_rs += gammaln(e_val + 1)
+        elif ind_j == ind_i:
+            sum_e_rr += db_factorial_ln(e_val)
+
+    for ind, e_val in enumerate(np.nditer(ori_e_rs)):
+        ind_i = int(np.floor(ind / (ori_e_rs.shape[0])))
+        ind_j = ind % (ori_e_rs.shape[0])
+        if ind_j > ind_i:
+            sum_e_rs -= gammaln(e_val + 1)
+        elif ind_j == ind_i:
+            sum_e_rr -= db_factorial_ln(e_val)
+
+    return sum_e_rs - sum_e_rr + sum_e_r
 
 
 # ####################
@@ -403,7 +431,6 @@ def assemble_n_r_from_mb(mb):
     n_r
 
     """
-    assert type(mb) is list, "ERROR: the type of the input parameter should be a list"
     n_r = np.zeros(np.max(mb) + 1)
     for block_id in mb:
         n_r[block_id] += 1
@@ -440,8 +467,6 @@ def assemble_n_k_from_edgelist(edgelist, mb):
 def assemble_e_rs_from_mb(edgelist, mb):
     assert type(edgelist) is list, \
         "[ERROR] the type of the first input should be a list; however, it is {}".format(str(type(edgelist)))
-    assert type(mb) is list, \
-        "[ERROR] the type of the second input should be a list; however, it is {}".format(str(type(mb)))
     # construct e_rs matrix
     e_rs = np.zeros((max(mb) + 1, max(mb) + 1))
     for i in edgelist:
@@ -587,6 +612,7 @@ def get_desc_len_from_data(na, nb, n_edges, ka, kb, edgelist, mb, diff=False, nr
         Difference of the description length to the bipartite ER network, per edge.
 
     """
+    import time
     edgelist = list(map(lambda e: [int(e[0]), int(e[1])], edgelist))
     desc_len = 0.
     # finally, we compute the description length
@@ -597,10 +623,15 @@ def get_desc_len_from_data(na, nb, n_edges, ka, kb, edgelist, mb, diff=False, nr
         desc_len += (1 + x) * np.log(1 + x) - x * np.log(x)
         desc_len -= (1 + 1 / n_edges) * np.log(1 + 1 / n_edges) - (1 / n_edges) * np.log(1 / n_edges)
     else:
+        t0 = time.time()
         desc_len += adjacency_entropy(edgelist, mb)
+        t1 = time.time()
         desc_len += model_entropy(n_edges, ka=ka, kb=kb, na=na, nb=nb, nr=nr, allow_empty=allow_empty)
+        t2 = time.time()
         # desc_len += model_entropy(n_edges, k=ka+kb, n=na+nb, nr=nr, allow_empty=allow_empty)  # P(e | b) + P(b | K)
-        desc_len += compute_degree_entropy(edgelist, mb, __q_cache=q_cache, degree_dl_kind=degree_dl_kind)
+        desc_len += degree_entropy(edgelist, mb, __q_cache=q_cache, degree_dl_kind=degree_dl_kind)
+        t3 = time.time()
+        # print(t1 - t0, t2 - t1, t3 - t2)
     return desc_len.__float__()
 
 
@@ -635,6 +666,22 @@ def get_desc_len_from_data_uni(n, n_edges, k, edgelist, mb):
     desc_len_b += (1 + x) * np.log(1 + x) - x * np.log(x)
     desc_len_b -= (1 + 1 / n_edges) * np.log(1 + 1 / n_edges) - (1 / n_edges) * np.log(1 / n_edges)
     return desc_len_b
+
+
+@jit(uint32[:](uint32[:], uint32[:]), cache=True, fastmath=True)
+def accept_mb_merge(mb, mlist):
+    _mb = np.zeros(len(mb), dtype=np.uint32)
+    mlist.sort()
+    for _node_id, _g in enumerate(mb):
+        if _g == mlist[1]:
+            _mb[_node_id] = mlist[0]
+        elif _g < mlist[1]:
+            _mb[_node_id] = _g
+        else:
+            _mb[_node_id] = _g - 1
+    assert max(_mb) + 1 == max(mb), \
+        "[ERROR] inconsistency between the membership indexes and the number of blocks."
+    return _mb
 
 
 @jit(Tuple((uint32, uint32, uint32[:, :], uint32[:]))(uint32, uint32, uint32[:, :]), cache=True, fastmath=True)

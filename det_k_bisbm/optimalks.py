@@ -43,45 +43,48 @@ class OptimalKs(object):
         self.is_par_ = engine.PARALLELIZATION
         self.n_cores_ = engine.NUM_CORES
 
-        # TODO: "types" is only used to compute na and nb. Can be made more generic.
-        self.types = types
-        self.n_a = 0
-        self.n_b = 0
-        self.n = 0
+        self.bm_state = dict()
+        self.bm_state["types"] = types  # TODO: "types" is only used to compute na and nb. Can be made more generic.
+        self.bm_state["n_a"] = 0
+        self.bm_state["n_b"] = 0
+        self.bm_state["n"] = 0
+        self.bm_state["ref_dl"] = 0
+        self.bm_state["e_rs"] = None
+        self.bm_state["mb"] = list()
+
         for _type in types:
-            self.n += 1
+            self.bm_state["n"] += 1
             if _type in ["1", 1]:
-                self.n_a += 1
+                self.bm_state["n_a"] += 1
             elif _type in ["2", 2]:
-                self.n_b += 1
+                self.bm_state["n_b"] += 1
 
         self.edgelist = edgelist
-        self.e = len(self.edgelist)
+        self.bm_state["e"] = len(self.edgelist)
         if engine.ALGM_NAME == "mcmc" and default_args:
-            engine.set_steps(self.n * 1e5)
-            engine.set_await_steps(self.n * 2e3)
+            engine.set_steps(self.bm_state["n"] * 1e5)
+            engine.set_await_steps(self.bm_state["n"] * 2e3)
             engine.set_cooling("abrupt_cool")
-            engine.set_cooling_param_1(self.n * 1e3)
+            engine.set_cooling_param_1(self.bm_state["n"] * 1e3)
             engine.set_epsilon(1.)
         if default_args:
-            self.ka = int(self.e ** 0.5 / 2)
-            self.kb = int(self.e ** 0.5 / 2)
+            self.bm_state["ka"] = int(self.bm_state["e"] ** 0.5 / 2)
+            self.bm_state["kb"] = int(self.bm_state["e"] ** 0.5 / 2)
             self.i_0 = 0.1
             self.adaptive_ratio = 0.9  # adaptive parameter to make the "delta" smaller, if it's too large
             self._k_th_nb_to_search = 1
             self._size_rows_to_run = 2
         else:
-            self.ka = self.kb = self.i_0 = \
+            self.bm_state["ka"] = self.bm_state["kb"] = self.i_0 = \
                 self.adaptive_ratio = self._k_th_nb_to_search = self._size_rows_to_run = None
         if random_init_k:
-            self.ka = np.random.randint(1, self.ka + 1)
-            self.kb = np.random.randint(1, self.kb + 1)
+            self.bm_state["ka"] = np.random.randint(1, self.bm_state["ka"] + 1)
+            self.bm_state["kb"] = np.random.randint(1, self.bm_state["kb"] + 1)
 
         # These confident_* variable are used to store the "true" data
         # that is, not the sloppy temporarily results via matrix merging
-        self.bookkeeping_DL = OrderedDict()
+        self.bookkeeping_dl = OrderedDict()
         self.bookkeeping_e_rs = OrderedDict()
-        self.bookkeeping_profile_likelihood = OrderedDict()
 
         # These trace_* variable are used to store the data that we temporarily go through
         self.trace_mb = OrderedDict()
@@ -93,62 +96,61 @@ class OptimalKs(object):
         # To prevent "TypeError: cannot serialize '_io.TextIOWrapper' object" when using loky
         self._f_edgelist_name = self._get_tempfile_edgelist()
 
-        # initialize other class attributes (TODO: what??)
-        self.init_italic_i = 0.
-
         # logging
         self._logger = logging.Logger
         self.set_logging_level(logging_level)
         self._summary = OrderedDict()
-        self._summary["init_ka"] = self.ka
-        self._summary["init_kb"] = self.kb
-        self._summary["na"] = self.n_a
-        self._summary["nb"] = self.n_b
-        self._summary["e"] = self.e
-        self._summary["avg_k"] = 2 * self.e / (self.n_a + self.n_b)
+        self._summary["init_ka"] = self.bm_state["ka"]
+        self._summary["init_kb"] = self.bm_state["kb"]
+        self._summary["na"] = self.bm_state["n_a"]
+        self._summary["nb"] = self.bm_state["n_b"]
+        self._summary["e"] = self.bm_state["e"]
+        self._summary["avg_k"] = 2 * self.bm_state["e"] / (self.bm_state["n_a"] + self.bm_state["n_b"])
 
         # look-up tables
         self.__q_cache_f_name = os.path.join(tempfile.mkdtemp(), '__q_cache.dat')  # for restricted integer partitions
         # self.__q_cache_f_name = os.path.join(tempfile.mkdtemp(dir='/scratch/Users/tzye5331/.tmp/'), '__q_cache.dat')
         self.__q_cache = np.array([], ndmin=2)
-        self.__q_cache_max_e_r = self.e if self.e <= int(1e4) else int(1e4)
+        self.__q_cache_max_e_r = self.bm_state["e"] if self.bm_state["e"] <= int(1e4) else int(1e4)
+
+        max_e_r = self.__q_cache_max_e_r
+        fp = np.memmap(self.__q_cache_f_name, dtype='uint32', mode="w+", shape=(max_e_r + 1, max_e_r + 1))
+        self.__q_cache = init_q_cache(max_e_r, np.array([], ndmin=2))
+        fp[:] = self.__q_cache[:]
+        del fp
+        # self.__q_cache = np.memmap(self.__q_cache_f_name, dtype='uint32', mode='r', shape=(max_e_r + 1, max_e_r + 1))
 
     def iterator(self):
         self._prerunning_checks()
         if not self.is_tempfile_existed:
             self._f_edgelist_name = self._get_tempfile_edgelist()
 
-        while self.ka != 1 or self.kb != 1:
-            ka_, kb_, m_e_rs_, diff_italic_i, mlist = self._moving_one_step_down(self.ka, self.kb)
-            if abs(diff_italic_i) > self.i_0 * self.init_italic_i:
-                self._update_current_state(ka_, kb_, m_e_rs_)
-                desc_len_, _, _ = self._calc_and_update((self.ka, self.kb))
-                if not self._is_mdl_so_far(desc_len_):
-                    # merging predicates us to check (ka, kb), however, if it happens to have a higher desc_len
-                    # then it is suspected to overshoot.
-                    self.i_0 *= self.adaptive_ratio
-                    ka_, kb_, _, desc_len_ = self._back_to_where_desc_len_is_lowest()
-                is_local_minimum_found = self._check_if_local_minimum(ka_, kb_, desc_len_, self._k_th_nb_to_search)
-                if is_local_minimum_found:
-                    self._clean_up_and_record_mdl_point()
-                    return self.bookkeeping_DL
-            else:
-                self._update_transient_state(ka_, kb_, m_e_rs_, mlist)
-
-        self._check_if_random_bipartite()
-        return self.bookkeeping_DL
+        if self._check_if_local_minimum(self.bm_state["ka"], self.bm_state["kb"]):
+            self._clean_up()
+            return self.bookkeeping_dl
+        else:
+            diff_dl = 0.
+            while abs(diff_dl) < self.i_0 * self.bm_state["ref_dl"]:
+                if self.bm_state["ka"] * self.bm_state["kb"] != 1:
+                    ka_, kb_, m_e_rs_, diff_dl, mlist = self._merge_e_rs(self.bm_state["ka"], self.bm_state["kb"])
+                    mb_ = accept_mb_merge(self.bm_state["mb"], mlist)
+                    self._update_bm_state(ka_, kb_, m_e_rs_, mb_)
+                    self._logger.info("Merging to ({}, {})".format(ka_, kb_))
+                else:
+                    break
+            self._logger.info("Escape while-loop, Re-do iterator().")
+            self.iterator()
 
     def summary(self):
-        ka, kb = sorted(self.bookkeeping_DL, key=self.bookkeeping_DL.get)[0]
+        ka, kb = sorted(self.bookkeeping_dl, key=self.bookkeeping_dl.get)[0]
         self._summary["ka"] = ka
         self._summary["kb"] = kb
-        self._summary["mdl"] = self.bookkeeping_DL[(ka, kb)]
+        self._summary["mdl"] = self.bookkeeping_dl[(ka, kb)]
         return self._summary
 
     def clean(self):
-        self.bookkeeping_DL = OrderedDict()
+        self.bookkeeping_dl = OrderedDict()
         self.bookkeeping_e_rs = OrderedDict()
-        self.bookkeeping_profile_likelihood = OrderedDict()
         self.trace_mb = OrderedDict()
         self.set_params(init_ka=10, init_kb=10, i_0=0.1)
 
@@ -163,10 +165,10 @@ class OptimalKs(object):
             q_cache = init_q_cache(self.__q_cache_max_e_r, q_cache)
             self.set__q_cache(q_cache)  # todo: add some checks here
             if recompute:
-                self.bookkeeping_DL[(ka, kb)] = 0
-            self._calc_and_update((ka, kb))
+                self.bookkeeping_dl[(ka, kb)] = 0
+            self._compute_dl_and_update(ka, kb)
 
-    def _calc_with_hook(self, ka, kb, old_desc_len=None):
+    def compute_dl(self, ka, kb):
         """
         Execute the partitioning code by spawning child processes in the shell; save its output afterwards.
 
@@ -179,8 +181,8 @@ class OptimalKs(object):
 
         Returns
         -------
-        italic_i : float
-            the profile likelihood of the found partition
+        dl : float
+            the description length of the found partition
 
         m_e_rs : numpy array
             the affinity matrix via the group membership vector found by the partitioning engine
@@ -192,82 +194,41 @@ class OptimalKs(object):
         # each time when you calculate/search at particular ka and kb
         # the hood records relevant information for research
         try:
-            self.bookkeeping_DL[(ka, kb)]
+            self.bookkeeping_dl[(ka, kb)]
         except KeyError as _:
             pass
         else:
-            if self.bookkeeping_DL[(ka, kb)] != 0:
-                italic_i = self.bookkeeping_profile_likelihood[(ka, kb)]
-                m_e_rs = self.bookkeeping_e_rs[(ka, kb)]
-                mb = self.trace_mb[(ka, kb)]
-                self._logger.info("... fetch calculated data ...")
-                return italic_i, m_e_rs, mb
+            if self.bookkeeping_dl[(ka, kb)] > 0:
+                return self.bookkeeping_dl[(ka, kb)], self.bookkeeping_e_rs[(ka, kb)], self.trace_mb[(ka, kb)]
 
-        def run(ka, kb):
-            mb = self.engine_(self._f_edgelist_name, self.n_a, self.n_b, ka, kb)
-            return mb
+        run = lambda a, b: self.engine_(self._f_edgelist_name, self.bm_state["n_a"], self.bm_state["n_b"], a, b)
 
         # Calculate the biSBM inference several times,
         # choose the maximum likelihood (or minimum entropy) result.
         results = []
-        if old_desc_len is None:
-            if self.is_par_:
-                # automatically shutdown after idling for 600s
-                results = list(loky_executor(self.n_cores_, 600, lambda x: run(ka, kb), list(range(self.max_n_sweeps_))))
-            else:
-                results = [run(ka, kb)]
+        if self.is_par_:
+            # automatically shutdown after idling for 600s
+            results = list(loky_executor(self.n_cores_, 600, lambda x: run(ka, kb), list(range(self.max_n_sweeps_))))
         else:
-            old_desc_len = float(old_desc_len)
-            if self.is_par_:
-                self.__q_cache = np.array([], ndmin=2)
-                results = list(loky_executor(self.n_cores_, 600, lambda x: run(ka, kb), list(range(self.max_n_sweeps_))))
-            else:
-                # if old_desc_len is passed
-                # we compare the new_desc_len with the old one
-                # --
-                # this option is used when we want to decide whether
-                # we should escape from the local minimum during the heuristic
-                calculate_times = 0
-                while calculate_times < self.max_n_sweeps_:
-                    result = run(ka, kb)
-                    results.append(result)
-                    # new_desc_len = self._cal_desc_len(ka, kb, result[1])
-                    nr = assemble_n_r_from_mb(result)
-                    new_desc_len = get_desc_len_from_data(
-                        self.n_a, self.n_b, self.e, ka, kb, list(self.edgelist), result, nr=nr, q_cache=self.__q_cache)
-                    if new_desc_len < old_desc_len:
-                        # no need to go further
-                        calculate_times = self.max_n_sweeps_
-                    else:
-                        calculate_times += 1
+            for _ in range(self.max_n_sweeps_):
+                results += [run(ka, kb)]
 
-        max_e_r = self.__q_cache_max_e_r
-        if old_desc_len is None and len(self.__q_cache) == 1:
-            fp = np.memmap(self.__q_cache_f_name, dtype='uint32', mode="w+", shape=(max_e_r + 1, max_e_r + 1))
-            self.__q_cache = init_q_cache(max_e_r, np.array([], ndmin=2))
-            fp[:] = self.__q_cache[:]
-            del fp
-        else:
-            self.__q_cache = np.memmap(self.__q_cache_f_name, dtype='uint32', mode='r', shape=(max_e_r + 1, max_e_r + 1))
-
-        result_ = [self.__compute_desc_len(
-            self.n_a, self.n_b, self.e, ka, kb, r
+        result_ = [self._compute_desc_len(
+            self.bm_state["n_a"], self.bm_state["n_b"], self.bm_state["e"], ka, kb, r
         ) for r in results]
-        result = min(result_, key=lambda x: x[3])
-        italic_i = result[0]
+        result = min(result_, key=lambda x: x[0])
+        dl = result[0]
         m_e_rs = result[1]
         mb = result[2]
-        return italic_i, m_e_rs, mb
+        return dl, m_e_rs, mb
 
-    def __compute_desc_len(self, n_a, n_b, e, ka, kb, mb):
+    def _compute_desc_len(self, n_a, n_b, e, ka, kb, mb):
         e_rs, _ = assemble_e_rs_from_mb(self.edgelist, mb)
-        italic_i = compute_profile_likelihood_from_e_rs(e_rs)
         nr = assemble_n_r_from_mb(mb)
         desc_len = get_desc_len_from_data(n_a, n_b, e, ka, kb, list(self.edgelist), mb, nr=nr, q_cache=self.__q_cache)
+        return desc_len, e_rs, mb
 
-        return italic_i, e_rs, mb, desc_len
-
-    def _moving_one_step_down(self, ka, kb):
+    def _merge_e_rs(self, ka, kb):
         """
         Apply multiple merges of the original affinity matrix, return the one that least alters the entropy
 
@@ -286,7 +247,7 @@ class OptimalKs(object):
         _kb : int
             the new number of type-b communities in the affinity matrix
 
-        _m_e_rs : numpy array
+        _m_e_rs : numpy array8
             the new affinity matrix
 
         diff_italic_i : list(int, int)
@@ -296,18 +257,11 @@ class OptimalKs(object):
             the two row-indexes of the original affinity matrix that were finally chosen (and merged)
 
         """
-        if self.init_italic_i == 0:
-            # This is an important step, where we calculate the graph partition at init (ka, kb)
-            _, m_e_rs, italic_i = self._calc_and_update((ka, kb))
-
-            self.init_italic_i = italic_i
-            self.m_e_rs = m_e_rs
-
         def _sample_and_merge():
-            _ka, _kb, _m_e_rs, _mlist = merge_matrix(self.ka, self.kb, self.m_e_rs)
-            _italic_I = compute_profile_likelihood_from_e_rs(_m_e_rs)
-            diff_italic_i = _italic_I - self.init_italic_i  # diff_italic_i is always negative;
-            return _ka, _kb, _m_e_rs, diff_italic_i, _mlist
+            _ka, _kb, _e_rs, _mlist = merge_matrix(self.bm_state["ka"], self.bm_state["kb"], self.bm_state["e_rs"])
+            _mb = accept_mb_merge(self.bm_state["mb"], _mlist)
+            diff_dl_to_ref = virtual_move_entropy_diff(_e_rs, self.bm_state["e_rs"])
+            return _ka, _kb, _e_rs, diff_dl_to_ref, _mlist
 
         # how many times that a sample merging takes place (todo: better description??)
         indexes_to_run_ = range(0, (ka + kb) * self._size_rows_to_run)
@@ -316,124 +270,92 @@ class OptimalKs(object):
         for _ in indexes_to_run_:
             results.append(_sample_and_merge())
 
-        _ka, _kb, _m_e_rs, _diff_italic_i, _mlist = max(results, key=lambda x: x[3])
-
-        assert int(_m_e_rs.sum()) == int(self.e * 2), "__m_e_rs.sum() = {}; self.e * 2 = {}".format(
-            str(int(_m_e_rs.sum())), str(self.e * 2)
+        ka, kb, e_rs, diff_dl, mlist = min(results, key=lambda x: x[3])  # TODO: check min/max
+        assert int(e_rs.sum()) == int(self.bm_state["e"] * 2), '__m_e_rs.sum() = {}; self.bm_state["e"] * 2 = {}'.format(
+            str(int(e_rs.sum())), str(self.bm_state["e"] * 2)
         )
 
-        return _ka, _kb, _m_e_rs, _diff_italic_i, _mlist
+        return ka, kb, e_rs, diff_dl, mlist
 
-    def _update_transient_state(self, ka_moving, kb_moving, t_m_e_rs, mlist):
-        old_of_g = self.trace_mb[(self.ka, self.kb)]
-        new_of_g = list(np.zeros(self.n))
-
-        mlist.sort()
-        for _node_id, _g in enumerate(old_of_g):
-            if _g == mlist[1]:
-                new_of_g[_node_id] = mlist[0]
-            elif _g < mlist[1]:
-                new_of_g[_node_id] = _g
-            else:
-                new_of_g[_node_id] = _g - 1
-        assert max(new_of_g) + 1 == ka_moving + kb_moving, \
-            "[ERROR] inconsistency between the membership indexes and the number of blocks."
-        self.trace_mb[(ka_moving, kb_moving)] = new_of_g
-        self._update_current_state(ka_moving, kb_moving, t_m_e_rs)
-
-    def _clean_up_and_record_mdl_point(self):
+    def _clean_up(self):
         try:
             os.remove(self._f_edgelist_name)
         except FileNotFoundError as e:
             self._logger.warning("FileNotFoundError: {}".format(e))
         finally:
             self.is_tempfile_existed = False
-            p_estimate = sorted(self.bookkeeping_DL, key=self.bookkeeping_DL.get)[0]
-            self._logger.info("DONE: the MDL point is {}".format(p_estimate))
             os.remove(self.__q_cache_f_name)
 
-    def _back_to_where_desc_len_is_lowest(self):
-        ka = sorted(self.bookkeeping_DL, key=self.bookkeeping_DL.get, reverse=False)[0][0]
-        kb = sorted(self.bookkeeping_DL, key=self.bookkeeping_DL.get, reverse=False)[0][1]
-        m_e_rs = self.bookkeeping_e_rs[(ka, kb)]
-        self._update_current_state(ka, kb, m_e_rs)
-        return ka, kb, m_e_rs, self.bookkeeping_DL[(self.ka, self.kb)]
+    def _rollback(self):
+        dl = self.summary()["mdl"]
+        ka = self.summary()["ka"]
+        kb = self.summary()["kb"]
+        e_rs = self.bookkeeping_e_rs[(ka, kb)]
+        mb = self.trace_mb[(ka, kb)]
+        self._update_bm_state(ka, kb, e_rs, mb)
+        return ka, kb, e_rs, dl
 
-    def _update_current_state(self, ka, kb, m_e_rs):
-        self.ka = ka
-        self.kb = kb
-        self.m_e_rs = m_e_rs  # this will be used in _moving_one_step_down function
+    def _update_bm_state(self, ka, kb, e_rs, mb):
+        self.bm_state["ka"] = ka
+        self.bm_state["kb"] = kb
+        self.bm_state["e_rs"] = e_rs
+        self.bm_state["mb"] = mb
 
-    def _calc_and_update(self, point, old_desc_len=0.):
-        self._logger.info("Now computing graph partition at {} ...".format(point))
-        if old_desc_len == 0.:
-            italic_i, m_e_rs, mb = self._calc_with_hook(point[0], point[1], old_desc_len=None)
-        else:
-            italic_i, m_e_rs, mb = self._calc_with_hook(point[0], point[1], old_desc_len=old_desc_len)
-        # candidate_desc_len = self._cal_desc_len(point[0], point[1], italic_i)
-        nr = assemble_n_r_from_mb(mb)
-        candidate_desc_len = get_desc_len_from_data(
-            self.n_a, self.n_b, self.e, point[0], point[1], list(self.edgelist), mb, nr=nr, q_cache=self.__q_cache)
-
-        self.bookkeeping_DL[point] = candidate_desc_len
-        self.bookkeeping_profile_likelihood[point] = italic_i
-        self.bookkeeping_e_rs[point] = m_e_rs
-        assert max(mb) + 1 == point[0] + point[1], "[ERROR] inconsistency between mb. indexes and #blocks."
-        self.trace_mb[point] = mb
-        self._logger.info("... DONE.")
-
-        # update the predefined threshold value, DELTA:
-        self.init_italic_i = italic_i
-
-        return candidate_desc_len, m_e_rs, italic_i
+    def _compute_dl_and_update(self, ka, kb):
+        dl, m_e_rs, mb = self.compute_dl(ka, kb)
+        self.bookkeeping_dl[(ka, kb)] = dl
+        self.bookkeeping_e_rs[(ka, kb)] = m_e_rs
+        assert max(mb) + 1 == ka + kb, "[ERROR] inconsistency between mb. indexes and #blocks."
+        self.trace_mb[(ka, kb)] = mb
+        self.bm_state["ref_dl"] = dl
+        return dl, m_e_rs, mb
 
     # ###########
     # Checkpoints
     # ###########
     def _is_mdl_so_far(self, desc_len):
         """Check if `desc_len` is the minimal value so far."""
-        return not any([i < desc_len for i in self.bookkeeping_DL.values()])
+        return not any([i < desc_len for i in self.bookkeeping_dl.values()])
 
-    def _check_if_local_minimum(self, ka, kb, old_desc_len, k_th):
+    def _check_if_local_minimum(self, ka, kb):
         """The `neighborhood search` as described in the paper."""
         self.is_tempfile_existed = True
+        k_th = self._k_th_nb_to_search
+        self._logger.info("Checking if {} is a local minimum.".format((ka, kb)))
+        _dl, _, _ = self._compute_dl_and_update(ka, kb)
+        if _dl > self.summary()["mdl"]:
+            self.i_0 *= self.adaptive_ratio
+            ka, kb, _, _dl = self._rollback()
+            self._logger.info("There's already a point with lower dl; we are overshooting. Let's reduce i_0.")
+            self._logger.info("Re-Checking if {} is a local minimum.".format((ka, kb)))
+
+
         nb_points = map(lambda x: (x[0] + ka, x[1] + kb), product(range(-k_th, k_th + 1), repeat=2))
         # if any item has values less than 1, delete it. Also, exclude the suspected point (i.e., [ka, kb]).
         nb_points = [(i, j) for i, j in nb_points if i >= 1 and j >= 1 and (i, j) != (ka, kb)]
-        ka_moving, kb_moving = 0, 0
 
-        for point in nb_points:
-            self._calc_and_update(point, old_desc_len)
-            if self._is_mdl_so_far(self.bookkeeping_DL[(point[0], point[1])]):
-                p_estimate = sorted(self.bookkeeping_DL, key=self.bookkeeping_DL.get)[0]
-                self._logger.info("Found {} that gives an even lower description length ...".format(p_estimate))
-                ka_moving, kb_moving, _, _ = self._back_to_where_desc_len_is_lowest()
+        for _ka, _kb in nb_points:
+            dl, _, _ = self._compute_dl_and_update(_ka, _kb)
+            if self._is_mdl_so_far(dl):
+                self._logger.info("Found {} that gives an even lower description length ...".format((_ka, _kb)))
+                self._rollback()
+                self._logger.info("rollback but NOT reduce i_0")
                 break
-        if ka_moving * kb_moving == 0:
-            return True
-        else:
+        if _dl != self.summary()["mdl"]:
+            self._logger.info("No, {} is NOT a local minimum".format((ka, kb)))
             return False
-
-    def _check_if_random_bipartite(self):
-        # if we reached (1, 1), check that it's the local optimal point, then we could return (1, 1).
-        points_to_compute = [(1, 1), (1, 2), (2, 1), (2, 2)]
-        for point in points_to_compute:
-            self.compute_and_update(point[0], point[1], recompute=True)
-        p_estimate = sorted(self.bookkeeping_DL, key=self.bookkeeping_DL.get)[0]
-
-        if p_estimate != (1, 1):
-            # TODO: write some documentation here
-            raise UserWarning("[WARNING] merging reached (1, 1); cannot go any further, please set a smaller <i_0>.")
-        self._clean_up_and_record_mdl_point()
+        else:
+            self._logger.info("Yes, {} is a local minimum; we are done.".format((ka, kb)))
+            return True
 
     def _prerunning_checks(self):
-        assert self.n_a > 0, "[ERROR] Number of type-a nodes = 0, which is not allowed"
-        assert self.n_b > 0, "[ERROR] Number of type-b nodes = 0, which is not allowed"
-        assert self.n == self.n_a + self.n_b, \
+        assert self.bm_state["n_a"] > 0, "[ERROR] Number of type-a nodes = 0, which is not allowed"
+        assert self.bm_state["n_b"] > 0, "[ERROR] Number of type-b nodes = 0, which is not allowed"
+        assert self.bm_state["n"] == self.bm_state["n_a"] + self.bm_state["n_b"], \
             "[ERROR] num_nodes ({}) does not equal to num_nodes_a ({}) plus num_nodes_b ({})".format(
-                self.n, self.n_a, self.n_b
+                self.bm_state["n"], self.bm_state["n_a"], self.bm_state["n_b"]
             )
-        if self.ka is None or self.kb is None or self.i_0 is None:
+        if self.bm_state["ka"] is None or self.bm_state["kb"] is None or self.i_0 is None:
             raise AttributeError("Arguments missing! Please assign `init_ka`, `init_kb`, and `i_0`.")
         if self.adaptive_ratio is None:
             raise AttributeError("Arguments missing! Please assign `adaptive_ratio`.")
@@ -459,14 +381,14 @@ class OptimalKs(object):
 
     def set_params(self, init_ka=10, init_kb=10, i_0=0.1):
         # params for the heuristic
-        self.ka = int(init_ka)
-        self.kb = int(init_kb)
+        self.bm_state["ka"] = int(init_ka)
+        self.bm_state["kb"] = int(init_kb)
         self.i_0 = float(i_0)
         assert 0. <= self.i_0 < 1, "[ERROR] Allowed range for i_0 is [0, 1)."
-        assert self.ka <= self.n_a, "[ERROR] Number of type-a communities must be smaller than the # nodes in type-a."
-        assert self.kb <= self.n_b, "[ERROR] Number of type-b communities must be smaller than the # nodes in type-b."
-        self._summary["init_ka"] = self.ka
-        self._summary["init_kb"] = self.kb
+        assert self.bm_state["ka"] <= self.bm_state["n_a"], "[ERROR] Number of type-a communities must be smaller than the # nodes in type-a."
+        assert self.bm_state["kb"] <= self.bm_state["n_b"], "[ERROR] Number of type-b communities must be smaller than the # nodes in type-b."
+        self._summary["init_ka"] = self.bm_state["ka"]
+        self._summary["init_kb"] = self.bm_state["kb"]
 
     def set_adaptive_ratio(self, adaptive_ratio):
         self.adaptive_ratio = float(adaptive_ratio)
