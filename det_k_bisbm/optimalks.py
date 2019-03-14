@@ -70,8 +70,8 @@ class OptimalKs(object):
         if default_args:
             self.bm_state["ka"] = int(self.bm_state["e"] ** 0.5 / 2)
             self.bm_state["kb"] = int(self.bm_state["e"] ** 0.5 / 2)
-            self.i_0 = 0.1
-            self.adaptive_ratio = 0.9  # adaptive parameter to make the "delta" smaller, if it's too large
+            self.i_0 = 0.01
+            self.adaptive_ratio = 0.9  # adaptive parameter to make the "i_0" smaller, if it's overshooting.
             self._k_th_nb_to_search = 1
             self._size_rows_to_run = 2
         else:
@@ -260,17 +260,17 @@ class OptimalKs(object):
         def _sample_and_merge():
             _ka, _kb, _e_rs, _mlist = merge_matrix(self.bm_state["ka"], self.bm_state["kb"], self.bm_state["e_rs"])
             _mb = accept_mb_merge(self.bm_state["mb"], _mlist)
-            diff_dl_to_ref = virtual_move_entropy_diff(_e_rs, self.bm_state["e_rs"])
+            diff_dl_to_ref = virtual_move_ds(_e_rs, self.bm_state["e_rs"], _mlist, _ka)
             return _ka, _kb, _e_rs, diff_dl_to_ref, _mlist
 
-        # how many times that a sample merging takes place (todo: better description??)
+        # the number of times that a e_rs row merging takes place
         indexes_to_run_ = range(0, (ka + kb) * self._size_rows_to_run)
 
         results = []
         for _ in indexes_to_run_:
             results.append(_sample_and_merge())
 
-        ka, kb, e_rs, diff_dl, mlist = min(results, key=lambda x: x[3])  # TODO: check min/max
+        ka, kb, e_rs, diff_dl, mlist = min(results, key=lambda x: x[3])
         assert int(e_rs.sum()) == int(self.bm_state["e"] * 2), '__m_e_rs.sum() = {}; self.bm_state["e"] * 2 = {}'.format(
             str(int(e_rs.sum())), str(self.bm_state["e"] * 2)
         )
@@ -329,7 +329,6 @@ class OptimalKs(object):
             self._logger.info("There's already a point with lower dl; we are overshooting. Let's reduce i_0.")
             self._logger.info("Re-Checking if {} is a local minimum.".format((ka, kb)))
 
-
         nb_points = map(lambda x: (x[0] + ka, x[1] + kb), product(range(-k_th, k_th + 1), repeat=2))
         # if any item has values less than 1, delete it. Also, exclude the suspected point (i.e., [ka, kb]).
         nb_points = [(i, j) for i, j in nb_points if i >= 1 and j >= 1 and (i, j) != (ka, kb)]
@@ -379,7 +378,7 @@ class OptimalKs(object):
         )
         self._logger = logging.getLogger(__name__)
 
-    def set_params(self, init_ka=10, init_kb=10, i_0=0.1):
+    def set_params(self, init_ka=10, init_kb=10, i_0=0.01):
         # params for the heuristic
         self.bm_state["ka"] = int(init_ka)
         self.bm_state["kb"] = int(init_kb)

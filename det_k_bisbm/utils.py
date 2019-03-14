@@ -231,36 +231,25 @@ def degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree_dl_kind
 
 
 @jit()
-def virtual_move_entropy_diff(e_rs, ori_e_rs):
+def virtual_move_ds(e_rs, ori_e_rs, mlist, ka):
+    ds = 0
     e_r = np.sum(e_rs, axis=1)
     ori_e_r = np.sum(ori_e_rs, axis=1)
-    sum_e_rs = 0.
-    sum_e_rr = 0.
-    sum_e_r = 0.
+    if mlist[1] <= ka:  # we are merging groups of type-a
+        ds += gammaln(e_r[0] + 1)
+        for idx, _ in enumerate(e_rs[0][ka:]):
+            ds -= gammaln(_ + 1)
+            ds += gammaln(ori_e_rs[mlist[0]][ka + idx + 1] + 1)
+            ds += gammaln(ori_e_rs[mlist[1]][ka + idx + 1] + 1)
+    else:
+        ds += gammaln(e_r[ka] + 1)
+        for idx, _ in enumerate(e_rs[ka][:ka]):
+            ds -= gammaln(_ + 1)
+            ds += gammaln(ori_e_rs[mlist[0]][idx] + 1)
+            ds += gammaln(ori_e_rs[mlist[1]][idx] + 1)
 
-    for _e_r in e_r:
-        sum_e_r += gammaln(_e_r + 1)
-
-    for _e_r in ori_e_r:
-        sum_e_r -= gammaln(_e_r + 1)
-
-    for ind, e_val in enumerate(np.nditer(e_rs)):
-        ind_i = int(np.floor(ind / (e_rs.shape[0])))
-        ind_j = ind % (e_rs.shape[0])
-        if ind_j > ind_i:
-            sum_e_rs += gammaln(e_val + 1)
-        elif ind_j == ind_i:
-            sum_e_rr += db_factorial_ln(e_val)
-
-    for ind, e_val in enumerate(np.nditer(ori_e_rs)):
-        ind_i = int(np.floor(ind / (ori_e_rs.shape[0])))
-        ind_j = ind % (ori_e_rs.shape[0])
-        if ind_j > ind_i:
-            sum_e_rs -= gammaln(e_val + 1)
-        elif ind_j == ind_i:
-            sum_e_rr -= db_factorial_ln(e_val)
-
-    return sum_e_rs - sum_e_rr + sum_e_r
+    ds -= gammaln(ori_e_r[mlist[0]] + 1) + gammaln(ori_e_r[mlist[1]] + 1)
+    return ds
 
 
 # ####################
