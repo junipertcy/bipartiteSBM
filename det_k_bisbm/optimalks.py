@@ -139,7 +139,7 @@ class OptimalKs(object):
                 else:
                     break
             self._logger.info("Escape while-loop, Re-do iterator().")
-            self.iterator()
+            return self.iterator()
 
     def summary(self):
         ka, kb = sorted(self.bookkeeping_dl, key=self.bookkeeping_dl.get)[0]
