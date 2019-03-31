@@ -15,6 +15,7 @@ def db_factorial_ln(val):
     else:
         return gammaln(m / 2 + 1) + (m / 2) * np.log(2)
 
+
 # #################
 # ENTROPY FUNCTIONS
 # #################
@@ -54,7 +55,7 @@ def partition_entropy(ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=Non
 
     ent = 0.
     if nr is None:
-        ent = n * np.log(k) + np.log1p(-(1 - 1./k) ** n)  # TODO: check this term
+        ent = n * np.log(k) + np.log1p(-(1 - 1. / k) ** n)  # TODO: check this term
     else:
         if ka is None and kb is None and k is not None:
             if allow_empty:
@@ -176,7 +177,8 @@ def model_entropy(e, ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=None
 
 
 @jit()
-def degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree_dl_kind="distributed", q_cache_max_e_r=int(1e4)):
+def degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree_dl_kind="distributed",
+                   q_cache_max_e_r=int(1e4)):
     """
 
     Parameters
@@ -231,25 +233,35 @@ def degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree_dl_kind
 
 
 @jit()
-def virtual_move_ds(e_rs, ori_e_rs, mlist, ka):
-    ds = 0
-    e_r = np.sum(e_rs, axis=1)
-    ori_e_r = np.sum(ori_e_rs, axis=1)
-    if mlist[1] <= ka:  # we are merging groups of type-a
-        ds += gammaln(e_r[0] + 1)
-        for idx, _ in enumerate(e_rs[0][ka:]):
-            ds -= gammaln(_ + 1)
-            ds += gammaln(ori_e_rs[mlist[0]][ka + idx + 1] + 1)
-            ds += gammaln(ori_e_rs[mlist[1]][ka + idx + 1] + 1)
-    else:
-        ds += gammaln(e_r[ka] + 1)
-        for idx, _ in enumerate(e_rs[ka][:ka]):
-            ds -= gammaln(_ + 1)
-            ds += gammaln(ori_e_rs[mlist[0]][idx] + 1)
-            ds += gammaln(ori_e_rs[mlist[1]][idx] + 1)
+def virtual_move_ds(ori_e_rs, mlist, ka):
+    if (max(mlist) >= ka > min(mlist)) or (min(mlist) == 0 and ka == 1) or (
+            min(mlist) == ka and ori_e_rs.shape[0] == 1 + ka):
+        return np.inf
 
-    ds -= gammaln(ori_e_r[mlist[0]] + 1) + gammaln(ori_e_r[mlist[1]] + 1)
-    return ds
+    _ds = 0
+    size = ori_e_rs.shape[0] - 1
+    if max(mlist) < ka:  # we are merging groups of type-a
+        for idx in range(size - ka):
+            _1 = ori_e_rs[mlist[0]][ka + idx + 1]
+            _2 = ori_e_rs[mlist[1]][ka + idx + 1]
+            _ds -= gammaln(_1 + _2 + 1)
+            _ds += gammaln(_1 + 1)
+            _ds += gammaln(_2 + 1)
+    else:
+        for idx in range(ka):
+            _1 = ori_e_rs[mlist[0]][idx]
+            _2 = ori_e_rs[mlist[1]][idx]
+            _ds -= gammaln(_1 + _2 + 1)
+            _ds += gammaln(_1 + 1)
+            _ds += gammaln(_2 + 1)
+
+    ori_e_r = np.sum(ori_e_rs, axis=1)
+    _1 = ori_e_r[mlist[0]]
+    _2 = ori_e_r[mlist[1]]
+    _ds += gammaln(_1 + _2 + 1)
+    _ds -= gammaln(_1 + 1) + gammaln(_2 + 1)
+
+    return _ds
 
 
 # ####################
@@ -463,7 +475,7 @@ def assemble_e_rs_from_mb(edgelist, mb):
         source_group = int(mb[int(i[0])])
         target_group = int(mb[int(i[1])])
         if source_group == target_group:
-            raise ImportError("[ERROR] This is not a bipartite network!")
+            raise ImportError("[ERROR] This is not a bipartite network! The mb is {}".format(mb))
         e_rs[source_group][target_group] += 1
         e_rs[target_group][source_group] += 1
 
@@ -557,7 +569,7 @@ def compute_profile_likelihood_from_e_rs(e_rs):
 
 
 def get_desc_len_from_data(na, nb, n_edges, ka, kb, edgelist, mb, diff=False, nr=None, allow_empty=False,
-                        degree_dl_kind="distributed", q_cache=np.array([], ndmin=2)):
+                           degree_dl_kind="distributed", q_cache=np.array([], ndmin=2)):
     """
     Description length difference to a randomized instance
 
@@ -796,4 +808,3 @@ def loky_executor(max_workers, timeout, func, feeds):
     loky_executor = get_reusable_executor(max_workers=int(max_workers), timeout=int(timeout))
     results = loky_executor.map(func, feeds)
     return results
-

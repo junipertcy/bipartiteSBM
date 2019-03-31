@@ -42,6 +42,7 @@ class OptimalKs(object):
         self.max_n_sweeps_ = engine.MAX_NUM_SWEEPS
         self.is_par_ = engine.PARALLELIZATION
         self.n_cores_ = engine.NUM_CORES
+        self.agg_merge = True
 
         self.bm_state = dict()
         self.bm_state["types"] = types  # TODO: "types" is only used to compute na and nb. Can be made more generic.
@@ -73,10 +74,10 @@ class OptimalKs(object):
             self.i_0 = 0.01
             self.adaptive_ratio = 0.9  # adaptive parameter to make the "i_0" smaller, if it's overshooting.
             self._k_th_nb_to_search = 1
-            self._size_rows_to_run = 2
+            self._nm = 10
         else:
             self.bm_state["ka"] = self.bm_state["kb"] = self.i_0 = \
-                self.adaptive_ratio = self._k_th_nb_to_search = self._size_rows_to_run = None
+                self.adaptive_ratio = self._k_th_nb_to_search = self._nm = None
         if random_init_k:
             self.bm_state["ka"] = np.random.randint(1, self.bm_state["ka"] + 1)
             self.bm_state["kb"] = np.random.randint(1, self.bm_state["kb"] + 1)
@@ -132,9 +133,14 @@ class OptimalKs(object):
             diff_dl = 0.
             while abs(diff_dl) < self.i_0 * self.bm_state["ref_dl"]:
                 if self.bm_state["ka"] * self.bm_state["kb"] != 1:
-                    ka_, kb_, m_e_rs_, diff_dl, mlist = self._merge_e_rs(self.bm_state["ka"], self.bm_state["kb"])
+                    ka_, kb_, diff_dl, mlist = self._merge_e_rs(self.bm_state["ka"], self.bm_state["kb"])
                     mb_ = accept_mb_merge(self.bm_state["mb"], mlist)
-                    self._update_bm_state(ka_, kb_, m_e_rs_, mb_)
+                    e_rs, _ = assemble_e_rs_from_mb(self.edgelist, mb_)
+                    assert int(e_rs.sum()) == int(
+                        self.bm_state["e"] * 2), '__m_e_rs.sum() = {}; self.bm_state["e"] * 2 = {}'.format(
+                        str(int(e_rs.sum())), str(self.bm_state["e"] * 2)
+                    )
+                    self._update_bm_state(ka_, kb_, e_rs, mb_)
                     self._logger.info("Merging to ({}, {})".format(ka_, kb_))
                 else:
                     break
@@ -165,6 +171,7 @@ class OptimalKs(object):
             q_cache = init_q_cache(self.__q_cache_max_e_r, q_cache)
             self.set__q_cache(q_cache)  # todo: add some checks here
             if recompute:
+                self.agg_merge = True
                 self.bookkeeping_dl[(ka, kb)] = 0
             self._compute_dl_and_update(ka, kb)
 
@@ -200,8 +207,20 @@ class OptimalKs(object):
         else:
             if self.bookkeeping_dl[(ka, kb)] > 0:
                 return self.bookkeeping_dl[(ka, kb)], self.bookkeeping_e_rs[(ka, kb)], self.trace_mb[(ka, kb)]
+        if self.agg_merge:
+            _mb = None
+        else:
+            pass
+            keys = self.trace_mb.keys()
+            dist = []
+            for k in keys:
+                dist += [(k[0] - ka) ** 2 + (k[1] - kb) ** 2]
+            idx = int(np.argmin(dist))
+            _mb = self.trace_mb[list(keys)[idx]]
 
-        run = lambda a, b: self.engine_(self._f_edgelist_name, self.bm_state["n_a"], self.bm_state["n_b"], a, b)
+        run = lambda a, b: self.engine_(self._f_edgelist_name, self.bm_state["n_a"], self.bm_state["n_b"], a, b,
+                                        mb=None)
+        self.agg_merge = False
 
         # Calculate the biSBM inference several times,
         # choose the maximum likelihood (or minimum entropy) result.
@@ -247,9 +266,6 @@ class OptimalKs(object):
         _kb : int
             the new number of type-b communities in the affinity matrix
 
-        _m_e_rs : numpy array8
-            the new affinity matrix
-
         diff_italic_i : list(int, int)
             the difference of the new profile likelihood and the old one
 
@@ -257,25 +273,29 @@ class OptimalKs(object):
             the two row-indexes of the original affinity matrix that were finally chosen (and merged)
 
         """
-        def _sample_and_merge():
-            _ka, _kb, _e_rs, _mlist = merge_matrix(self.bm_state["ka"], self.bm_state["kb"], self.bm_state["e_rs"])
-            _mb = accept_mb_merge(self.bm_state["mb"], _mlist)
-            diff_dl_to_ref = virtual_move_ds(_e_rs, self.bm_state["e_rs"], _mlist, _ka)
-            return _ka, _kb, _e_rs, diff_dl_to_ref, _mlist
-
-        # the number of times that a e_rs row merging takes place
-        indexes_to_run_ = range(0, (ka + kb) * self._size_rows_to_run)
-
+        m = np.arange(ka + kb)
+        mlist = set()
+        for _m in m:
+            _mlist = map(lambda x: [min(x, _m), max(x, _m)], random.choices(m, k=self._nm))
+            for _ in _mlist:
+                cond = (_[0] != _[1]) and not (_[1] >= ka > _[0]) and not (_[0] == 0 and ka == 1) and not (
+                            _[0] == ka and kb == 1)
+                if cond:
+                    mlist.add(str(_[0]) + "+" + str(_[1]))
         results = []
-        for _ in indexes_to_run_:
-            results.append(_sample_and_merge())
+        for _ in mlist:
+            _ = [int(_.split("+")[0]), int(_.split("+")[1])]
+            _ds = virtual_move_ds(self.bm_state["e_rs"], _, self.bm_state["ka"])
+            results += [(_ds, _)]
 
-        ka, kb, e_rs, diff_dl, mlist = min(results, key=lambda x: x[3])
-        assert int(e_rs.sum()) == int(self.bm_state["e"] * 2), '__m_e_rs.sum() = {}; self.bm_state["e"] * 2 = {}'.format(
-            str(int(e_rs.sum())), str(self.bm_state["e"] * 2)
-        )
-
-        return ka, kb, e_rs, diff_dl, mlist
+        diff_dl, mlist = min(results, key=lambda x: x[0])
+        if max(mlist) < self.bm_state["ka"]:
+            ka = self.bm_state["ka"] - 1
+            kb = self.bm_state["kb"]
+        else:
+            ka = self.bm_state["ka"]
+            kb = self.bm_state["kb"] - 1
+        return ka, kb, diff_dl, mlist
 
     def _clean_up(self):
         try:
@@ -305,7 +325,8 @@ class OptimalKs(object):
         dl, m_e_rs, mb = self.compute_dl(ka, kb)
         self.bookkeeping_dl[(ka, kb)] = dl
         self.bookkeeping_e_rs[(ka, kb)] = m_e_rs
-        assert max(mb) + 1 == ka + kb, "[ERROR] inconsistency between mb. indexes and #blocks."
+        assert max(mb) + 1 == ka + kb, "[ERROR] inconsistency between mb. indexes and #blocks. {} != {}".format(
+            max(mb) + 1, ka + kb)
         self.trace_mb[(ka, kb)] = mb
         self.bm_state["ref_dl"] = dl
         return dl, m_e_rs, mb
@@ -360,7 +381,7 @@ class OptimalKs(object):
             raise AttributeError("Arguments missing! Please assign `adaptive_ratio`.")
         if self._k_th_nb_to_search is None:
             raise AttributeError("Arguments missing! Please assign `k_th_nb_to_search`.")
-        if self._size_rows_to_run is None:
+        if self._nm is None:
             raise AttributeError("Arguments missing! Please assign `size_rows_to_run`.")
 
     # #######################
@@ -384,8 +405,10 @@ class OptimalKs(object):
         self.bm_state["kb"] = int(init_kb)
         self.i_0 = float(i_0)
         assert 0. <= self.i_0 < 1, "[ERROR] Allowed range for i_0 is [0, 1)."
-        assert self.bm_state["ka"] <= self.bm_state["n_a"], "[ERROR] Number of type-a communities must be smaller than the # nodes in type-a."
-        assert self.bm_state["kb"] <= self.bm_state["n_b"], "[ERROR] Number of type-b communities must be smaller than the # nodes in type-b."
+        assert self.bm_state["ka"] <= self.bm_state[
+            "n_a"], "[ERROR] Number of type-a communities must be smaller than the # nodes in type-a."
+        assert self.bm_state["kb"] <= self.bm_state[
+            "n_b"], "[ERROR] Number of type-b communities must be smaller than the # nodes in type-b."
         self._summary["init_ka"] = self.bm_state["ka"]
         self._summary["init_kb"] = self.bm_state["kb"]
 
@@ -395,8 +418,8 @@ class OptimalKs(object):
     def set_k_th_neighbor_to_search(self, k):
         self._k_th_nb_to_search = int(k)
 
-    def set_size_rows_to_run(self, s):
-        self._size_rows_to_run = int(s)
+    def set_nm(self, s):
+        self._nm = int(s)
 
     def get__q_cache(self):
         return self.__q_cache
