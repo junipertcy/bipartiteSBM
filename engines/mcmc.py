@@ -54,7 +54,7 @@ class MCMC(object):
     def set_epsilon(self, epsilon):
         self.mcmc_epsilon_ = str(epsilon)
 
-    def prepare_engine(self, f_edgelist, na, nb, ka, kb, mb=None):
+    def prepare_engine(self, f_edgelist, na, nb, ka, kb, mb=None, method=None):
         """Output shell commands for graph partitioning calculation.
 
         Parameters
@@ -77,10 +77,13 @@ class MCMC(object):
         elif self.mcmc_cooling_ in ["constant", "abrupt_cool"]:
             params_ = self.mcmc_cooling_param_1
 
-        if mb is not None:
-            means_ = "--mb" + " " + " ".join(map(str, mb))
-        else:
+        if mb is None:
             means_ = "-g"
+        else:
+            means_ = "--mb" + " " + " ".join(map(str, mb))
+
+        if method == "natural":
+            means_ = "-g -u"
 
         # n_blocks_ = " ".join(
         #     self._constrained_sum_sample_pos(ka, na)
@@ -116,7 +119,7 @@ class MCMC(object):
         action_str = ' '.join(action_list)
         return action_str
 
-    def engine(self, f_edgelist, na, nb, ka, kb, mb=None):  # TODO: bug when assigned verbose=False
+    def engine(self, f_edgelist, na, nb, ka, kb, mb=None, method=None):  # TODO: bug when assigned verbose=False
         """Run the shell code.
 
         Parameters
@@ -133,7 +136,7 @@ class MCMC(object):
 
         """
         of_group = []
-        action_str = self.prepare_engine(f_edgelist, na, nb, ka, kb, mb=mb)
+        action_str = self.prepare_engine(f_edgelist, na, nb, ka, kb, mb=mb, method=method)
 
         num_sweeps_ = 1
 

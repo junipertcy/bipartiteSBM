@@ -42,7 +42,8 @@ class OptimalKs(object):
         self.max_n_sweeps_ = engine.MAX_NUM_SWEEPS
         self.is_par_ = engine.PARALLELIZATION
         self.n_cores_ = engine.NUM_CORES
-        self.agg_merge = True
+        self.algm_name_ = engine.ALGM_NAME
+        self.virgin_run = True
 
         self.bm_state = dict()
         self.bm_state["types"] = types  # TODO: "types" is only used to compute na and nb. Can be made more generic.
@@ -126,6 +127,9 @@ class OptimalKs(object):
         if not self.is_tempfile_existed:
             self._f_edgelist_name = self._get_tempfile_edgelist()
 
+        if self.algm_name_ == "mcmc" and self.virgin_run:
+            self._natural_merge()
+
         if self._check_if_local_minimum(self.bm_state["ka"], self.bm_state["kb"]):
             self._clean_up()
             return self.bookkeeping_dl
@@ -171,7 +175,6 @@ class OptimalKs(object):
             q_cache = init_q_cache(self.__q_cache_max_e_r, q_cache)
             self.set__q_cache(q_cache)  # todo: add some checks here
             if recompute:
-                self.agg_merge = True
                 self.bookkeeping_dl[(ka, kb)] = 0
             self._compute_dl_and_update(ka, kb)
 
@@ -207,20 +210,18 @@ class OptimalKs(object):
         else:
             if self.bookkeeping_dl[(ka, kb)] > 0:
                 return self.bookkeeping_dl[(ka, kb)], self.bookkeeping_e_rs[(ka, kb)], self.trace_mb[(ka, kb)]
-        if self.agg_merge:
+
+        ka_ = self._summary["init_ka"]
+        kb_ = self._summary["init_kb"]
+        dist = np.sqrt((ka_ - ka) ** 2 + (kb_ - kb) ** 2)
+        if dist <= self._k_th_nb_to_search * np.sqrt(2):
             _mb = None
         else:
-            pass
-            keys = self.trace_mb.keys()
-            dist = []
-            for k in keys:
-                dist += [(k[0] - ka) ** 2 + (k[1] - kb) ** 2]
-            idx = int(np.argmin(dist))
-            _mb = self.trace_mb[list(keys)[idx]]
+            print("DIST={}; Use ({}, {}) as init conf to begin agg merge until ({}, {}).".format(dist, ka_, kb_, ka, kb))
+            _mb = self.trace_mb[(ka_, kb_)]
 
         run = lambda a, b: self.engine_(self._f_edgelist_name, self.bm_state["n_a"], self.bm_state["n_b"], a, b,
-                                        mb=None)
-        self.agg_merge = False
+                                        mb=_mb)
 
         # Calculate the biSBM inference several times,
         # choose the maximum likelihood (or minimum entropy) result.
@@ -232,20 +233,53 @@ class OptimalKs(object):
             for _ in range(self.max_n_sweeps_):
                 results += [run(ka, kb)]
 
-        result_ = [self._compute_desc_len(
-            self.bm_state["n_a"], self.bm_state["n_b"], self.bm_state["e"], ka, kb, r
-        ) for r in results]
+        result_ = [self._compute_desc_len(self.bm_state["n_a"], self.bm_state["n_b"], self.bm_state["e"], ka, kb, r) for r in results]
+
         result = min(result_, key=lambda x: x[0])
         dl = result[0]
         m_e_rs = result[1]
         mb = result[2]
         return dl, m_e_rs, mb
 
+    def natural_merge(self):
+        run = lambda dummy: self.engine_(self._f_edgelist_name, self.bm_state["n_a"], self.bm_state["n_b"], 1, 1,
+                                        mb=None, method="natural")
+        results = []
+        if self.is_par_:
+            # automatically shutdown after idling for 600s
+            results = list(loky_executor(self.n_cores_, 600, lambda x: run(0), list(range(self.max_n_sweeps_))))
+        else:
+            for _ in range(self.max_n_sweeps_):
+                results += [run(0)]
+
+        result_ = [self._compute_desc_len(
+            self.bm_state["n_a"], self.bm_state["n_b"], self.bm_state["e"], r[0], r[1], r[2:]
+        ) for r in results]
+        result = min(result_, key=lambda x: x[0])
+        dl = result[0]
+        m_e_rs = result[1]
+        mb = result[2]
+        ka, kb = result[3]
+        return dl, m_e_rs, mb, ka, kb
+
+    def _natural_merge(self):
+        dl, m_e_rs, mb, ka, kb = self.natural_merge()
+        self._summary["init_ka"] = ka
+        self._summary["init_kb"] = kb
+        print("Natural merge to ({}, {}).".format(ka, kb))
+        self.bookkeeping_dl[(ka, kb)] = dl
+        self.bookkeeping_e_rs[(ka, kb)] = m_e_rs
+        assert max(mb) + 1 == ka + kb, "[ERROR] inconsistency between mb. indexes and #blocks. {} != {}".format(
+            max(mb) + 1, ka + kb)
+        self.trace_mb[(ka, kb)] = mb
+        self.bm_state["ref_dl"] = dl
+        self.virgin_run = False
+
     def _compute_desc_len(self, n_a, n_b, e, ka, kb, mb):
         e_rs, _ = assemble_e_rs_from_mb(self.edgelist, mb)
         nr = assemble_n_r_from_mb(mb)
         desc_len = get_desc_len_from_data(n_a, n_b, e, ka, kb, list(self.edgelist), mb, nr=nr, q_cache=self.__q_cache)
-        return desc_len, e_rs, mb
+        return desc_len, e_rs, mb, (ka, kb)
 
     def _merge_e_rs(self, ka, kb):
         """
