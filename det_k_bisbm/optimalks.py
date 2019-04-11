@@ -72,7 +72,7 @@ class OptimalKs(object):
         if default_args:
             self.bm_state["ka"] = int(self.bm_state["e"] ** 0.5 / 2)
             self.bm_state["kb"] = int(self.bm_state["e"] ** 0.5 / 2)
-            self.i_0 = 0.01
+            self.i_0 = 0.005
             self.adaptive_ratio = 0.9  # adaptive parameter to make the "i_0" smaller, if it's overshooting.
             self._k_th_nb_to_search = 1
             self._nm = 10
@@ -127,9 +127,9 @@ class OptimalKs(object):
         if not self.is_tempfile_existed:
             self._f_edgelist_name = self._get_tempfile_edgelist()
 
+        self._compute_dl_and_update(1, 1)
         if self.algm_name_ == "mcmc" and self.virgin_run:
             self._natural_merge()
-
         if self._check_if_local_minimum(self.bm_state["ka"], self.bm_state["kb"]):
             self._clean_up()
             return self.bookkeeping_dl
@@ -211,13 +211,18 @@ class OptimalKs(object):
             if self.bookkeeping_dl[(ka, kb)] > 0:
                 return self.bookkeeping_dl[(ka, kb)], self.bookkeeping_e_rs[(ka, kb)], self.trace_mb[(ka, kb)]
 
+        if ka == 1 and kb == 1:
+            mb = [0] * self.bm_state["n_a"] + [1] * self.bm_state["n_b"]
+            res = self._compute_desc_len(self.bm_state["n_a"], self.bm_state["n_b"], self.bm_state["e"], ka, kb, mb)
+            return res[0], res[1], res[2]
+
         ka_ = self._summary["init_ka"]
         kb_ = self._summary["init_kb"]
         dist = np.sqrt((ka_ - ka) ** 2 + (kb_ - kb) ** 2)
         if dist <= self._k_th_nb_to_search * np.sqrt(2):
             _mb = None
         else:
-            print("DIST={}; Use ({}, {}) as init conf to begin agg merge until ({}, {}).".format(dist, ka_, kb_, ka, kb))
+            self._logger.info("DIST={}; Use ({}, {}) as init conf to begin agg merge until ({}, {}).".format(dist, ka_, kb_, ka, kb))
             _mb = self.trace_mb[(ka_, kb_)]
 
         run = lambda a, b: self.engine_(self._f_edgelist_name, self.bm_state["n_a"], self.bm_state["n_b"], a, b,
@@ -243,7 +248,7 @@ class OptimalKs(object):
 
     def natural_merge(self):
         run = lambda dummy: self.engine_(self._f_edgelist_name, self.bm_state["n_a"], self.bm_state["n_b"], 1, 1,
-                                        mb=None, method="natural")
+                                        mb=None, method="natural")  # Note: setting (ka, kb) = (1, 1) is redundant.
         results = []
         if self.is_par_:
             # automatically shutdown after idling for 600s
@@ -263,16 +268,16 @@ class OptimalKs(object):
         return dl, m_e_rs, mb, ka, kb
 
     def _natural_merge(self):
-        dl, m_e_rs, mb, ka, kb = self.natural_merge()
+        dl, e_rs, mb, ka, kb = self.natural_merge()
         self._summary["init_ka"] = ka
         self._summary["init_kb"] = kb
-        print("Natural merge to ({}, {}).".format(ka, kb))
+        self._logger.info("Natural agglomerative merge to ({}, {}).".format(ka, kb))
         self.bookkeeping_dl[(ka, kb)] = dl
-        self.bookkeeping_e_rs[(ka, kb)] = m_e_rs
+        self.bookkeeping_e_rs[(ka, kb)] = e_rs
         assert max(mb) + 1 == ka + kb, "[ERROR] inconsistency between mb. indexes and #blocks. {} != {}".format(
             max(mb) + 1, ka + kb)
         self.trace_mb[(ka, kb)] = mb
-        self.bm_state["ref_dl"] = dl
+        self._update_bm_state(ka, kb, e_rs, mb)
         self.virgin_run = False
 
     def _compute_desc_len(self, n_a, n_b, e, ka, kb, mb):
@@ -356,14 +361,14 @@ class OptimalKs(object):
         self.bm_state["mb"] = mb
 
     def _compute_dl_and_update(self, ka, kb):
-        dl, m_e_rs, mb = self.compute_dl(ka, kb)
+        dl, e_rs, mb = self.compute_dl(ka, kb)
         self.bookkeeping_dl[(ka, kb)] = dl
-        self.bookkeeping_e_rs[(ka, kb)] = m_e_rs
+        self.bookkeeping_e_rs[(ka, kb)] = e_rs
         assert max(mb) + 1 == ka + kb, "[ERROR] inconsistency between mb. indexes and #blocks. {} != {}".format(
             max(mb) + 1, ka + kb)
         self.trace_mb[(ka, kb)] = mb
-        self.bm_state["ref_dl"] = dl
-        return dl, m_e_rs, mb
+        self.bm_state["ref_dl"] = self.summary()["mdl"] if self.bm_state["ref_dl"] != 0 else dl
+        return dl, e_rs, mb
 
     # ###########
     # Checkpoints
@@ -377,7 +382,12 @@ class OptimalKs(object):
         self.is_tempfile_existed = True
         k_th = self._k_th_nb_to_search
         self._logger.info("Checking if {} is a local minimum.".format((ka, kb)))
-        _dl, _, _ = self._compute_dl_and_update(ka, kb)
+        _dl, _e_rs, _mb = self._compute_dl_and_update(ka, kb)
+        if _dl > self.bookkeeping_dl[(1, 1)]:
+            self._logger.info("DL at ({}, {}) is larger than (1, 1), which is {} compared to {}".format(ka, kb, _dl, self.bookkeeping_dl[(1, 1)]))
+            self._update_bm_state(ka, kb, _e_rs, _mb)
+            return False
+
         if _dl > self.summary()["mdl"]:
             self.i_0 *= self.adaptive_ratio
             ka, kb, _, _dl = self._rollback()
