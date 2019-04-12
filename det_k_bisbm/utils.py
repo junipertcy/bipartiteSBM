@@ -25,7 +25,8 @@ def db_factorial_ln(val):
 def partition_entropy(ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=None, allow_empty=False):
     """
     Compute the partition entropy, P(b), for the current partition. It has several variations depending on the priors
-    used. In the crudest way (`compute_profile_likelihood_from_e_rsnr == None`), we formulate P(b) = P(b | B) * P(B). Or, by a two-level Bayesian hierarchy,
+    used. In the crudest way (`compute_profile_likelihood_from_e_rsnr == None`), we formulate P(b) = P(b | B) * P(B).
+    Or, by a two-level Bayesian hierarchy,
     we can do P(b) = P(b | n) * P(n | B) * P(B).
 
     Parameters
@@ -158,21 +159,21 @@ def adjacency_entropy(edgelist, mb, exact=True, multigraph=True):
 
 
 @jit()
-def model_entropy(e, ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=None, allow_empty=False):
-    if ka is None and kb is None and k is not None:
+def model_entropy(e, ka=None, kb=None, na=None, nb=None, nr=None, allow_empty=False, is_bipartite=True):
+    if not is_bipartite:
+        k = ka + kb
+        n = na + nb
         x = (k * (k + 1)) / 2
         if nr is False:
             dl = lbinom(x + e - 1, e)
         else:
             dl = lbinom(x + e - 1, e) + partition_entropy(k=k, n=n, nr=nr, allow_empty=allow_empty)
-    elif ka is not None and kb is not None and k is None:
+    else:
         x = ka * kb
         if nr is False:
             dl = lbinom(x + e - 1, e)
         else:
             dl = lbinom(x + e - 1, e) + partition_entropy(ka=ka, kb=kb, na=na, nb=nb, nr=nr, allow_empty=allow_empty)
-    else:
-        raise AttributeError
     return dl
 
 
@@ -569,7 +570,7 @@ def compute_profile_likelihood_from_e_rs(e_rs):
 
 
 def get_desc_len_from_data(na, nb, n_edges, ka, kb, edgelist, mb, diff=False, nr=None, allow_empty=False,
-                           degree_dl_kind="distributed", q_cache=np.array([], ndmin=2)):
+                           degree_dl_kind="distributed", q_cache=np.array([], ndmin=2), is_bipartite=True):
     """
     Description length difference to a randomized instance
 
@@ -595,17 +596,11 @@ def get_desc_len_from_data(na, nb, n_edges, ka, kb, edgelist, mb, diff=False, nr
         return the entropy (a.k.a. negative log-likelihood) associated with the current block partition.
     allow_empty: `bool`
     nr: `array-like`
-    partition_dl_allow_empty: `bool` (optional, default: `False`)
-    partition_dl_kind: `str` (optional, default: `"distributed"`)
-        1. `partition_dl_kind == "uniform"`
-        2. `partition_dl_kind == "distributed"` (default)
     degree_dl_kind: `str` (optional, default: `"distributed"`)
         1. `degree_dl_kind == "uniform"`
         2. `degree_dl_kind == "distributed"` (default)
         3. `degree_dl_kind == "entropy"`
-    edge_dl_kind: `str` (optional, default: `"bipartite"`)
-        1. `edge_dl_kind == "unipartite"`
-        2. `edge_dl_kind == "bipartite"` (default)
+    is_bipartite: `bool` (default: `"True"`)
 
     Returns
     -------
@@ -624,15 +619,10 @@ def get_desc_len_from_data(na, nb, n_edges, ka, kb, edgelist, mb, diff=False, nr
         desc_len += (1 + x) * np.log(1 + x) - x * np.log(x)
         desc_len -= (1 + 1 / n_edges) * np.log(1 + 1 / n_edges) - (1 / n_edges) * np.log(1 / n_edges)
     else:
-        t0 = time.time()
         desc_len += adjacency_entropy(edgelist, mb)
-        t1 = time.time()
-        desc_len += model_entropy(n_edges, ka=ka, kb=kb, na=na, nb=nb, nr=nr, allow_empty=allow_empty)
-        t2 = time.time()
-        # desc_len += model_entropy(n_edges, k=ka+kb, n=na+nb, nr=nr, allow_empty=allow_empty)  # P(e | b) + P(b | K)
+        desc_len += model_entropy(n_edges, ka=ka, kb=kb, na=na, nb=nb, nr=nr, allow_empty=allow_empty,
+                                  is_bipartite=is_bipartite)
         desc_len += degree_entropy(edgelist, mb, __q_cache=q_cache, degree_dl_kind=degree_dl_kind)
-        t3 = time.time()
-        # print(t1 - t0, t2 - t1, t3 - t2)
     return desc_len.__float__()
 
 

@@ -36,7 +36,8 @@ class OptimalKs(object):
                  types,
                  logging_level="INFO",
                  default_args=True,
-                 random_init_k=False):
+                 random_init_k=False,
+                 bipartite_prior=True):
 
         self.engine_ = engine.engine  # TODO: check that engine is an object
         self.max_n_sweeps_ = engine.MAX_NUM_SWEEPS
@@ -122,7 +123,10 @@ class OptimalKs(object):
         del fp
         # self.__q_cache = np.memmap(self.__q_cache_f_name, dtype='uint32', mode='r', shape=(max_e_r + 1, max_e_r + 1))
 
-    def iterator(self):
+        self.bipartite_prior_ = bipartite_prior
+
+    def iterator(self, bipartite_prior=True):
+        self.bipartite_prior_ = bipartite_prior
         self._prerunning_checks()
         if not self.is_tempfile_existed:
             self._f_edgelist_name = self._get_tempfile_edgelist()
@@ -157,12 +161,6 @@ class OptimalKs(object):
         self._summary["kb"] = kb
         self._summary["mdl"] = self.bookkeeping_dl[(ka, kb)]
         return self._summary
-
-    def clean(self):
-        self.bookkeeping_dl = OrderedDict()
-        self.bookkeeping_e_rs = OrderedDict()
-        self.trace_mb = OrderedDict()
-        self.set_params(init_ka=10, init_kb=10, i_0=0.1)
 
     def compute_and_update(self, ka, kb, recompute=False):
         try:
@@ -223,7 +221,7 @@ class OptimalKs(object):
             if dist <= self._k_th_nb_to_search * np.sqrt(2):
                 _mb = None
             else:
-                self._logger.info("DIST={}; Use ({}, {}) as init conf to begin agg merge until ({}, {}).".format(dist, ka_, kb_, ka, kb))
+                self._logger.info("DIST={}; agg merge from ({}, {}) to ({}, {}).".format(dist, ka_, kb_, ka, kb))
                 _mb = self.trace_mb[(ka_, kb_)]
         else:
             _mb = None
@@ -241,7 +239,8 @@ class OptimalKs(object):
             for _ in range(self.max_n_sweeps_):
                 results += [run(ka, kb)]
 
-        result_ = [self._compute_desc_len(self.bm_state["n_a"], self.bm_state["n_b"], self.bm_state["e"], ka, kb, r) for r in results]
+        result_ = [self._compute_desc_len(self.bm_state["n_a"], self.bm_state["n_b"], self.bm_state["e"], ka, kb, r) for
+                   r in results]
 
         result = min(result_, key=lambda x: x[0])
         dl = result[0]
@@ -251,7 +250,7 @@ class OptimalKs(object):
 
     def natural_merge(self):
         run = lambda dummy: self.engine_(self._f_edgelist_name, self.bm_state["n_a"], self.bm_state["n_b"], 1, 1,
-                                        mb=None, method="natural")  # Note: setting (ka, kb) = (1, 1) is redundant.
+                                         mb=None, method="natural")  # Note: setting (ka, kb) = (1, 1) is redundant.
         results = []
         if self.is_par_:
             # automatically shutdown after idling for 600s
@@ -286,7 +285,8 @@ class OptimalKs(object):
     def _compute_desc_len(self, n_a, n_b, e, ka, kb, mb):
         e_rs, _ = assemble_e_rs_from_mb(self.edgelist, mb)
         nr = assemble_n_r_from_mb(mb)
-        desc_len = get_desc_len_from_data(n_a, n_b, e, ka, kb, list(self.edgelist), mb, nr=nr, q_cache=self.__q_cache)
+        desc_len = get_desc_len_from_data(n_a, n_b, e, ka, kb, list(self.edgelist), mb, nr=nr, q_cache=self.__q_cache,
+                                          is_bipartite=self.bipartite_prior_)
         return desc_len, e_rs, mb, (ka, kb)
 
     def _merge_e_rs(self, ka, kb):
@@ -323,7 +323,7 @@ class OptimalKs(object):
                 _mlist = map(lambda x: [min(x, _m), max(x, _m)], random.choices(m, k=self._nm))
                 for _ in _mlist:
                     cond = (_[0] != _[1]) and not (_[1] >= ka > _[0]) and not (_[0] == 0 and ka == 1) and not (
-                                _[0] == ka and kb == 1)
+                            _[0] == ka and kb == 1)
                     if cond:
                         mlist.add(str(_[0]) + "+" + str(_[1]))
         results = []
@@ -389,7 +389,9 @@ class OptimalKs(object):
         self._logger.info("Checking if {} is a local minimum.".format((ka, kb)))
         _dl, _e_rs, _mb = self._compute_dl_and_update(ka, kb)
         if _dl > self.bookkeeping_dl[(1, 1)]:
-            self._logger.info("DL at ({}, {}) is larger than (1, 1), which is {} compared to {}".format(ka, kb, _dl, self.bookkeeping_dl[(1, 1)]))
+            self._logger.info("DL at ({}, {}) is larger than that of (1, 1), which is {} compared to {}".format(
+                ka, kb, _dl, self.bookkeeping_dl[(1, 1)])
+            )
             self._update_bm_state(ka, kb, _e_rs, _mb)
             return False
 
