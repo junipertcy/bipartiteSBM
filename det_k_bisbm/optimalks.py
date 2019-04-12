@@ -176,9 +176,9 @@ class OptimalKs(object):
             self.set__q_cache(q_cache)  # todo: add some checks here
             if recompute:
                 self.bookkeeping_dl[(ka, kb)] = 0
-            self._compute_dl_and_update(ka, kb)
+            self._compute_dl_and_update(ka, kb, recompute=recompute)
 
-    def compute_dl(self, ka, kb):
+    def compute_dl(self, ka, kb, recompute=False):
         """
         Execute the partitioning code by spawning child processes in the shell; save its output afterwards.
 
@@ -216,14 +216,17 @@ class OptimalKs(object):
             res = self._compute_desc_len(self.bm_state["n_a"], self.bm_state["n_b"], self.bm_state["e"], ka, kb, mb)
             return res[0], res[1], res[2]
 
-        ka_ = self._summary["init_ka"]
-        kb_ = self._summary["init_kb"]
-        dist = np.sqrt((ka_ - ka) ** 2 + (kb_ - kb) ** 2)
-        if dist <= self._k_th_nb_to_search * np.sqrt(2):
-            _mb = None
+        if not recompute:
+            ka_ = self._summary["init_ka"]
+            kb_ = self._summary["init_kb"]
+            dist = np.sqrt((ka_ - ka) ** 2 + (kb_ - kb) ** 2)
+            if dist <= self._k_th_nb_to_search * np.sqrt(2):
+                _mb = None
+            else:
+                self._logger.info("DIST={}; Use ({}, {}) as init conf to begin agg merge until ({}, {}).".format(dist, ka_, kb_, ka, kb))
+                _mb = self.trace_mb[(ka_, kb_)]
         else:
-            self._logger.info("DIST={}; Use ({}, {}) as init conf to begin agg merge until ({}, {}).".format(dist, ka_, kb_, ka, kb))
-            _mb = self.trace_mb[(ka_, kb_)]
+            _mb = None
 
         run = lambda a, b: self.engine_(self._f_edgelist_name, self.bm_state["n_a"], self.bm_state["n_b"], a, b,
                                         mb=_mb)
@@ -313,14 +316,16 @@ class OptimalKs(object):
 
         """
         m = np.arange(ka + kb)
+
         mlist = set()
-        for _m in m:
-            _mlist = map(lambda x: [min(x, _m), max(x, _m)], random.choices(m, k=self._nm))
-            for _ in _mlist:
-                cond = (_[0] != _[1]) and not (_[1] >= ka > _[0]) and not (_[0] == 0 and ka == 1) and not (
-                            _[0] == ka and kb == 1)
-                if cond:
-                    mlist.add(str(_[0]) + "+" + str(_[1]))
+        while len(mlist) == 0:
+            for _m in m:
+                _mlist = map(lambda x: [min(x, _m), max(x, _m)], random.choices(m, k=self._nm))
+                for _ in _mlist:
+                    cond = (_[0] != _[1]) and not (_[1] >= ka > _[0]) and not (_[0] == 0 and ka == 1) and not (
+                                _[0] == ka and kb == 1)
+                    if cond:
+                        mlist.add(str(_[0]) + "+" + str(_[1]))
         results = []
         for _ in mlist:
             _ = [int(_.split("+")[0]), int(_.split("+")[1])]
@@ -360,8 +365,8 @@ class OptimalKs(object):
         self.bm_state["e_rs"] = e_rs
         self.bm_state["mb"] = mb
 
-    def _compute_dl_and_update(self, ka, kb):
-        dl, e_rs, mb = self.compute_dl(ka, kb)
+    def _compute_dl_and_update(self, ka, kb, recompute=False):
+        dl, e_rs, mb = self.compute_dl(ka, kb, recompute=recompute)
         self.bookkeeping_dl[(ka, kb)] = dl
         self.bookkeeping_e_rs[(ka, kb)] = e_rs
         assert max(mb) + 1 == ka + kb, "[ERROR] inconsistency between mb. indexes and #blocks. {} != {}".format(
