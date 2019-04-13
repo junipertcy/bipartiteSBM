@@ -153,7 +153,7 @@ class OptimalKs(object):
                 else:
                     break
             self._logger.info("Escape while-loop, Re-do iterator().")
-            return self.iterator()
+            return self.iterator(bipartite_prior=self.bipartite_prior_)
 
     def summary(self):
         ka, kb = sorted(self.bookkeeping_dl, key=self.bookkeeping_dl.get)[0]

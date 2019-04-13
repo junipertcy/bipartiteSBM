@@ -54,7 +54,6 @@ def partition_entropy(ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=Non
         nb = np.array([nb])
         kb = np.array([kb])
 
-    ent = 0.
     if nr is None:
         ent = n * np.log(k) + np.log1p(-(1 - 1. / k) ** n)  # TODO: check this term
     else:
@@ -162,18 +161,17 @@ def adjacency_entropy(edgelist, mb, exact=True, multigraph=True):
 def model_entropy(e, ka=None, kb=None, na=None, nb=None, nr=None, allow_empty=False, is_bipartite=True):
     if not is_bipartite:
         k = ka + kb
-        n = na + nb
         x = (k * (k + 1)) / 2
-        if nr is False:
-            dl = lbinom(x + e - 1, e)
-        else:
-            dl = lbinom(x + e - 1, e) + partition_entropy(k=k, n=n, nr=nr, allow_empty=allow_empty)
     else:
         x = ka * kb
-        if nr is False:
-            dl = lbinom(x + e - 1, e)
-        else:
-            dl = lbinom(x + e - 1, e) + partition_entropy(ka=ka, kb=kb, na=na, nb=nb, nr=nr, allow_empty=allow_empty)
+
+    if nr is False:
+        dl = lbinom(x + e - 1, e)
+    else:
+        dl = lbinom(x + e - 1, e) + partition_entropy(ka=ka, kb=kb, na=na, nb=nb, nr=nr, allow_empty=allow_empty)
+        # TO use the general prior for the partition entropy, replace the function with:
+        # n = na + nb
+        # partition_entropy(k=k, n=n, nr=nr, allow_empty=allow_empty)
     return dl
 
 
@@ -608,7 +606,6 @@ def get_desc_len_from_data(na, nb, n_edges, ka, kb, edgelist, mb, diff=False, nr
         Difference of the description length to the bipartite ER network, per edge.
 
     """
-    import time
     edgelist = list(map(lambda e: [int(e[0]), int(e[1])], edgelist))
     desc_len = 0.
     # finally, we compute the description length
