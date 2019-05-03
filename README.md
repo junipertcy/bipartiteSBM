@@ -228,6 +228,4 @@ The `get_edgelist` function can resolve text files with custom delimiters.
 
 If you find `det_k_bisbm` useful for your research, please consider citing the following paper:
 
-**Estimating the Number of Communitites in a Bipartite Network**
-
-Tzu-Chi Yen and Daniel B. Larremore, *in preparation*.
+Tzu-Chi Yen and Daniel B. Larremore, "Blockmodeling on a Bipartite Network with Bipartite Prior," *in preparation*.

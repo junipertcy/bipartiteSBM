@@ -4,7 +4,7 @@
 #### ESSENTIAL LIBRARIES FOR MAIN FUNCTIONALITY ####
 
 # Used when dealing with the affinity matrices.
-numpy>=1.15.4
+numpy>=1.16.2
 
 # Used to compile the row_merge function just-in-time
 numba>=0.40.0
@@ -13,13 +13,16 @@ numba>=0.40.0
 loky>=2.4.2
 
 # Tutorial notebooks
-jupyterlab>=0.35.0
+jupyterlab>=0.35.4
 
 # For plotting figures
-matplotlib>=3.0.2
+matplotlib>=3.0.3
 
 # For some special functions
-scipy>=1.1.0
+scipy>=1.2.1
 
 # optional; used in tutorial
 configparser>=3.5.0
+
+# optional; used in tutorial
+clusim>=0.3.1
