@@ -134,6 +134,7 @@ class OptimalKs(object):
         self._compute_dl_and_update(1, 1)
         if self.algm_name_ == "mcmc" and self.virgin_run:
             self._natural_merge()
+
         if self._check_if_local_minimum(self.bm_state["ka"], self.bm_state["kb"]):
             self._clean_up()
             return self.bookkeeping_dl
@@ -226,8 +227,11 @@ class OptimalKs(object):
         else:
             _mb = None
 
-        run = lambda a, b: self.engine_(self._f_edgelist_name, self.bm_state["n_a"], self.bm_state["n_b"], a, b,
+        if self.algm_name_ == "mcmc":
+            run = lambda a, b: self.engine_(self._f_edgelist_name, self.bm_state["n_a"], self.bm_state["n_b"], a, b,
                                         mb=_mb)
+        else:
+            run = lambda a, b: self.engine_(self._f_edgelist_name, self.bm_state["n_a"], self.bm_state["n_b"], a, b)
 
         # Calculate the biSBM inference several times,
         # choose the maximum likelihood (or minimum entropy) result.

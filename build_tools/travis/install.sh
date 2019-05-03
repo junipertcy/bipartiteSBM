@@ -23,8 +23,8 @@ if [[ ! -f $HOME/miniconda3/bin/activate ]]
     fi
     chmod +x miniconda.sh && ./miniconda.sh -b -f
     conda update --yes conda
-    conda create -n testenv3 --yes python=3.6
-    conda create -n testenv2 --yes python=2.7
+    conda create -n testenv36 --yes python=3.6
+    conda create -n testenv37 --yes python=3.7
 fi
 cd ..
 popd
