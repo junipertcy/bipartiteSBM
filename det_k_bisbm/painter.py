@@ -2,11 +2,12 @@
 
 import matplotlib.pyplot as plt
 import scipy.sparse as sps
-from . utils import *
+from .utils import *
+from itertools import combinations
 
-from clusim.clustering import Clustering, print_clustering
+from clusim.clustering import Clustering
 import clusim.sim as sim
-
+from sklearn import manifold
 
 
 def paint_block_mat_from_e_rs(e_rs, save2file=False, **kwargs):
@@ -49,9 +50,8 @@ def paint_block_mat_from_e_rs(e_rs, save2file=False, **kwargs):
         try:
             path = kwargs["path"]
         except KeyError:
-            raise(KeyError, "Please specify `path` for save2file.")
+            raise (KeyError, "Please specify `path` for save2file.")
         plt.savefig(path + '.eps', format='eps', dpi=300)
-
 
 
 def paint_block_mat(mb, edgelist, save2file=False, **kwargs):
@@ -97,7 +97,7 @@ def paint_block_mat(mb, edgelist, save2file=False, **kwargs):
         try:
             path = kwargs["path"]
         except KeyError:
-            raise(KeyError, "Please specify `path` for save2file.")
+            raise (KeyError, "Please specify `path` for save2file.")
         plt.savefig(path + '.eps', format='eps', dpi=300)
 
 
@@ -115,7 +115,7 @@ def paint_sorted_adj_mat(mb, edgelist, save2file=False, **kwargs):
         try:
             path = kwargs["path"]
         except KeyError:
-            raise(KeyError, "Please specify `path` for save2file.")
+            raise (KeyError, "Please specify `path` for save2file.")
         plt.savefig(path + '.eps', format='eps', dpi=300)
 
 
@@ -168,7 +168,7 @@ def paint_trace(oks, save2file=False, **kwargs):
         try:
             path = kwargs["path"]
         except KeyError:
-            raise(KeyError, "Please specify `path` for save2file.")
+            raise (KeyError, "Please specify `path` for save2file.")
         plt.savefig(path + '.eps', format='eps', dpi=300)
 
 
@@ -192,13 +192,13 @@ def paint_dl_trace(oks, save2file=False, **kwargs):
         try:
             path = kwargs["path"]
         except KeyError:
-            raise(KeyError, "Please specify `path` for save2file.")
+            raise (KeyError, "Please specify `path` for save2file.")
         plt.savefig(path + '.eps', format='eps', dpi=300)
     plt.plot(desc_len_list, 'o-')
 
 
 def paint_similarity_trace(b, oks, save2file=False, **kwargs):
-    from clusim.clustering import Clustering, print_clustering
+
     clu_base = Clustering()
     fig, ax = plt.subplots(figsize=(5, 3), dpi=300)
     e_sim_list = []
@@ -219,6 +219,39 @@ def paint_similarity_trace(b, oks, save2file=False, **kwargs):
         try:
             path = kwargs["path"]
         except KeyError:
-            raise(KeyError, "Please specify `path` for save2file.")
+            raise (KeyError, "Please specify `path` for save2file.")
         plt.savefig(path + '.eps', format='eps', dpi=300)
     plt.plot(e_sim_list)
+
+
+def paint_mds(oks):
+    l2 = len(oks.trace_mb.keys())
+    l = int(l2 ** 0.5)
+    X = np.zeros([l2, l2])
+    for idx_1, pair_1 in enumerate(combinations(range(1, l + 1), 2)):
+        b = oks.trace_mb[pair_1]
+        clu_1 = Clustering()
+        clu_1.from_membership_list(b)
+        for idx_2, pair_2 in enumerate(combinations(range(1, l + 1), 2)):
+            b = oks.trace_mb[pair_2]
+            clu_2 = Clustering()
+            clu_2.from_membership_list(b)
+
+            X[idx_1][idx_2] = 1 - sim.element_sim(clu_1, clu_2)
+            X[idx_2][idx_1] = X[idx_1][idx_2]
+
+    def _plot_embedding(X, title=None):
+        x_min, x_max = np.min(X, 0), np.max(X, 0)
+        X = (X - x_min) / (x_max - x_min)
+
+        plt.figure(figsize=(20, 20))
+        for ind, i in enumerate(range(X.shape[0])):
+            plt.text(X[i, 0], X[i, 1], str(list(oks.trace_mb.keys())[ind]), color=plt.cm.Set1(1 / 10.),
+                     fontdict={'weight': 'bold', 'size': 12})
+        plt.xticks([]), plt.yticks([])
+        if title is not None:
+            plt.title(title)
+
+    clf = manifold.MDS(n_components=2, n_init=10, max_iter=10000, dissimilarity="precomputed")
+    X_mds = clf.fit_transform(X)
+    _plot_embedding(X_mds)

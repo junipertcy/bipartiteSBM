@@ -26,3 +26,6 @@ configparser>=3.5.0
 
 # optional; used in tutorial
 clusim>=0.3.1
+
+# optional: paint MDS plot
+scikit-learn>=0.20.3
