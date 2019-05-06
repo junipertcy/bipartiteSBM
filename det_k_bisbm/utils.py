@@ -1,7 +1,8 @@
 """ utilities """
 from .int_part import *
 from scipy.sparse import lil_matrix
-from itertools import product
+from scipy.special import comb
+from itertools import product, combinations
 import random
 from numba.types import Tuple
 from collections import OrderedDict
@@ -325,7 +326,7 @@ def gen_unequal_partition(n, total, avg_deg, alpha):
     return a, max(a) / min(a)
 
 
-def gen_e_rs(b, n_edges, p):
+def gen_e_rs(b, n_edges, p=0):
     """
 
     Parameters
@@ -387,6 +388,44 @@ def gen_e_rs_unequal(ka, kb, n_edges):
         i = p[0]
         j = p[1]
         e_rs[i][j] = c[idx]
+        e_rs[j][i] = e_rs[i][j]
+    return e_rs
+
+
+def gen_e_rs_hard(ka, kb, n_edges, p=0):
+    k_max = max(ka, kb)
+    k_min = min(ka, kb)
+    if k_max > 2 ** k_min - 1:
+        raise NotImplementedError
+    else:
+        blocks = 0
+        k_min_ = 1
+        _cum_comb = 0
+        cum_comb = comb(k_min, 1)
+        nonzero_indices = []
+        for i in range(1, k_max + 1):
+            if i > cum_comb:
+                k_min_ += 1
+                _cum_comb = int(cum_comb)
+                cum_comb += comb(k_min, k_min_)
+
+            blocks += k_min_
+            for __i in list(combinations(range(k_min), k_min_))[i - _cum_comb - 1]:
+                nonzero_indices += [(__i, i - 1 + k_min)]
+
+    c = n_edges / (blocks + (ka * kb - blocks) * p)
+    c_in = c
+    c_out = c * p
+
+    e_rs = np.zeros([ka + kb, ka + kb], dtype=int)
+    perm = product(range(0, ka), range(ka, ka + kb))
+    for _, p in enumerate(perm):
+        i = p[0]
+        j = p[1]
+        if (i, j) in nonzero_indices:
+            e_rs[i][j] = c_in
+        else:
+            e_rs[i][j] = c_out
         e_rs[j][i] = e_rs[i][j]
     return e_rs
 

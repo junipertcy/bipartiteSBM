@@ -350,9 +350,11 @@ class OptimalKs(object):
             os.remove(self._f_edgelist_name)
         except FileNotFoundError as e:
             self._logger.warning("FileNotFoundError: {}".format(e))
-        finally:
-            self.is_tempfile_existed = False
+        try:
             os.remove(self.__q_cache_f_name)
+        except FileNotFoundError as e:
+            self._logger.warning("FileNotFoundError: {}".format(e))
+        self.is_tempfile_existed = False
 
     def _rollback(self):
         dl = self.summary()["mdl"]
