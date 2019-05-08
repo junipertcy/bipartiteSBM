@@ -75,7 +75,7 @@ class OptimalKs(object):
             self.bm_state["kb"] = int(self.bm_state["e"] ** 0.5 / 2)
             self.i_0 = 0.005
             self.adaptive_ratio = 0.9  # adaptive parameter to make the "i_0" smaller, if it's overshooting.
-            self._k_th_nb_to_search = 1
+            self._k_th_nb_to_search = 2
             self._nm = 10
         else:
             self.bm_state["ka"] = self.bm_state["kb"] = self.i_0 = \

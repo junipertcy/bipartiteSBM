@@ -21,7 +21,7 @@ engines/kl/output/*
 *.gt
 
 # misc
-*.pyc
+*.py[cdo]
 __pycache__/
 .cache/*
 .pytest_cache/*
@@ -29,6 +29,16 @@ venv/
 misc/
 archive/
 .ipynb_checkpoints
+_build/
+build/
+dist/
+htmlcov/
+*.egg-info/
+*.egg
+.eggs/
+.coverage
+.tox/
+deploy.sh
 
 # unless otherwise forcefully added
 tutorials/ 
