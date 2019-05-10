@@ -64,6 +64,7 @@ class OptimalKs(object):
 
         self.edgelist = edgelist
         self.bm_state["e"] = len(self.edgelist)
+        self.i_0s = []
         if engine.ALGM_NAME == "mcmc" and default_args:
             engine.set_steps(self.bm_state["n"] * 1e5)
             engine.set_await_steps(self.bm_state["n"] * 2e3)
@@ -73,8 +74,8 @@ class OptimalKs(object):
         if default_args:
             self.bm_state["ka"] = int(self.bm_state["e"] ** 0.5 / 2)
             self.bm_state["kb"] = int(self.bm_state["e"] ** 0.5 / 2)
-            self.i_0 = 0.005
-            self.adaptive_ratio = 0.9  # adaptive parameter to make the "i_0" smaller, if it's overshooting.
+            self.i_0 = 1.
+            self.adaptive_ratio = 0.95  # adaptive parameter to make the "i_0" smaller, if it's overshooting.
             self._k_th_nb_to_search = 2
             self._nm = 10
         else:
@@ -143,6 +144,8 @@ class OptimalKs(object):
             while abs(diff_dl) < self.i_0 * self.bm_state["ref_dl"]:
                 if self.bm_state["ka"] * self.bm_state["kb"] != 1:
                     ka_, kb_, diff_dl, mlist = self._merge_e_rs(self.bm_state["ka"], self.bm_state["kb"])
+                    if self._determine_i_0(diff_dl):
+                        break
                     mb_ = accept_mb_merge(self.bm_state["mb"], mlist)
                     e_rs, _ = assemble_e_rs_from_mb(self.edgelist, mb_)
                     assert int(e_rs.sum()) == int(
@@ -285,6 +288,18 @@ class OptimalKs(object):
         self.trace_mb[(ka, kb)] = mb
         self._update_bm_state(ka, kb, e_rs, mb)
         self.virgin_run = False
+
+    def _determine_i_0(self, diff_dl):
+        if self.i_0 < 1:
+            return False
+        i_0 = diff_dl / self.bm_state["ref_dl"]
+        self.i_0s += [i_0]
+        iqr = np.percentile(self.i_0s, 75) - np.percentile(self.i_0s, 25)
+        if i_0 > 3 * iqr + np.percentile(self.i_0s, 75):
+            self.i_0 = i_0
+            return True
+        else:
+            return False
 
     def _compute_desc_len(self, n_a, n_b, e, ka, kb, mb):
         e_rs, _ = assemble_e_rs_from_mb(self.edgelist, mb)

@@ -9,11 +9,12 @@ using the `MCMC sampler`_ or the `Kernighan-Lin algorithm`_ as the inference eng
 
 .. toctree::
    :maxdepth: 2
-   :caption: Usage
+   :caption: Quick start
 
    usage/installation
    usage/kl-inference
    usage/mcmc-inference
+   usage/explore-consistency
 
 .. toctree::
    :maxdepth: 2
@@ -24,7 +25,14 @@ using the `MCMC sampler`_ or the `Kernighan-Lin algorithm`_ as the inference eng
 
 .. toctree::
    :maxdepth: 2
-   :caption: FAQ
+   :caption: Module documentation
+
+   src/det_k_bisbm
+   src/engines
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Frequently Asked Questions (FAQ)
 
    frequently-asked-questions/detectability
    frequently-asked-questions/local-minima
@@ -35,7 +43,6 @@ using the `MCMC sampler`_ or the `Kernighan-Lin algorithm`_ as the inference eng
    :caption: Additional resources
 
    additional-resources/slides
-
 
 .. _`MCMC sampler`: https://github.com/junipertcy/bipartiteSBM-MCMC
 .. _`Kernighan-Lin algorithm`: https://github.com/junipertcy/bipartiteSBM-KL
