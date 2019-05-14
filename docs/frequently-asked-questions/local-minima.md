@@ -1,4 +1,4 @@
-# Local minima?
+# Local minima
 * The algorithm gets trapped in a local minimum easily in my data. What can I do?
 
   This happens when the modular structure in your data is not strong.

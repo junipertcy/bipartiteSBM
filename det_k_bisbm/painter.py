@@ -10,8 +10,8 @@ import clusim.sim as sim
 from sklearn import manifold
 
 
-def paint_block_mat_from_e_rs(e_rs, save2file=False, **kwargs):
-    plt.figure(figsize=(3, 3))
+def paint_block_mat_from_e_rs(e_rs, save2file=False, figsize=(3, 3), **kwargs):
+    plt.figure(figsize=figsize)
     frame = plt.gca()
 
     size = []
@@ -54,11 +54,11 @@ def paint_block_mat_from_e_rs(e_rs, save2file=False, **kwargs):
         plt.savefig(path + '.eps', format='eps', dpi=300)
 
 
-def paint_block_mat(mb, edgelist, save2file=False, **kwargs):
+def paint_block_mat(mb, edgelist, save2file=False, figsize=(3, 3), **kwargs):
     mb = np.asanyarray(mb, dtype=int)
     e_rs, _ = assemble_e_rs_from_mb(edgelist, mb)
 
-    plt.figure(figsize=(3, 3))
+    plt.figure(figsize=figsize)
     frame = plt.gca()
 
     size = []
@@ -101,7 +101,8 @@ def paint_block_mat(mb, edgelist, save2file=False, **kwargs):
         plt.savefig(path + '.eps', format='eps', dpi=300)
 
 
-def paint_sorted_adj_mat(mb, edgelist, save2file=False, **kwargs):
+def paint_sorted_adj_mat(mb, edgelist, save2file=False, figsize=(3, 3), **kwargs):
+    plt.figure(figsize=figsize)
     mb = np.argsort(mb)
     A = np.zeros([len(mb), len(mb)])
     for edge in edgelist:
@@ -119,7 +120,7 @@ def paint_sorted_adj_mat(mb, edgelist, save2file=False, **kwargs):
         plt.savefig(path + '.eps', format='eps', dpi=300)
 
 
-def paint_trace(oks, save2file=False, **kwargs):
+def paint_trace(oks, save2file=False, figsize=(3, 3), **kwargs):
     from matplotlib import collections as mc
 
     trace = list(oks.trace_mb.keys())
@@ -130,7 +131,7 @@ def paint_trace(oks, save2file=False, **kwargs):
 
     # lines = lines[20:]
     lc = mc.LineCollection(lines, linewidths=2, color="#0074D9")
-    fig, ax = plt.subplots(figsize=(3, 3), dpi=300)
+    fig, ax = plt.subplots(figsize=figsize, dpi=300)
     ax.add_collection(lc)
 
     # Pink circle marks the optimal point (ka, kb)
@@ -172,17 +173,20 @@ def paint_trace(oks, save2file=False, **kwargs):
         plt.savefig(path + '.eps', format='eps', dpi=300)
 
 
-def paint_dl_trace(oks, save2file=False, **kwargs):
-    fig, ax = plt.subplots(figsize=(5, 3), dpi=300)
-    desc_len_list = []
+def paint_dl_trace(oks, save2file=False, figsize=(5, 3), **kwargs):
     na = oks.summary()["na"]
     nb = oks.summary()["nb"]
     e = oks.summary()["e"]
+    max_e_r = e if e <= int(1e4) else int(1e4)
+    qc = init_q_cache(max_e_r, np.array([], ndmin=2))
+
+    fig, ax = plt.subplots(figsize=figsize, dpi=300)
+    desc_len_list = []
 
     for idx, key in enumerate(oks.trace_mb.keys()):
         mb = oks.trace_mb[key]
         nr = assemble_n_r_from_mb(mb)
-        desc_len_list += [get_desc_len_from_data(na, nb, e, key[0], key[1], oks.edgelist, mb, nr=nr)]
+        desc_len_list += [get_desc_len_from_data(na, nb, e, key[0], key[1], oks.edgelist, mb, nr=nr, q_cache=qc)]
     ax.autoscale()
     ax.margins(0.1)
 
@@ -197,10 +201,9 @@ def paint_dl_trace(oks, save2file=False, **kwargs):
     plt.plot(desc_len_list, 'o-')
 
 
-def paint_similarity_trace(b, oks, save2file=False, **kwargs):
-
+def paint_similarity_trace(b, oks, save2file=False, figsize=(5, 3), **kwargs):
     clu_base = Clustering()
-    fig, ax = plt.subplots(figsize=(5, 3), dpi=300)
+    fig, ax = plt.subplots(figsize=figsize, dpi=300)
     e_sim_list = []
     b = clu_base.from_membership_list(b)
     for g in oks.trace_mb.values():
@@ -224,7 +227,7 @@ def paint_similarity_trace(b, oks, save2file=False, **kwargs):
     plt.plot(e_sim_list)
 
 
-def paint_mds(oks):
+def paint_mds(oks, figsize=(20, 20)):
     l2 = len(oks.trace_mb.keys())
     l = int(l2 ** 0.5)
     X = np.zeros([l2, l2])
@@ -244,7 +247,7 @@ def paint_mds(oks):
         x_min, x_max = np.min(X, 0), np.max(X, 0)
         X = (X - x_min) / (x_max - x_min)
 
-        plt.figure(figsize=(20, 20))
+        plt.figure(figsize=figsize)
         for ind, i in enumerate(range(X.shape[0])):
             plt.text(X[i, 0], X[i, 1], str(list(oks.trace_mb.keys())[ind]), color=plt.cm.Set1(1 / 10.),
                      fontdict={'weight': 'bold', 'size': 12})

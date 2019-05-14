@@ -1,3 +1,3 @@
-# Southern Women
+# Southern women network
 TODO.
 
