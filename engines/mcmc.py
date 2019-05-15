@@ -132,7 +132,7 @@ class MCMC(object):
 
         Returns
         -------
-        of_group : list
+        of_group : numpy.ndarray
 
         """
         of_group = []
@@ -161,7 +161,7 @@ class MCMC(object):
                 of_group = out.replace(b' \n', b'').split(b' ')  # Note the space before the line break
                 of_group = list(map(int, of_group))
 
-        return of_group
+        return np.array(of_group)
 
     @staticmethod
     def _gen_init_n_blocks(na, nb, ka, kb):

@@ -62,7 +62,7 @@ class OptimalKs(object):
             elif _type in ["2", 2]:
                 self.bm_state["n_b"] += 1
 
-        self.edgelist = edgelist
+        self.edgelist = np.array(edgelist, dtype=np.uint32)
         self.bm_state["e"] = len(self.edgelist)
         self.i_0s = []
         if engine.ALGM_NAME == "mcmc" and default_args:
@@ -147,13 +147,13 @@ class OptimalKs(object):
                     if self._determine_i_0(diff_dl):
                         break
                     mb_ = accept_mb_merge(self.bm_state["mb"], mlist)
-                    e_rs, _ = assemble_e_rs_from_mb(self.edgelist, mb_)
+                    e_rs = assemble_e_rs_from_mb(self.edgelist, mb_)
                     assert int(e_rs.sum()) == int(
                         self.bm_state["e"] * 2), '__m_e_rs.sum() = {}; self.bm_state["e"] * 2 = {}'.format(
                         str(int(e_rs.sum())), str(self.bm_state["e"] * 2)
                     )
                     self._update_bm_state(ka_, kb_, e_rs, mb_)
-                    self._logger.info("Merging to ({}, {})".format(ka_, kb_))
+                    self._logger.info(f"Merging to ({ka_}, {kb_})")
                 else:
                     break
             self._logger.info("Escape while-loop, Re-do iterator().")
@@ -170,7 +170,7 @@ class OptimalKs(object):
         try:
             os.remove(self._f_edgelist_name)
         except FileNotFoundError as e:
-            self._logger.warning("FileNotFoundError: {}".format(e))
+            self._logger.warning(f"FileNotFoundError: {e}")
         finally:
             self._f_edgelist_name = self._get_tempfile_edgelist()
             q_cache = np.array([], ndmin=2)
@@ -196,7 +196,7 @@ class OptimalKs(object):
         dl : float
             the description length of the found partition
 
-        m_e_rs : numpy array
+        e_rs : numpy array
             the affinity matrix via the group membership vector found by the partitioning engine
 
         mb : list[int]
@@ -214,7 +214,7 @@ class OptimalKs(object):
                 return self.bookkeeping_dl[(ka, kb)], self.bookkeeping_e_rs[(ka, kb)], self.trace_mb[(ka, kb)]
 
         if ka == 1 and kb == 1:
-            mb = [0] * self.bm_state["n_a"] + [1] * self.bm_state["n_b"]
+            mb = np.array([0] * self.bm_state["n_a"] + [1] * self.bm_state["n_b"])
             res = self._compute_desc_len(self.bm_state["n_a"], self.bm_state["n_b"], self.bm_state["e"], ka, kb, mb)
             return res[0], res[1], res[2]
 
@@ -225,14 +225,14 @@ class OptimalKs(object):
             if dist <= self._k_th_nb_to_search * np.sqrt(2):
                 _mb = None
             else:
-                self._logger.info("DIST={}; agg merge from ({}, {}) to ({}, {}).".format(dist, ka_, kb_, ka, kb))
+                self._logger.info(f"DIST={dist}; agg merge from ({ka_}, {kb_}) to ({ka}, {kb}).")
                 _mb = self.trace_mb[(ka_, kb_)]
         else:
             _mb = None
 
         if self.algm_name_ == "mcmc":
             run = lambda a, b: self.engine_(self._f_edgelist_name, self.bm_state["n_a"], self.bm_state["n_b"], a, b,
-                                        mb=_mb)
+                                            mb=_mb)
         else:
             run = lambda a, b: self.engine_(self._f_edgelist_name, self.bm_state["n_a"], self.bm_state["n_b"], a, b)
 
@@ -248,12 +248,11 @@ class OptimalKs(object):
 
         result_ = [self._compute_desc_len(self.bm_state["n_a"], self.bm_state["n_b"], self.bm_state["e"], ka, kb, r) for
                    r in results]
-
         result = min(result_, key=lambda x: x[0])
         dl = result[0]
-        m_e_rs = result[1]
+        e_rs = result[1]
         mb = result[2]
-        return dl, m_e_rs, mb
+        return dl, e_rs, mb
 
     def natural_merge(self):
         run = lambda dummy: self.engine_(self._f_edgelist_name, self.bm_state["n_a"], self.bm_state["n_b"], 1, 1,
@@ -271,16 +270,16 @@ class OptimalKs(object):
         ) for r in results]
         result = min(result_, key=lambda x: x[0])
         dl = result[0]
-        m_e_rs = result[1]
+        e_rs = result[1]
         mb = result[2]
         ka, kb = result[3]
-        return dl, m_e_rs, mb, ka, kb
+        return dl, e_rs, mb, ka, kb
 
     def _natural_merge(self):
         dl, e_rs, mb, ka, kb = self.natural_merge()
         self._summary["init_ka"] = ka
         self._summary["init_kb"] = kb
-        self._logger.info("Natural agglomerative merge to ({}, {}).".format(ka, kb))
+        self._logger.info(f"Natural agglomerative merge to ({ka}, {kb}).")
         self.bookkeeping_dl[(ka, kb)] = dl
         self.bookkeeping_e_rs[(ka, kb)] = e_rs
         assert max(mb) + 1 == ka + kb, "[ERROR] inconsistency between mb. indexes and #blocks. {} != {}".format(
@@ -302,7 +301,7 @@ class OptimalKs(object):
             return False
 
     def _compute_desc_len(self, n_a, n_b, e, ka, kb, mb):
-        e_rs, _ = assemble_e_rs_from_mb(self.edgelist, mb)
+        e_rs = assemble_e_rs_from_mb(self.edgelist, mb)
         nr = assemble_n_r_from_mb(mb)
         desc_len = get_desc_len_from_data(n_a, n_b, e, ka, kb, list(self.edgelist), mb, nr=nr, q_cache=self.__q_cache,
                                           is_bipartite=self.bipartite_prior_)
@@ -339,36 +338,42 @@ class OptimalKs(object):
         mlist = set()
         while len(mlist) == 0:
             for _m in m:
-                _mlist = map(lambda x: [min(x, _m), max(x, _m)], random.choices(m, k=self._nm))
+                pool = random.choices(m, k=self._nm)
+                _mlist = [[min(x, _m), max(x, _m)] for x in pool]
                 for _ in _mlist:
                     cond = (_[0] != _[1]) and not (_[1] >= ka > _[0]) and not (_[0] == 0 and ka == 1) and not (
                             _[0] == ka and kb == 1)
                     if cond:
                         mlist.add(str(_[0]) + "+" + str(_[1]))
-        results = []
+
+        t = np.inf
+        diff_dl = 0.
+        _mlist = [0, 0]
+        ori_e_r = np.sum(self.bm_state["e_rs"], axis=1)
         for _ in mlist:
             _ = [int(_.split("+")[0]), int(_.split("+")[1])]
-            _ds = virtual_move_ds(self.bm_state["e_rs"], _, self.bm_state["ka"])
-            results += [(_ds, _)]
+            _ds = virtual_move_ds(self.bm_state["e_rs"], ori_e_r, _, self.bm_state["ka"])
+            if _ds < t:
+                t = _ds
+                diff_dl, _mlist = _ds, _
 
-        diff_dl, mlist = min(results, key=lambda x: x[0])
-        if max(mlist) < self.bm_state["ka"]:
+        if max(_mlist) < self.bm_state["ka"]:
             ka = self.bm_state["ka"] - 1
             kb = self.bm_state["kb"]
         else:
             ka = self.bm_state["ka"]
             kb = self.bm_state["kb"] - 1
-        return ka, kb, diff_dl, mlist
+        return ka, kb, diff_dl, _mlist
 
     def _clean_up(self):
         try:
             os.remove(self._f_edgelist_name)
         except FileNotFoundError as e:
-            self._logger.warning("FileNotFoundError: {}".format(e))
+            self._logger.warning(f"FileNotFoundError: {e}")
         try:
             os.remove(self.__q_cache_f_name)
         except FileNotFoundError as e:
-            self._logger.warning("FileNotFoundError: {}".format(e))
+            self._logger.warning(f"FileNotFoundError: {e}")
         self.is_tempfile_existed = False
 
     def _rollback(self):
@@ -407,7 +412,7 @@ class OptimalKs(object):
         """The `neighborhood search` as described in the paper."""
         self.is_tempfile_existed = True
         k_th = self._k_th_nb_to_search
-        self._logger.info("Checking if {} is a local minimum.".format((ka, kb)))
+        self._logger.info(f"Checking if {(ka, kb)} is a local minimum.")
         _dl, _e_rs, _mb = self._compute_dl_and_update(ka, kb)
         if _dl > self.bookkeeping_dl[(1, 1)]:
             self._logger.info("DL at ({}, {}) is larger than that of (1, 1), which is {} compared to {}".format(
@@ -420,7 +425,7 @@ class OptimalKs(object):
             self.i_0 *= self.adaptive_ratio
             ka, kb, _, _dl = self._rollback()
             self._logger.info("There's already a point with lower dl; we are overshooting. Let's reduce i_0.")
-            self._logger.info("Re-Checking if {} is a local minimum.".format((ka, kb)))
+            self._logger.info(f"Re-Checking if {(ka, kb)} is a local minimum.")
 
         nb_points = map(lambda x: (x[0] + ka, x[1] + kb), product(range(-k_th, k_th + 1), repeat=2))
         # if any item has values less than 1, delete it. Also, exclude the suspected point (i.e., [ka, kb]).
@@ -429,15 +434,15 @@ class OptimalKs(object):
         for _ka, _kb in nb_points:
             dl, _, _ = self._compute_dl_and_update(_ka, _kb)
             if self._is_mdl_so_far(dl):
-                self._logger.info("Found {} that gives an even lower description length ...".format((_ka, _kb)))
+                self._logger.info(f"Found {(_ka, _kb)} that gives an even lower description length ...")
                 self._rollback()
                 self._logger.info("rollback but NOT reduce i_0")
                 break
         if _dl != self.summary()["mdl"]:
-            self._logger.info("No, {} is NOT a local minimum".format((ka, kb)))
+            self._logger.info(f"No, {(ka, kb)} is NOT a local minimum")
             return False
         else:
-            self._logger.info("Yes, {} is a local minimum; we are done.".format((ka, kb)))
+            self._logger.info(f"Yes, {(ka, kb)} is a local minimum; we are done.")
             return True
 
     def _prerunning_checks(self):
@@ -509,7 +514,7 @@ class OptimalKs(object):
             self.f_edgelist = tempfile.NamedTemporaryFile(mode='w', delete=False)
         finally:
             for edge in self.edgelist:
-                self.f_edgelist.write(str(edge[0]) + "\t" + edge[1] + "\n")
+                self.f_edgelist.write(str(edge[0]) + "\t" + str(edge[1]) + "\n")
             self.f_edgelist.flush()
             f_edgelist_name = self.f_edgelist.name
             del self.f_edgelist

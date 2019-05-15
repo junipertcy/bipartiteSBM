@@ -1,6 +1,7 @@
 """ utilities """
 from .int_part import *
-from scipy.sparse import lil_matrix
+from numba import jit, uint32
+from scipy.sparse import lil_matrix, coo_matrix
 from scipy.special import comb
 from itertools import product, combinations
 import random
@@ -22,7 +23,7 @@ def db_factorial_ln(val):
 # #################
 
 
-@jit()
+@jit(cache=True)
 def partition_entropy(ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=None, allow_empty=False):
     """
     Compute the partition entropy, P(b), for the current partition. It has several variations depending on the priors
@@ -76,7 +77,7 @@ def partition_entropy(ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=Non
     return ent
 
 
-@jit()
+@jit(cache=True)
 def adjacency_entropy(edgelist, mb, exact=True, multigraph=True):
     """
     Calculate the entropy (a.k.a. negative log-likelihood) associated with the current block partition. It does not
@@ -98,8 +99,8 @@ def adjacency_entropy(edgelist, mb, exact=True, multigraph=True):
         the entropy.
     """
     ent = 0.
-    e_rs = np.zeros((max(mb) + 1, max(mb) + 1))
-    m_ij = lil_matrix((len(mb), len(mb)), dtype=np.int32)
+    e_rs = np.zeros((max(mb) + 1, max(mb) + 1), dtype=np.uint32)
+    m_ij = lil_matrix((len(mb), len(mb)), dtype=np.uint32)
     for i in edgelist:
         # Please do check the index convention of the edgelist
         source_group = int(mb[int(i[0])])
@@ -108,7 +109,7 @@ def adjacency_entropy(edgelist, mb, exact=True, multigraph=True):
         e_rs[target_group][source_group] += 1
         m_ij[int(i[0]), int(i[1])] += 1  # we only update the upper triangular part of the adj-matrix
     italic_i = 0.
-    e_r = np.sum(e_rs, axis=1)
+    e_r = np.sum(e_rs, axis=1, dtype=np.uint32)
     sum_m_ii = 0.
     sum_m_ij = 0.
     sum_e_rs = 0.
@@ -158,7 +159,7 @@ def adjacency_entropy(edgelist, mb, exact=True, multigraph=True):
         return ent
 
 
-@jit()
+@jit(cache=True)
 def model_entropy(e, ka=None, kb=None, na=None, nb=None, nr=None, allow_empty=False, is_bipartite=True):
     if not is_bipartite:
         k = ka + kb
@@ -176,7 +177,7 @@ def model_entropy(e, ka=None, kb=None, na=None, nb=None, nr=None, allow_empty=Fa
     return dl
 
 
-@jit()
+@jit(cache=True)
 def degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree_dl_kind="distributed",
                    q_cache_max_e_r=int(1e4)):
     """
@@ -224,16 +225,15 @@ def degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree_dl_kind
 
         for mb_, eta_rk_ in enumerate(eta_rk):
             for eta in eta_rk_:
-                ent -= +loggamma(eta + 1)
-            ent -= -loggamma(n_r[mb_] + 1)
+                ent -= +gammaln(eta + 1)
+            ent -= -gammaln(n_r[mb_] + 1)
     elif degree_dl_kind == "entropy":
         raise NotImplementedError
     # print("degree_dl: {}".format(ent))
     return ent
 
 
-@jit()
-def virtual_move_ds(ori_e_rs, mlist, ka):
+def virtual_move_ds(ori_e_rs, ori_e_r, mlist, ka):
     if (max(mlist) >= ka > min(mlist)) or (min(mlist) == 0 and ka == 1) or (
             min(mlist) == ka and ori_e_rs.shape[0] == 1 + ka):
         return np.inf
@@ -241,23 +241,15 @@ def virtual_move_ds(ori_e_rs, mlist, ka):
     _ds = 0
     size = ori_e_rs.shape[0] - 1
     if max(mlist) < ka:  # we are merging groups of type-a
-        for idx in range(size - ka):
-            _1 = ori_e_rs[mlist[0]][ka + idx + 1]
-            _2 = ori_e_rs[mlist[1]][ka + idx + 1]
-            _ds -= gammaln(_1 + _2 + 1)
-            _ds += gammaln(_1 + 1)
-            _ds += gammaln(_2 + 1)
+        _1, _2 = ori_e_rs[[mlist[0], mlist[1]], ka + 1: size + 1]
     else:
-        for idx in range(ka):
-            _1 = ori_e_rs[mlist[0]][idx]
-            _2 = ori_e_rs[mlist[1]][idx]
-            _ds -= gammaln(_1 + _2 + 1)
-            _ds += gammaln(_1 + 1)
-            _ds += gammaln(_2 + 1)
+        _1, _2 = ori_e_rs[[mlist[0], mlist[1]], 0: ka]
 
-    ori_e_r = np.sum(ori_e_rs, axis=1)
-    _1 = ori_e_r[mlist[0]]
-    _2 = ori_e_r[mlist[1]]
+    _ds -= np.sum(gammaln(_1 + _2 + 1))
+    _ds += np.sum(gammaln(_1 + 1))
+    _ds += np.sum(gammaln(_2 + 1))
+
+    _1, _2 = ori_e_r[[mlist[0], mlist[1]]]
     _ds += gammaln(_1 + _2 + 1)
     _ds -= gammaln(_1 + 1) + gammaln(_2 + 1)
 
@@ -345,10 +337,10 @@ def gen_e_rs(b, n_edges, p=0):
     c = n_edges / (b + (b ** 2 - b) * p)
     c_in = c
     c_out = c * p
-    e_rs = np.zeros([b * 2, b * 2], dtype=int)
+    e_rs = np.zeros([b * 2, b * 2], dtype=np.uint32)
 
     perm = product(range(0, b), range(b, b * 2))
-    idx_in = np.linspace(0, b ** 2 - 1, b, dtype=int)
+    idx_in = np.linspace(0, b ** 2 - 1, b, dtype=np.uint32)
     for idx, p in enumerate(perm):
         i = p[0]
         j = p[1]
@@ -360,7 +352,7 @@ def gen_e_rs(b, n_edges, p=0):
     return e_rs
 
 
-@jit()
+@jit(cache=True)
 def gen_e_rs_unequal(ka, kb, n_edges):
     """
 
@@ -381,7 +373,7 @@ def gen_e_rs_unequal(ka, kb, n_edges):
     remain_c = n_edges - sum(c)
     for idx, _ in enumerate(range(remain_c)):
         c[idx] += 1
-    e_rs = np.zeros([ka + kb, ka + kb], dtype=int)
+    e_rs = np.zeros([ka + kb, ka + kb], dtype=np.uint32)
 
     perm = product(range(0, ka), range(ka, ka + kb))
     for idx, p in enumerate(perm):
@@ -417,7 +409,7 @@ def gen_e_rs_hard(ka, kb, n_edges, p=0):
     c_in = c
     c_out = c * p
 
-    e_rs = np.zeros([ka + kb, ka + kb], dtype=int)
+    e_rs = np.zeros([ka + kb, ka + kb], dtype=np.uint32)
     perm = product(range(0, ka), range(ka, ka + kb))
     for _, p in enumerate(perm):
         i = p[0]
@@ -457,6 +449,7 @@ def gen_equal_bipartite_partition(na, nb, ka, kb):
 # ##################
 
 
+@jit(cache=True)
 def assemble_n_r_from_mb(mb):
     """
     Get n_r vector (number of nodes in each group) from the membership vector.
@@ -473,22 +466,23 @@ def assemble_n_r_from_mb(mb):
     n_r = np.zeros(np.max(mb) + 1)
     for block_id in mb:
         n_r[block_id] += 1
-    n_r = np.array([int(x) for x in n_r])
+    n_r = np.array([int(x) for x in n_r], dtype=np.uint32)
     return n_r
 
 
+@jit(uint32[:](uint32[:, :], uint32[:]), cache=True)
 def assemble_n_k_from_edgelist(edgelist, mb):
     """
     Get n_k, or the number n_k of nodes of degree k.
 
     Parameters
     ----------
-    edgelist: `array-like`
-    mb: `array-like`
+    edgelist: `numpy.ndarray`
+    mb: `numpy.ndarray`
 
     Returns
     -------
-    n_k: `array-like`
+    n_k: `numpy.ndarray`
 
     """
     k = np.zeros(len(mb) + 1)
@@ -497,38 +491,31 @@ def assemble_n_k_from_edgelist(edgelist, mb):
         k[edge[1]] += 1
 
     max_ = np.max(k).__int__()
-    n_k = np.zeros(max_ + 1)
+    n_k = np.zeros(max_ + 1, dtype=np.uint32)
     for k_ in k:
         n_k[k_.__int__()] += 1
     return n_k
 
 
 def assemble_e_rs_from_mb(edgelist, mb):
-    assert type(edgelist) is list, \
-        "[ERROR] the type of the first input should be a list; however, it is {}".format(str(type(edgelist)))
-    # construct e_rs matrix
-    e_rs = np.zeros((max(mb) + 1, max(mb) + 1))
-    for i in edgelist:
-        # Please do check the index convention of the edgelist
-        source_group = int(mb[int(i[0])])
-        target_group = int(mb[int(i[1])])
-        if source_group == target_group:
-            raise ImportError("[ERROR] This is not a bipartite network! The mb is {}".format(mb))
-        e_rs[source_group][target_group] += 1
-        e_rs[target_group][source_group] += 1
+    sources, targets = zip(*edgelist)
+    sources = [mb[node] for node in sources]
+    targets = [mb[node] for node in targets]
+    data = np.ones(len(sources + targets), dtype=int)
+    e_rs = coo_matrix((data, (sources + targets, targets + sources)), shape=(max(mb) + 1, max(mb) + 1))
 
-    e_r = np.sum(e_rs, axis=1)
-    return e_rs, e_r
+    return e_rs.toarray()
 
 
+@jit(uint32[:, :](uint32[:, :], uint32[:]), cache=True)
 def assemble_eta_rk_from_edgelist_and_mb(edgelist, mb):
     """
     Get eta_rk, or the number eta_rk of nodes of degree k that belong to group r.
 
     Parameters
     ----------
-    edgelist: `array-like`
-    mb: `array-like`
+    edgelist: `numpy.ndarray`
+    mb: `numpy.ndarray`
 
     Returns
     -------
@@ -645,7 +632,6 @@ def get_desc_len_from_data(na, nb, n_edges, ka, kb, edgelist, mb, diff=False, nr
         Difference of the description length to the bipartite ER network, per edge.
 
     """
-    edgelist = list(map(lambda e: [int(e[0]), int(e[1])], edgelist))
     desc_len = 0.
     # finally, we compute the description length
     if diff:  # todo: add more options to it; now, only uniform prior for P(e) is included.
@@ -697,7 +683,7 @@ def get_desc_len_from_data_uni(n, n_edges, k, edgelist, mb):
 
 @jit(uint32[:](uint32[:], uint32[:]), cache=True, fastmath=True)
 def accept_mb_merge(mb, mlist):
-    _mb = np.zeros(len(mb), dtype=np.uint32)
+    _mb = np.zeros(mb.size, dtype=np.uint32)
     mlist.sort()
     for _node_id, _g in enumerate(mb):
         if _g == mlist[1]:

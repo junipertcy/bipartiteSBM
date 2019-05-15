@@ -4,6 +4,7 @@ import subprocess
 import hashlib
 from collections import OrderedDict
 import random
+import numpy as np
 
 
 class KL(object):
@@ -163,7 +164,7 @@ class KL(object):
         try:
             shutil.rmtree(self.f_kl_output, ignore_errors=True)
         finally:
-            return of_group
+            return np.array(of_group)
 
     @staticmethod
     def gen_types(na, nb):

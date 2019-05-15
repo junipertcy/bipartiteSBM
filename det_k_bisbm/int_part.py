@@ -1,5 +1,5 @@
 import numpy as np
-from numba import jit, uint32, float32  # TODO: why adding signatures does not make it faster??
+from numba import jit  # TODO: why adding signatures does not make it faster??
 
 from scipy.special import gammaln, spence, loggamma
 
@@ -74,7 +74,7 @@ def log_sum(a, b):
 
 def lbinom(n, k):
     """Return log of binom(n, k)."""
-    if type(n) in [float, int]:
+    if type(n) in [float, int, np.int64]:
         n = np.array([n])
         k = np.array([k])
     return (gammaln(np.array([float(x) for x in n + 1])) -
