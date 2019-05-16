@@ -74,7 +74,7 @@ def log_sum(a, b):
 
 def lbinom(n, k):
     """Return log of binom(n, k)."""
-    if type(n) in [float, int, np.int64]:
+    if type(n) in [float, int, np.int64, np.float64]:
         n = np.array([n])
         k = np.array([k])
     return (gammaln(np.array([float(x) for x in n + 1])) -

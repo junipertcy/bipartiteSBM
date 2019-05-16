@@ -233,27 +233,36 @@ def degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree_dl_kind
     return ent
 
 
-def virtual_move_ds(ori_e_rs, ori_e_r, mlist, ka):
-    if (max(mlist) >= ka > min(mlist)) or (min(mlist) == 0 and ka == 1) or (
-            min(mlist) == ka and ori_e_rs.shape[0] == 1 + ka):
-        return np.inf
-
-    _ds = 0
+def virtual_moves_ds(ori_e_rs, mlists, ka):
+    ori_e_r = np.sum(ori_e_rs, axis=1)
     size = ori_e_rs.shape[0] - 1
-    if max(mlist) < ka:  # we are merging groups of type-a
-        _1, _2 = ori_e_rs[[mlist[0], mlist[1]], ka + 1: size + 1]
-    else:
-        _1, _2 = ori_e_rs[[mlist[0], mlist[1]], 0: ka]
+    t = np.inf
+    diff_dl = 0.
+    _mlist = [0, 0]
+    for _ in mlists:
+        mlist = [int(_.split("+")[0]), int(_.split("+")[1])]
+        if (max(mlist) >= ka > min(mlist)) or (min(mlist) == 0 and ka == 1) or (
+                min(mlist) == ka and ori_e_rs.shape[0] == 1 + ka):
+            continue
+        else:
+            if max(mlist) < ka:  # we are merging groups of type-a
+                _1, _2 = ori_e_rs[[mlist[0], mlist[1]], ka + 1: size + 1]
+            else:
+                _1, _2 = ori_e_rs[[mlist[0], mlist[1]], 0: ka]
+            _ds = 0
+            _ds -= np.sum(gammaln(_1 + _2 + 1))
+            _ds += np.sum(gammaln(_1 + 1))
+            _ds += np.sum(gammaln(_2 + 1))
 
-    _ds -= np.sum(gammaln(_1 + _2 + 1))
-    _ds += np.sum(gammaln(_1 + 1))
-    _ds += np.sum(gammaln(_2 + 1))
+            _3, _4 = ori_e_r[[mlist[0], mlist[1]]]
+            _ds += gammaln(_3 + _4 + 1)
+            _ds -= gammaln(_3 + 1) + gammaln(_4 + 1)
 
-    _1, _2 = ori_e_r[[mlist[0], mlist[1]]]
-    _ds += gammaln(_1 + _2 + 1)
-    _ds -= gammaln(_1 + 1) + gammaln(_2 + 1)
+            if _ds < t:
+                t = _ds
+                diff_dl, _mlist = _ds, mlist
 
-    return _ds
+    return diff_dl, _mlist
 
 
 # ####################

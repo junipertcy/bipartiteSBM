@@ -346,17 +346,7 @@ class OptimalKs(object):
                     if cond:
                         mlist.add(str(_[0]) + "+" + str(_[1]))
 
-        t = np.inf
-        diff_dl = 0.
-        _mlist = [0, 0]
-        ori_e_r = np.sum(self.bm_state["e_rs"], axis=1)
-        for _ in mlist:
-            _ = [int(_.split("+")[0]), int(_.split("+")[1])]
-            _ds = virtual_move_ds(self.bm_state["e_rs"], ori_e_r, _, self.bm_state["ka"])
-            if _ds < t:
-                t = _ds
-                diff_dl, _mlist = _ds, _
-
+        diff_dl, _mlist = virtual_moves_ds(self.bm_state["e_rs"], mlist, self.bm_state["ka"])
         if max(_mlist) < self.bm_state["ka"]:
             ka = self.bm_state["ka"] - 1
             kb = self.bm_state["kb"]
