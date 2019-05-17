@@ -1,4 +1,4 @@
-## Explore Consistency of Results
+## Explore the consistency of results
 In addition, in any case, if one wants to calculate the description length of the data at a single point, `(ka, kb)`, without running through the whole heuristic, one can use,
 
 ```python

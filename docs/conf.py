@@ -85,6 +85,27 @@ pygments_style = None
 # a list of builtin themes.
 #
 html_theme = 'sphinx_rtd_theme'
+html_theme_options = {
+    'canonical_url': 'https://docs.netscied.tw/det_k_bisbm/index.html',
+    'logo_only': False,
+    'display_version': True,
+    'prev_next_buttons_location': 'bottom',
+    'style_external_links': False,
+    'style_nav_header_background': '#0074D9',
+    # Toc options
+    'collapse_navigation': True,
+    'sticky_navigation': True,
+    'navigation_depth': 4,
+    'includehidden': True,
+    'titles_only': False
+}
+
+html_context = {
+  'display_github': True,
+  'github_user': 'junipertcy',
+  'github_repo': 'det_k_bisbm',
+  'github_version': 'master/docs/'
+}
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the

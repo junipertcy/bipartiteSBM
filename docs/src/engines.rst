@@ -1,8 +1,13 @@
 engines package
 ===============
 
-Submodules
-----------
+Module contents
+---------------
+
+.. automodule:: engines
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
 engines.kl module
 -----------------
@@ -16,15 +21,6 @@ engines.mcmc module
 -------------------
 
 .. automodule:: engines.mcmc
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-
-Module contents
----------------
-
-.. automodule:: engines
     :members:
     :undoc-members:
     :show-inheritance:

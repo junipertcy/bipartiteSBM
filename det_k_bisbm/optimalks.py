@@ -10,23 +10,23 @@ class OptimalKs(object):
 
     Parameters
     ----------
-    edgelist : list, required
+    engine : :class:`engine`, required
+        The inference engine class.
+
+    edgelist : iterable or :class:`numpy.ndarray`, required
         Edgelist (bipartite network) for model selection.
 
-    types : list, required
+    types : iterable or :class:`numpy.ndarray`, required
         Types of each node specifying the type membership.
 
-    init_ka : int, required
-        Initial Ka for successive merging and searching for the optimum.
+    verbose : bool, optional
+        Logging level used.
 
-    init_kb : int, required
-        Initial Ka for successive merging and searching for the optimum.
+    default_args :  bool, optional
 
-    i_0 :  double, optional
-        Threshold for the merging step (as described in the main text).
+    random_init_k : bool, optional
 
-    logging_level : str, optional
-        Logging level used. It can be one of "warning" or "info".
+    bipartite_prior : bool, optional
 
     """
 
@@ -34,7 +34,7 @@ class OptimalKs(object):
                  engine,
                  edgelist,
                  types,
-                 logging_level="INFO",
+                 verbose=False,
                  default_args=True,
                  random_init_k=False,
                  bipartite_prior=True):
@@ -101,8 +101,12 @@ class OptimalKs(object):
         self._f_edgelist_name = self._get_tempfile_edgelist()
 
         # logging
+        if verbose:
+            _logging_level = "INFO"
+        else:
+            _logging_level = "WARNING"
         self._logger = logging.Logger
-        self.set_logging_level(logging_level)
+        self.set_logging_level(_logging_level)
         self._summary = OrderedDict()
         self._summary["init_ka"] = self.bm_state["ka"]
         self._summary["init_kb"] = self.bm_state["kb"]
@@ -181,8 +185,7 @@ class OptimalKs(object):
             self._compute_dl_and_update(ka, kb, recompute=recompute)
 
     def compute_dl(self, ka, kb, recompute=False):
-        """
-        Execute the partitioning code by spawning child processes in the shell; save its output afterwards.
+        r"""Execute the partitioning code by spawning child processes in the shell; saves its output afterwards.
 
         Parameters
         ----------
@@ -196,7 +199,7 @@ class OptimalKs(object):
         dl : float
             the description length of the found partition
 
-        e_rs : numpy array
+        e_rs : :class:`numpy.ndarray`
             the affinity matrix via the group membership vector found by the partitioning engine
 
         mb : list[int]
@@ -308,8 +311,7 @@ class OptimalKs(object):
         return desc_len, e_rs, mb, (ka, kb)
 
     def _merge_e_rs(self, ka, kb):
-        """
-        Apply multiple merges of the original affinity matrix, return the one that least alters the entropy
+        """Apply multiple merges of the original affinity matrix, return the one that least alters the entropy
 
         Parameters
         ----------

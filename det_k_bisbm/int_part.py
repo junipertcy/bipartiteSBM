@@ -1,3 +1,12 @@
+"""
+The `int_part` module computes the number of `restricted integer partitions` of the integer `m` into at most `n` parts.
+In other words, it counts the number of different degree counts with the sum of degrees being exactly `m` and
+that have at most `n` nonzero counts. Since the quantity can only computed via a recurrence, we pre-compute the values
+to fill up a memoization table when the number of edges and nodes is not too large; otherwise, we use accurate
+asymptotic expressions to efficiently compute the values for large arguments. [peixoto-nonparametric-2017]_
+
+.. [peixoto-nonparametric-2017] Tiago P. Peixoto, “Nonparametric Bayesian inference of the microcanonical stochastic block model”, Phys. Rev. E 95 012317 (2017). DOI: 10.1103/PhysRevE.95.012317 [sci-hub, @tor], arXiv: 1610.02703
+"""
 import numpy as np
 from numba import jit  # TODO: why adding signatures does not make it faster??
 
@@ -40,11 +49,11 @@ def log_q_approx_small(n, k):
 # @jit(float32(uint32, uint32), cache=True)
 @jit(cache=True)
 def log_q_approx(n, k):
-    if k < pow(n, 1/4.):
+    if k < pow(n, 1 / 4.):
         return log_q_approx_small(n, k)
     u = k / np.sqrt(n)
     v = get_v(u)
-    lf = np.log(v) - np.log1p(- np.exp(-v) * (1 + u * u/2)) / 2 - np.log(2) * 3 / 2. - np.log(u) - np.log(np.pi)
+    lf = np.log(v) - np.log1p(- np.exp(-v) * (1 + u * u / 2)) / 2 - np.log(2) * 3 / 2. - np.log(u) - np.log(np.pi)
     g = 2 * v / u - u * np.log1p(-np.exp(-v))
     return lf - np.log(n) + np.sqrt(n) * g
 
