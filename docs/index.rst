@@ -13,7 +13,7 @@ If you have any questions, please contact tzuchi@netscied.tw.
    :caption: Contents
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Quick start
 
    usage/why-should-i-use-det_k_bisbm
@@ -28,7 +28,7 @@ If you have any questions, please contact tzuchi@netscied.tw.
    usage/interpret-entropy
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Dataset
 
    dataset/format

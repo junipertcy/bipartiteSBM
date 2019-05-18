@@ -28,13 +28,4 @@ structure via the statistical inference of the bipartite stochastic block model.
 
    TODO.
 
-High-level functions
-====================
-
-.. autosummary::
-   :nosignatures:
-
-   ~det_k_bisbm.optimalks.iterator
-   ~det_k_bisbm.optimalks.compute_and_update
-
 """

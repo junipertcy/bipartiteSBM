@@ -25,7 +25,8 @@ def db_factorial_ln(val):
 
 @jit(cache=True)
 def partition_entropy(ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=None, allow_empty=False):
-    """
+    """partition_entropy
+
     Compute the partition entropy, P(b), for the current partition. It has several variations depending on the priors
     used. In the crudest way (`compute_profile_likelihood_from_e_rsnr == None`), we formulate P(b) = P(b | B) * P(B).
     Or, by a two-level Bayesian hierarchy,
@@ -33,18 +34,25 @@ def partition_entropy(ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=Non
 
     Parameters
     ----------
-    ka: `int`
-    kb: `int`
-    k: `int`
-    na: `int`
-    nb: `int`
-    n: `int`
-    nr: `array-like`
-    allow_empty: `bool`
+    ka: ``int``
+
+    kb: ``int``
+
+    k: ``int``
+
+    na: ``int``
+
+    nb: ``int``
+
+    n: ``int``
+
+    nr: ``array-like``
+
+    allow_empty: ``bool``
 
     Returns
     -------
-    ent: `float`
+    ent: ``float``
 
     """
     if type(n) is int:
@@ -79,23 +87,24 @@ def partition_entropy(ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=Non
 
 @jit(cache=True)
 def adjacency_entropy(edgelist, mb, exact=True, multigraph=True):
-    """
+    """adjacency_entropy
+
     Calculate the entropy (a.k.a. negative log-likelihood) associated with the current block partition. It does not
     include the model entropy.
 
     Parameters
     ----------
-    edgelist: `array-like`
+    edgelist : :class:`numpy.ndarray`
 
-    mb: `array-like`
+    mb : :class:`numpy.ndarray`
 
-    exact: `bool`
+    exact : ``bool``
 
-    multigraph: `bool`
+    multigraph : ``bool``
 
     Returns
     -------
-    ent: `float`
+    ent : ``float``
         the entropy.
     """
     ent = 0.
@@ -161,6 +170,33 @@ def adjacency_entropy(edgelist, mb, exact=True, multigraph=True):
 
 @jit(cache=True)
 def model_entropy(e, ka=None, kb=None, na=None, nb=None, nr=None, allow_empty=False, is_bipartite=True):
+    """model_entropy
+
+    model_entropy
+
+    Parameters
+    ----------
+    e : ``int``
+
+    ka : ``int``
+
+    kb : ``int``
+
+    na : ``int``
+
+    nb : ``int``
+
+    nr : ``int``
+
+    allow_empty : ``bool``
+
+    is_bipartite : ``bool``
+
+    Returns
+    -------
+    dl : ``float``
+
+    """
     if not is_bipartite:
         k = ka + kb
         x = (k * (k + 1)) / 2
@@ -180,14 +216,19 @@ def model_entropy(e, ka=None, kb=None, na=None, nb=None, nr=None, allow_empty=Fa
 @jit(cache=True)
 def degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree_dl_kind="distributed",
                    q_cache_max_e_r=int(1e4)):
-    """
+    """degree_entropy
+
+    degree_entropy
 
     Parameters
     ----------
-    edgelist
-    mb
-    __q_cache
-    degree_dl_kind: `str`
+    edgelist : ``iterable`` or :class:`numpy.ndarray`
+
+    mb : ``iterable`` or :class:`numpy.ndarray`
+
+    __q_cache : :class:`numpy.ndarray`
+
+    degree_dl_kind: ``str``
 
         1. ``degree_dl_kind == "uniform"``
 
@@ -201,6 +242,8 @@ def degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree_dl_kind
 
     Returns
     -------
+    ent : ``float``
+        The entropy.
 
     """
     ent = 0
@@ -234,6 +277,25 @@ def degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree_dl_kind
 
 
 def virtual_moves_ds(ori_e_rs, mlists, ka):
+    """virtual_moves_ds
+
+    virtual_moves_ds
+
+    Parameters
+    ----------
+    ori_e_rs : :class:`numpy.ndarray`
+
+    mlists : ``list of 2-tuples``
+
+    ka : int
+
+    Returns
+    -------
+    diff_dl : ``float``
+
+    _mlist : ``tuple``
+
+    """
     ori_e_r = np.sum(ori_e_rs, axis=1)
     size = ori_e_rs.shape[0] - 1
     t = np.inf
@@ -271,16 +333,19 @@ def virtual_moves_ds(ori_e_rs, mlists, ka):
 
 
 def gen_equal_partition(n, total):
-    """
+    """gen_equal_partition
+
+    gen_equal_partition
 
     Parameters
     ----------
-    n: `int`
-    total: `int`
+    n: ``int``
+
+    total: ``int``
 
     Returns
     -------
-    n_blocks: `list[int]`
+    n_blocks: ``list``
 
     """
     all_nodes = np.arange(total)
@@ -290,26 +355,30 @@ def gen_equal_partition(n, total):
 
 
 def gen_unequal_partition(n, total, avg_deg, alpha):
-    """
+    """gen_unequal_partition
 
     Parameters
     ----------
-    n: `int`
+    n : ``int``
         The number of communities.
-    total: `int`
+
+    total : ``int``
         The number of nodes.
-    avg_deg: `float`
+
+    avg_deg : ``float``
         The average degree of the network.
-    alpha: `float`
+
+    alpha : ``float``
         The parameter of the Dirichlet distribution (the smaller the unevener the distribution is).
         We usually use alpha=1 to generate a case and
         filter it out if the lowest size of a community is less than (2 * total / avg_deg) ** 0.5 (resolution limit).
 
     Returns
     -------
-    a: `list`
+    a : ``list``
         The sizes of communities to sum to `total`.
-    _: `float`
+
+    _ : ``float``
         The ratio of largest-sized community to the lowest-sized one.
 
     """
@@ -328,19 +397,22 @@ def gen_unequal_partition(n, total, avg_deg, alpha):
 
 
 def gen_e_rs(b, n_edges, p=0):
-    """
+    """gen_e_rs
 
     Parameters
     ----------
-    b: `int`
+    b : ``int``
         The number of communities within each type. (suppose Ka = Kb)
-    n_edges: `int`
+
+    n_edges : ``int``
         The number of edges planted in the system.
-    p: `float`
+
+    p : ``float``
         The edge propensity between groups; i.e., the ratio c_out / c_in
 
     Returns
     -------
+    e_rs : :class:`numpy.ndarray`
 
     """
     c = n_edges / (b + (b ** 2 - b) * p)
@@ -363,19 +435,22 @@ def gen_e_rs(b, n_edges, p=0):
 
 @jit(cache=True)
 def gen_e_rs_unequal(ka, kb, n_edges):
-    """
+    """gen_e_rs_unequal
 
     Parameters
     ----------
-    ka: `int`
+    ka: ``int``
         The number of communities within type-a.
-    kb: `int`
+
+    kb: ``int``
         The number of communities within type-b.
-    n_edges: `int`
+
+    n_edges: ``int``
         The number of edges planted in the system.
 
     Returns
     -------
+    e_rs : :class:`numpy.ndarray`
 
     """
     c = list(map(int, np.random.dirichlet([1] * ka * kb, 1)[0] * n_edges))
@@ -394,6 +469,23 @@ def gen_e_rs_unequal(ka, kb, n_edges):
 
 
 def gen_e_rs_hard(ka, kb, n_edges, p=0):
+    """gen_e_rs_hard
+
+    Parameters
+    ----------
+    ka : ``int``
+
+    kb : ``int``
+
+    n_edges : ``int``
+
+    p : ``float``
+
+    Returns
+    -------
+    e_rs : :class:`numpy.ndarray`
+
+    """
     k_max = max(ka, kb)
     k_min = min(ka, kb)
     if k_max > 2 ** k_min - 1:
@@ -432,18 +524,21 @@ def gen_e_rs_hard(ka, kb, n_edges, p=0):
 
 
 def gen_equal_bipartite_partition(na, nb, ka, kb):
-    """
+    """gen_equal_bipartite_partition
 
     Parameters
     ----------
-    na
-    nb
-    ka
-    kb
+    na : ``int``
+
+    nb : ``int``
+
+    ka : ``int``
+
+    kb : ``int``
 
     Returns
     -------
-    n: `list[int]`
+    n : ``list[int]``
 
     """
     n_blocks = map(int, gen_equal_partition(ka, na) + gen_equal_partition(kb, nb))
@@ -460,16 +555,15 @@ def gen_equal_bipartite_partition(na, nb, ka, kb):
 
 @jit(cache=True)
 def assemble_n_r_from_mb(mb):
-    """
-    Get n_r vector (number of nodes in each group) from the membership vector.
+    """Get n_r vector (number of nodes in each group) from the membership vector.
 
     Parameters
     ----------
-    mb
+    mb : ``iterable`` or :class:`numpy.ndarray`
 
     Returns
     -------
-    n_r
+    n_r : :class:`numpy.ndarray`
 
     """
     n_r = np.zeros(np.max(mb) + 1)
@@ -481,17 +575,17 @@ def assemble_n_r_from_mb(mb):
 
 @jit(uint32[:](uint32[:, :], uint32[:]), cache=True)
 def assemble_n_k_from_edgelist(edgelist, mb):
-    """
-    Get n_k, or the number n_k of nodes of degree k.
+    """Get n_k, or the number n_k of nodes of degree k.
 
     Parameters
     ----------
-    edgelist: `numpy.ndarray`
-    mb: `numpy.ndarray`
+    edgelist : :class:`numpy.ndarray`
+
+    mb : :class:`numpy.ndarray`
 
     Returns
     -------
-    n_k: `numpy.ndarray`
+    n_k : :class:`numpy.ndarray`
 
     """
     k = np.zeros(len(mb) + 1)
@@ -507,6 +601,19 @@ def assemble_n_k_from_edgelist(edgelist, mb):
 
 
 def assemble_e_rs_from_mb(edgelist, mb):
+    """assemble_e_rs_from_mb
+
+    Parameters
+    ----------
+    edgelist : :class:`numpy.ndarray`
+
+    mb : :class:`numpy.ndarray`
+
+    Returns
+    -------
+    e_rs : :class:`numpy.ndarray`
+
+    """
     sources, targets = zip(*edgelist)
     sources = [mb[node] for node in sources]
     targets = [mb[node] for node in targets]
@@ -518,16 +625,16 @@ def assemble_e_rs_from_mb(edgelist, mb):
 
 @jit(uint32[:, :](uint32[:, :], uint32[:]), cache=True)
 def assemble_eta_rk_from_edgelist_and_mb(edgelist, mb):
-    """
-    Get eta_rk, or the number eta_rk of nodes of degree k that belong to group r.
+    """Get eta_rk, or the number eta_rk of nodes of degree k that belong to group r.
 
     Parameters
     ----------
-    edgelist: `numpy.ndarray`
-    mb: `numpy.ndarray`
+    edgelist : :class:`numpy.ndarray`
+    mb : :class:`numpy.ndarray`
 
     Returns
     -------
+    eta_rk : :class:`numpy.ndarray`
 
     """
     assert np.min(mb).__int__() == 0, "The index of a membership label must start from 0."
@@ -550,6 +657,25 @@ def assemble_eta_rk_from_edgelist_and_mb(edgelist, mb):
 
 
 def compute_profile_likelihood(edgelist, mb, ka=None, kb=None, k=None):
+    """compute_profile_likelihood
+
+    Parameters
+    ----------
+    edgelist : ``list``
+
+    mb : ``list``
+
+    ka : ``int``
+
+    kb : ``int``
+
+    k : ``int``
+
+    Returns
+    -------
+    italic_i : ``float``
+
+    """
     assert type(edgelist) is list, "[ERROR] the type of the input parameter (edgelist) should be a list"
     assert type(mb) is list, "[ERROR] the type of the input parameter (mb) should be a list"
     # First, let's compute the m_e_rs from the edgelist and mb
@@ -588,6 +714,17 @@ def compute_profile_likelihood(edgelist, mb, ka=None, kb=None, k=None):
 
 @jit()
 def compute_profile_likelihood_from_e_rs(e_rs):
+    """compute_profile_likelihood_from_e_rs
+
+    Parameters
+    ----------
+    e_rs : :class:`numpy.ndarray`
+
+    Returns
+    -------
+    italic_i : ``float``
+
+    """
     assert type(e_rs) is np.ndarray, "[ERROR] input parameter (m_e_rs) should be of type numpy.ndarray"
     italic_i = 0.
     e_r = np.sum(e_rs, axis=1)
@@ -604,32 +741,41 @@ def compute_profile_likelihood_from_e_rs(e_rs):
 
 def get_desc_len_from_data(na, nb, n_edges, ka, kb, edgelist, mb, diff=False, nr=None, allow_empty=False,
                            degree_dl_kind="distributed", q_cache=np.array([], ndmin=2), is_bipartite=True):
-    """
-    Description length difference to a randomized instance
+    """Description length difference to a randomized instance
 
     Parameters
     ----------
-    na: `int`
+    na : ``int``
         Number of nodes in type-a.
-    nb: `int`
+
+    nb : ``int``
         Number of nodes in type-b.
-    n_edges: `int`
+
+    n_edges : ``int``
         Number of edges.
-    ka: `int`
+
+    ka : ``int``
         Number of communities in type-a.
-    kb: `int`
+
+    kb : ``int``
         Number of communities in type-b.
-    edgelist: `list`
+
+    edgelist : ``list``
         Edgelist in Python list structure.
-    mb: `list`
+
+    mb : ``list``
         Community membership of each node in Python list structure.
-    diff: `bool`
+
+    diff : ``bool``
         When `diff == True`,
         the returned description value will be the difference to that of a random bipartite network. Otherwise, it will
         return the entropy (a.k.a. negative log-likelihood) associated with the current block partition.
-    allow_empty: `bool`
-    nr: `array-like`
-    degree_dl_kind: `str` (optional, default: `"distributed"`)
+
+    allow_empty : ``bool``
+
+    nr : :class:`numpy.ndarray`
+
+    degree_dl_kind : str (optional, default: `"distributed"`)
         1. `degree_dl_kind == "uniform"`
         2. `degree_dl_kind == "distributed"` (default)
         3. `degree_dl_kind == "entropy"`
@@ -637,7 +783,7 @@ def get_desc_len_from_data(na, nb, n_edges, ka, kb, edgelist, mb, diff=False, nr
 
     Returns
     -------
-    desc_len_b: `float`
+    desc_len_b : ``float``
         Difference of the description length to the bipartite ER network, per edge.
 
     """
@@ -658,25 +804,28 @@ def get_desc_len_from_data(na, nb, n_edges, ka, kb, edgelist, mb, diff=False, nr
 
 
 def get_desc_len_from_data_uni(n, n_edges, k, edgelist, mb):
-    """
-    Description length difference to a randomized instance, via PRL 110, 148701 (2013).
+    """Description length difference to a randomized instance, via PRL 110, 148701 (2013).
 
     Parameters
     ----------
-    n: `int`
+    n : ``int``
         Number of nodes.
-    n_edges: `int`
+
+    n_edges : ``int``
         Number of edges.
-    k: `int`
+
+    k : ``int``
         Number of communities.
-    edgelist: `list`
+
+    edgelist : ``list```
         A list of edges.
-    mb: `list`
+
+    mb : ``list``
         A list of node community membership.
 
     Returns
     -------
-    desc_len_b: `float`
+    desc_len_b : ``float``
         Difference of the description length to the ER network, per edge.
 
     """
@@ -692,6 +841,24 @@ def get_desc_len_from_data_uni(n, n_edges, k, edgelist, mb):
 
 @jit(uint32[:](uint32[:], uint32[:]), cache=True, fastmath=True)
 def accept_mb_merge(mb, mlist):
+    """accept_mb_merge
+
+    Accept partition merge.
+
+    Parameters
+    ----------
+    mb : ``iterable`` or :class:`numpy.ndarray`
+        The partition to be merged.
+
+    mlist : ``iterable`` or :class:`numpy.ndarray`
+        The two block labels to be merged.
+
+    Returns
+    -------
+    _mb : :class:`numpy.ndarray`
+        The merged partition.
+
+    """
     _mb = np.zeros(mb.size, dtype=np.uint32)
     mlist.sort()
     for _node_id, _g in enumerate(mb):
@@ -710,24 +877,32 @@ def accept_mb_merge(mb, mlist):
 def merge_matrix(ka, kb, m_e_rs):
     """
     Merge random two rows of the affinity matrix (dim = K) to gain a reduced matrix (dim = K - 1)
+
     Parameters
     ----------
-    ka : int
+    ka : ``int``
         number of type-a communities in the affinity matrix
-    kb : int
+
+    kb : ``int``
         number of type-b communities in the affinity matrix
-    m_e_rs : numpy array
+
+    m_e_rs : :class:`numpy.ndarray`
         the affinity matrix
+
     Returns
     -------
-    new_ka : int
+    new_ka : ``int``
         the new number of type-a communities in the affinity matrix
-    new_kb : int
+
+    new_kb : ``int``
         the new number of type-b communities in the affinity matrix
-    c : numpy array
+
+    c : :class:`numpy.ndarray`
         the new affinity matrix
-    merge_list : list(int, int)
+
+    merge_list : ``list(int, int)``
         the two row-indexes of the original affinity matrix that were merged
+
     """
     assert type(m_e_rs) is np.ndarray, "[ERROR] input parameter (m_e_rs) should be of type numpy.ndarray"
     assert np.all(m_e_rs.transpose() == m_e_rs), "[ERROR] input m_e_rs matrix is not symmetric!"

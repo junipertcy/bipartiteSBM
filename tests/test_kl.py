@@ -21,7 +21,7 @@ oks = OptimalKs(kl, edgelist, types, default_args=True, random_init_k=False)
 
 
 def test_answer():
-    oks.iterator()
+    oks.minimize_bisbm_dl()
     ka = oks.summary()["ka"]
     kb = oks.summary()["kb"]
     assert (ka, kb) == (2, 3)  # there exists community structure in the southernWomen dataset

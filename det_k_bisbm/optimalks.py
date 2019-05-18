@@ -6,27 +6,27 @@ from det_k_bisbm.utils import *
 
 
 class OptimalKs(object):
-    r"""Base class for OptimalKs.
+    """Base class for OptimalKs.
 
     Parameters
     ----------
     engine : :class:`engine`, required
         The inference engine class.
 
-    edgelist : iterable or :class:`numpy.ndarray`, required
+    edgelist : ``iterable`` or :class:`numpy.ndarray`, required
         Edgelist (bipartite network) for model selection.
 
-    types : iterable or :class:`numpy.ndarray`, required
+    types : ``iterable`` or :class:`numpy.ndarray`, required
         Types of each node specifying the type membership.
 
-    verbose : bool, optional
+    verbose : ``bool`` (optional, default: ``False``)
         Logging level used.
 
-    default_args :  bool, optional
+    default_args :  ``bool`` (optional, default: ``True``)
 
-    random_init_k : bool, optional
+    random_init_k : ``bool`` (optional, default: `False`)
 
-    bipartite_prior : bool, optional
+    bipartite_prior : ``bool`` (optional, default: ``True``)
 
     """
 
@@ -130,7 +130,22 @@ class OptimalKs(object):
 
         self.bipartite_prior_ = bipartite_prior
 
-    def iterator(self, bipartite_prior=True):
+    def minimize_bisbm_dl(self, bipartite_prior=True):
+        """Fit the bipartite stochastic block model, by minimizing its description length using an agglomerative heuristic.
+
+        Parameters
+        ----------
+        bipartite_prior : ``bool`` (optional, default ``True``)
+
+        Returns
+        -------
+        OptimalKs.bookkeeping_dl : :py:class:`collections.OrderedDict`
+
+        References
+        ----------
+        .. [yen-bipartite-2019] Tzu-Chi Yen and Daniel B. Larremore, "Blockmodeling on a Bipartite Network with Bipartite Priors", in preparation.
+
+        """
         self.bipartite_prior_ = bipartite_prior
         self._prerunning_checks()
         if not self.is_tempfile_existed:
@@ -160,10 +175,17 @@ class OptimalKs(object):
                     self._logger.info(f"Merging to ({ka_}, {kb_})")
                 else:
                     break
-            self._logger.info("Escape while-loop, Re-do iterator().")
-            return self.iterator(bipartite_prior=self.bipartite_prior_)
+            self._logger.info("Escape while-loop, Re-do minimize_bisbm_dl().")
+            return self.minimize_bisbm_dl(bipartite_prior=self.bipartite_prior_)
 
     def summary(self):
+        """Return a summary of the algorithmic outcome.
+
+        Returns
+        -------
+        OptimalKs._summary : ``dict``
+
+        """
         ka, kb = sorted(self.bookkeeping_dl, key=self.bookkeeping_dl.get)[0]
         self._summary["ka"] = ka
         self._summary["kb"] = kb
@@ -171,6 +193,17 @@ class OptimalKs(object):
         return self._summary
 
     def compute_and_update(self, ka, kb, recompute=False):
+        """Compute biSBM inference pointwise and update the base class.
+
+        Parameters
+        ----------
+        ka : ``int``
+
+        kb : ``int``
+
+        recompute : ``bool`` (optional, default: ``False``)
+
+        """
         try:
             os.remove(self._f_edgelist_name)
         except FileNotFoundError as e:
@@ -185,24 +218,28 @@ class OptimalKs(object):
             self._compute_dl_and_update(ka, kb, recompute=recompute)
 
     def compute_dl(self, ka, kb, recompute=False):
-        r"""Execute the partitioning code by spawning child processes in the shell; saves its output afterwards.
+        """Execute the partitioning code by spawning child processes in the shell; saves its output afterwards.
 
         Parameters
         ----------
-        ka : int
+        ka : ``int``
             Number of type-a communities that one wants to partition on the bipartite graph
-        kb : int
+
+        kb : ``int``
             Number of type-b communities that one wants to partition on the bipartite graph
+
+        recompute : ``bool`` (optional, default: ``False``)
+            TODO.
 
         Returns
         -------
-        dl : float
+        dl : ``float``
             the description length of the found partition
 
         e_rs : :class:`numpy.ndarray`
             the affinity matrix via the group membership vector found by the partitioning engine
 
-        mb : list[int]
+        mb : ``list[int]``
             group membership vector calculated by the partitioning engine
 
         """
@@ -258,6 +295,8 @@ class OptimalKs(object):
         return dl, e_rs, mb
 
     def natural_merge(self):
+        """Phase 1 natural e_rs-block merge"""
+
         run = lambda dummy: self.engine_(self._f_edgelist_name, self.bm_state["n_a"], self.bm_state["n_b"], 1, 1,
                                          mb=None, method="natural")  # Note: setting (ka, kb) = (1, 1) is redundant.
         results = []
@@ -315,23 +354,23 @@ class OptimalKs(object):
 
         Parameters
         ----------
-        ka : int
+        ka : ``int``
             number of type-a communities in the affinity matrix
-        kb : int
+        kb : ``int``
             number of type-b communities in the affinity matrix
 
         Returns
         -------
-        _ka : int
+        _ka : ``int``
             the new number of type-a communities in the affinity matrix
 
-        _kb : int
+        _kb : ``int``
             the new number of type-b communities in the affinity matrix
 
-        diff_italic_i : list(int, int)
-            the difference of the new profile likelihood and the old one
+        diff_dl : ``list(int, int)``
+            the difference of the new entropy and the old one
 
-        _mlist : list(int, int)
+        _mlist : ``list(int, int)``
             the two row-indexes of the original affinity matrix that were finally chosen (and merged)
 
         """

@@ -14,7 +14,7 @@
 #
 import os
 import sys
-# sys.path.insert(0, os.path.abspath('.'))
+sys.path.insert(0, os.path.abspath('.'))
 sys.path.insert(0, os.path.abspath('../'))
 
 from recommonmark.parser import CommonMarkParser
@@ -47,10 +47,15 @@ source_parsers = {
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
-    'sphinx.ext.mathjax',
-    'sphinx_markdown_tables',
-    'sphinx.ext.napoleon',
+    'sphinx.ext.doctest',
+    'sphinx.ext.intersphinx', 'sphinx.ext.mathjax',
+    'sphinx.ext.autosummary',
+    'numpydoc',
+    'sphinx.ext.extlinks',
+    'sphinx.ext.viewcode',
 ]
+
+numpydoc_show_class_members = False
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -133,6 +138,14 @@ html_static_path = ['_static']
 
 # Output file base name for HTML help builder.
 htmlhelp_basename = 'det_k_bisbmdoc'
+
+# Example configuration for intersphinx: refer to the Python standard library.
+intersphinx_mapping = {'python': ('https://docs.python.org/3', None),
+                       'numpy': ('https://docs.scipy.org/doc/numpy', None),
+                       'scipy': ('https://docs.scipy.org/doc/scipy/reference', None),
+                       'matplotlib': ('https://matplotlib.org', None),
+                       'ipython': ('https://ipython.org/ipython-doc/stable/', None),
+                       'graph_tool': ('https://graph-tool.skewed.de/static/doc/', None)}
 
 
 # -- Options for LaTeX output ------------------------------------------------

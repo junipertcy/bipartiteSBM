@@ -17,6 +17,20 @@ from scipy.special import gammaln, spence, loggamma
 # @jit(float32(uint32, uint32, float32[:, :]), cache=True)
 @jit(cache=True)
 def log_q(n, k, __q_cache):
+    """log_q
+
+    Parameters
+    ----------
+    n : ``int``
+
+    k : ``int``
+
+    __q_cache : :class:`numpy.ndarray`
+
+    Returns
+    -------
+
+    """
     n = int(n)
     k = int(k)
     if n <= 0 or k < 1:
@@ -31,6 +45,18 @@ def log_q(n, k, __q_cache):
 # @jit(uint32(uint32, float32), cache=True)
 @jit(cache=True)
 def get_v(u, epsilon=1e-8):
+    """get_v
+
+    Parameters
+    ----------
+    u : ``int``
+
+    epsilon : ``float``
+
+    Returns
+    -------
+
+    """
     v = u
     delta = 1
     while delta > epsilon:
@@ -43,12 +69,34 @@ def get_v(u, epsilon=1e-8):
 # @jit(float32(uint32, uint32), cache=True)
 @jit(cache=True)
 def log_q_approx_small(n, k):
+    """log_q_approx_small
+
+    Parameters
+    ----------
+    n : ``int``
+    k : ``int``
+
+    Returns
+    -------
+
+    """
     return lbinom(n - 1, k - 1) - loggamma(k + 1)
 
 
 # @jit(float32(uint32, uint32), cache=True)
 @jit(cache=True)
 def log_q_approx(n, k):
+    """log_q_approx
+
+    Parameters
+    ----------
+    n : ``int``
+    k : ``int``
+
+    Returns
+    -------
+
+    """
     if k < pow(n, 1 / 4.):
         return log_q_approx_small(n, k)
     u = k / np.sqrt(n)
@@ -61,6 +109,18 @@ def log_q_approx(n, k):
 # @jit(float32(uint32, float32[:, :]), cache=True)
 @jit(cache=True)
 def init_q_cache(n_max, __q_cache):
+    """init_q_cache
+
+    Parameters
+    ----------
+    n_max : ``int``
+
+    __q_cache : :class:`numpy.ndarray`
+
+    Returns
+    -------
+
+    """
     old_n = __q_cache.shape[0]
     if old_n >= n_max:
         return
@@ -78,6 +138,17 @@ def init_q_cache(n_max, __q_cache):
 # @jit(float32(float32, float32), cache=True)
 @jit(cache=True)
 def log_sum(a, b):
+    """log_sum
+
+    Parameters
+    ----------
+    a : ``int``
+    b : ``int``
+
+    Returns
+    -------
+
+    """
     return np.maximum(a, b) + np.log1p(np.exp(-np.abs(a - b)))
 
 

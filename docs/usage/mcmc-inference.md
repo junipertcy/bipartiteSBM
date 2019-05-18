@@ -37,7 +37,7 @@ oks = OptimalKs(mcmc, edgelist, types)
 ```
 Now, we can start the heuristic search!
 ```python
-oks.iterator()
+oks.minimize_bisbm_dl()
 # Out[*]: 
 # OrderedDict([((1, 1), 191.72536162138402),
 #              ((6, 7), 227.47573446636372),

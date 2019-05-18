@@ -1,4 +1,5 @@
 # Example Kerininghan-Lin inference
+
 The algorithm for bipartite community detection is independent to the graph partitioning algorithm used. 
 In principle, one could switch to a different partitioning engine and infer the number of communities in a similar manner.
 Here, we illustrate the use of the [Kerninghan-Lin algorithm](https://github.com/junipertcy/bipartiteSBM-KL) in the heuristic.
@@ -35,7 +36,7 @@ types = kl.gen_types(500, 500)
 
 oks = OptimalKs(kl, edgelist, types)
 oks.set_params(init_ka=10, init_kb=10, i_th=0.1)
-oks.iterator()
+oks.minimize_bisbm_dl()
 ```
 We will see that it correctly finds `K1=4` and `K2=6` as a result. 
 

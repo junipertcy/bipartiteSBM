@@ -17,7 +17,7 @@ oks = OptimalKs(mcmc, edgelist, types, default_args=True, random_init_k=False)
 
 
 def test_answer():
-    oks.iterator()
+    oks.minimize_bisbm_dl()
     ka = oks.summary()["ka"]
     kb = oks.summary()["kb"]
     # Note that we may not obtain (4, 6), as non-identifiable blocks may exist.
