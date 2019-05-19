@@ -8,7 +8,10 @@ recurrence, we pre-compute the values to fill up a memoization table when the nu
 large; otherwise, we use accurate asymptotic expressions to efficiently compute the values for large arguments.
 [peixoto-nonparametric-2017]_
 
+References
+~~~~~~~~~~
 .. [peixoto-nonparametric-2017] Tiago P. Peixoto, “Nonparametric Bayesian inference of the microcanonical stochastic block model”, Phys. Rev. E 95 012317 (2017). DOI: 10.1103/PhysRevE.95.012317 [sci-hub, @tor], arXiv: 1610.02703
+
 """
 import numpy as np
 from numba import jit  # TODO: why adding signatures does not make it faster??

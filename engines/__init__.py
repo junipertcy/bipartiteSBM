@@ -17,3 +17,15 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+"""``engines`` - Inference engines of the bipartite stochastic block model
+----------------------------------------------------------------------------------
+
+This module contains the wrappers for the binaries that identifies the large-scale network
+structure via the statistical inference of the bipartite stochastic block model.
+
+.. note::
+
+   TODO.
+
+"""

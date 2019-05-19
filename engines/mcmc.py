@@ -4,18 +4,58 @@ import subprocess
 
 
 class MCMC(object):
+    """Base class for the Markov chain Monte Carlo algorithm.
+
+    Parameters
+    ----------
+    f_engine : ``str`` (required, default: `"engines/bipartiteSBM-MCMC/bin/mcmc"`)
+        Path to the graph partitioning binary.
+
+    n_sweeps : ``int`` (required, default: `4`)
+        Number of partitioning computations for each :math:`(K_a, K_b)` data point.
+
+    is_parallel : ``bool`` (required, default: `True`)
+        Whether to compute the partitioning in parallel.
+
+    n_cores : ``int`` (required, default: `4`)
+        The number of cores used when `is_parallel is True`.
+
+    algm_name : ``str`` (required, default: `mcmc`)
+        The name of the algorithm.
+
+    mcmc_steps : ``int`` (required, default: `1e5`)
+        Number of sweeps to perform. During each sweep, a move attempt is made for each node.
+
+    mcmc_await_steps : ``int`` (required, default: `2e3`)
+        Number of iterations to wait for a record-breaking event. The algorithm will stop if there is no record-breaking
+        event within the interval or the overall MCMC sweeps exceed ``mcmc_steps``, whichever happens earlier.
+
+    mcmc_cooling : ``str`` (required, default: `abrupt_cool`)
+        Annealing scheme used, which can be either ``exponential``, ``logarithm``, ``linear``, ``constant``,
+        or ``abrupt_cool``.
+
+    mcmc_cooling_param_1 : ``int`` (required, default: `1e3`)
+        Parameter 1 for the annealing.
+
+    mcmc_cooling_param_2 : ``float`` (required, default: `0.1`)
+        Parameter 2 for the annealing.
+
+    mcmc_epsilon : ``float`` (required, default: `1.`)
+        The :math:`\epsilon` parameter used in the proposal moves.
+
+    """
     def __init__(self,
-                 f_engine="",
+                 f_engine="engines/bipartiteSBM-MCMC/bin/mcmc",
                  n_sweeps=4,
                  is_parallel=True,
                  n_cores=4,
                  algm_name="mcmc",
-                 mcmc_steps=1e6,
-                 mcmc_await_steps=1e5,
+                 mcmc_steps=1e5,
+                 mcmc_await_steps=2e3,
                  mcmc_cooling="abrupt_cool",
-                 mcmc_cooling_param_1=1e5,
+                 mcmc_cooling_param_1=1e3,
                  mcmc_cooling_param_2=0.1,
-                 mcmc_epsilon=0.001):
+                 mcmc_epsilon=1.):
 
         self.MAX_NUM_SWEEPS = int(n_sweeps)
         self.PARALLELIZATION = bool(is_parallel)
@@ -30,9 +70,9 @@ class MCMC(object):
         self.mcmc_steps_ = int(mcmc_steps)
         self.mcmc_await_steps_ = int(mcmc_await_steps)
         self.mcmc_cooling_ = str(mcmc_cooling)
-        self.mcmc_cooling_param_1 = str(mcmc_cooling_param_1)
-        self.mcmc_cooling_param_2 = str(mcmc_cooling_param_2)
-        self.mcmc_epsilon_ = str(mcmc_epsilon)
+        self.mcmc_cooling_param_1 = mcmc_cooling_param_1
+        self.mcmc_cooling_param_2 = mcmc_cooling_param_2
+        self.mcmc_epsilon_ = mcmc_epsilon
 
         pass
 
@@ -46,36 +86,36 @@ class MCMC(object):
         self.mcmc_cooling_ = str(cooling)
 
     def set_cooling_param_1(self, cooling_param_1):
-        self.mcmc_cooling_param_1 = str(cooling_param_1)
+        self.mcmc_cooling_param_1 = cooling_param_1
 
     def set_cooling_param_2(self, cooling_param_2):
-        self.mcmc_cooling_param_2 = str(cooling_param_2)
+        self.mcmc_cooling_param_2 = cooling_param_2
 
     def set_epsilon(self, epsilon):
-        self.mcmc_epsilon_ = str(epsilon)
+        self.mcmc_epsilon_ = epsilon
 
     def prepare_engine(self, f_edgelist, na, nb, ka, kb, mb=None, method=None):
         """Output shell commands for graph partitioning calculation.
 
         Parameters
         ----------
-        ka : int, required
-            Number of communities for type-a nodes to partition.
+        ka : ``int`` (required)
+            Number of communities for type-`a` nodes to partition.
 
-        kb : int, required
-            Number of communities for type-b nodes to partition.
+        kb : ``int`` (required)
+            Number of communities for type-`b` nodes to partition.
 
         Returns
         -------
-        action_str : str
+        action_str : ``str``
             the command line string that enables execution of the code
 
         """
         params_ = ""
         if self.mcmc_cooling_ in ["exponential", "linear", "logarithmic"]:
-            params_ = self.mcmc_cooling_param_1 + " " + self.mcmc_cooling_param_2
+            params_ = str(self.mcmc_cooling_param_1) + " " + str(self.mcmc_cooling_param_2)
         elif self.mcmc_cooling_ in ["constant", "abrupt_cool"]:
-            params_ = self.mcmc_cooling_param_1
+            params_ = str(self.mcmc_cooling_param_1)
 
         if mb is None:
             means_ = "-g"
@@ -112,7 +152,7 @@ class MCMC(object):
             "-z",
             str(ka) + " " + str(kb),
             "-E",
-            self.mcmc_epsilon_,
+            str(self.mcmc_epsilon_),
             means_
         ]
 

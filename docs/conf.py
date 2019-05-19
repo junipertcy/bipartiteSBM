@@ -23,7 +23,7 @@ from recommonmark.parser import CommonMarkParser
 # -- Project information -----------------------------------------------------
 
 project = 'junipertcy/det_k_bisbm'
-copyright = '© 2016 – 2019 Tzu-Chi Yen'
+copyright = '2016-2019, Tzu-Chi Yen'
 author = 'Tzu-Chi Yen'
 
 # The short X.Y version
@@ -54,6 +54,7 @@ extensions = [
     'numpydoc',
     'sphinx.ext.extlinks',
     'sphinx.ext.viewcode',
+    'extlinks_fancy'
 ]
 
 numpydoc_show_class_members = False
@@ -65,7 +66,7 @@ templates_path = ['_templates']
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
 #
-source_suffix = ['.rst', '.md']
+source_suffix = '.rst'
 
 # The master toctree document.
 master_doc = 'index'
@@ -149,6 +150,10 @@ intersphinx_mapping = {'python': ('https://docs.python.org/3', None),
                        'ipython': ('https://ipython.org/ipython-doc/stable/', None),
                        'graph_tool': ('https://graph-tool.skewed.de/static/doc/', None)}
 
+extlinks_fancy = {'doi': (['https://dx.doi.org/{0}',
+                           'https://sci-hub.tw/{0}'],
+                          ['DOI: {0}', "sci-hub"]),
+                  'arxiv': (['https://arxiv.org/abs/{0}'], ['arXiv: {0}'])}
 
 # -- Options for LaTeX output ------------------------------------------------
 

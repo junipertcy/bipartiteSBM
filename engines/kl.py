@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import subprocess
 import hashlib
@@ -8,8 +9,40 @@ import numpy as np
 
 
 class KL(object):
+    """Base class for the Kernighan-Lin algorithm.
+
+    Parameters
+    ----------
+    f_engine : ``str`` (required, default: ``"engines/bipartiteSBM-KL/biSBM"``)
+
+    n_sweeps : ``int`` (required, default: ``4``)
+        Note that this will generate ``<n_sweeps>`` output sub-folders in ``<f_kl_output>``.
+
+    is_parallel : ``bool`` (required, default: ``True``)
+
+    n_cores : ``int`` (required, default: ``4``)
+
+    algm_name : ``str`` (required, default: ``kl``)
+
+    kl_edgelist_delimiter : ``str`` (required, default: ``"\\t"``)
+        Due to the KL code accepts 1-indexed nodes by default, we used the delimiter to transform our 0-indexed input.
+
+    kl_steps : ``int`` (required, default: ``5``)
+        Number of random initializations (refer to the README_cplusplus.txt file)
+
+    kl_itertimes : ``int`` (required, default: ``1``)
+        Number of KL runs (within each ``<outputFOLDER>``) for returning an optimal result.
+
+    f_kl_output : ``str`` (required, default: ``"engines/bipartiteSBM-KL/f_kl_output"``)
+        Path to the KL output dir; recommended to be in the same folder as the binary.
+
+    kl_verbose : ``bool`` (required, default: ``True``)
+
+    kl_is_parallel : ``bool`` (required, default: ``False``)
+
+    """
     def __init__(self,
-                 f_engine="",
+                 f_engine="engines/bipartiteSBM-KL/biSBM",
                  n_sweeps=4,
                  is_parallel=True,
                  n_cores=4,
@@ -17,7 +50,7 @@ class KL(object):
                  kl_edgelist_delimiter="\t",
                  kl_steps=5,
                  kl_itertimes=1,
-                 f_kl_output="",
+                 f_kl_output="engines/bipartiteSBM-KL/f_kl_output",
                  kl_verbose=True,
                  kl_is_parallel=False):
 
@@ -52,16 +85,16 @@ class KL(object):
 
         Parameters
         ----------
-        ka : int, required
-            Number of communities for type-a nodes to partition.
+        ka : ``int`` (required)
+            Number of communities for type-`a` nodes to partition.
 
-        kb : int, required
-            Number of communities for type-b nodes to partition.
+        kb : ``int`` (required)
+            Number of communities for type-`b` nodes to partition.
 
         Returns
         -------
-        action_str : str
-            the command line string that enables execution of the code
+        action_str : ``str``
+            The command line string that enables execution of the code.
 
         """
         if delimiter is None:
@@ -108,15 +141,15 @@ class KL(object):
 
         Parameters
         ----------
-        ka : int, required
+        ka : ``int`` (required)
             Number of communities for type-a nodes to partition.
 
-        kb : int, required
+        kb : ``int`` (required)
             Number of communities for type-b nodes to partition.
 
         Returns
         -------
-        of_group : list
+        of_group : ``list[int]``
 
         """
         action_str = self.prepare_engine(f_edgelist, na, nb, ka, kb)
@@ -187,18 +220,14 @@ class KL(object):
         return score
 
     def _get_bisbm_score_file(self, num_sweep_):
-        '''
-            :return: file handle
-        '''
+        """:return: file handle"""
         f = open(
             self.f_kl_output + '/biDCSBMcomms' + str(int(num_sweep_)) + '.score', 'r'
         )
         return f
 
     def _open_biDCSBMcomms_file(self, num_sweep_):
-        '''
-            :return: file handle
-        '''
+        """:return: file handle"""
         f = open(
             self.f_kl_output + '/biDCSBMcomms' +
             str(int(num_sweep_)) + '.tsv', 'r'
@@ -208,13 +237,21 @@ class KL(object):
     @staticmethod
     def _save_edgelist_as_1_indexed(f_edgelist, f_target_edgelist, delimiter="\t"):
         """
-            Note that this function always saves with delimiter "\t"
-        :param f_edgelist:
-        :param f_target_edgelist:
-        :param delimiter:
-        :return:
+
+        Note that this function always saves with delimiter.
+
+        Parameters
+        ----------
+        f_edgelist : ``str``
+
+        f_target_edgelist : ``str``
+
+        delimiter : ``str``
+
+        Returns
+        -------
+
         """
-        import re
         with open(f_target_edgelist, "w") as g:
             with open(f_edgelist, "r") as f:
                 for line in f:

@@ -107,8 +107,9 @@ class OptimalKs(object):
         self.trace_mb = OrderedDict()
 
         # for debug/temp variables
+        self.tempdir = tempdir
         if tempdir is not None or "":
-            self.f_edgelist = tempfile.NamedTemporaryFile(mode='w', dir=tempdir, delete=False)
+            self.f_edgelist = tempfile.NamedTemporaryFile(mode='w+b', dir=tempdir, delete=True)
         # To prevent "TypeError: cannot serialize '_io.TextIOWrapper' object" when using loky
         self._f_edgelist_name = self._get_tempfile_edgelist()
 
@@ -128,7 +129,6 @@ class OptimalKs(object):
         self._summary["avg_k"] = 2 * self.bm_state["e"] / (self.bm_state["n_a"] + self.bm_state["n_b"])
 
         # look-up tables
-        self.__q_cache_f_name = os.path.join(tempfile.mkdtemp(dir=tempdir), '__q_cache.dat')
         self.__q_cache_max_e_r = self.bm_state["e"] if self.bm_state["e"] <= int(1e4) else int(1e4)
         self.__q_cache = init_q_cache(self.__q_cache_max_e_r)
 
@@ -495,7 +495,7 @@ class OptimalKs(object):
 
         .. warning::
 
-           If :math:``i_0`` is set too small, the heuristic will be slow and tends to get trapped in
+           If :math:`i_0` is set too small, the heuristic will be slow and tends to get trapped in
            a local minimum (in the description length landscape) where :math:`K_a` and :math:`K_b` are large.
 
         """
@@ -532,6 +532,7 @@ class OptimalKs(object):
         Create and assign a memory-map to an array of values for restricted integer partitions in a binary file on disk.
 
         >>>    # Attempted usage internally.
+        >>>    self.__q_cache_f_name = os.path.join(tempfile.mkdtemp(dir=tempdir), '__q_cache.dat')
         >>>    try:
         >>>        max_e_r = self.bm_state["e"] if self.bm_state["e"] <= int(1e4) else int(1e4)
         >>>        self.__q_cache = np.memmap(self.__q_cache_f_name, dtype='uint32', mode='r', shape=(
@@ -569,11 +570,10 @@ class OptimalKs(object):
         try:
             self.f_edgelist.seek(0)
         except AttributeError:
-            self.f_edgelist = tempfile.NamedTemporaryFile(mode='w', delete=False)
+            self.f_edgelist = tempfile.NamedTemporaryFile(mode='w+b', dir=self.tempdir, delete=True)
         finally:
             for edge in self.edgelist:
-                self.f_edgelist.write(str(edge[0]) + "\t" + str(edge[1]) + "\n")
+                content = str(edge[0]) + "\t" + str(edge[1]) + "\n"
+                self.f_edgelist.write(content.encode())
             self.f_edgelist.flush()
-            f_edgelist_name = self.f_edgelist.name
-            del self.f_edgelist
-        return f_edgelist_name
+        return self.f_edgelist.name
