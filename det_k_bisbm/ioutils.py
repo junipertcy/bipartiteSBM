@@ -7,15 +7,15 @@ def get_edgelist(f_edgelist, delimiter=','):
 
     Parameters
     ----------
-    f_edgelist : str
-        The path to the edgelist file
+    f_edgelist : ``str``
+        The path to the edgelist file.
 
-    delimiter : str
-        The delimiter in the file
+    delimiter : ``str``
+        The delimiter that separate the edges.
 
     Returns
     -------
-    edgelist : list
+    edgelist : ``list``
         The list of tupled edges.
     """
     edgelist = []
@@ -35,12 +35,12 @@ def get_types(f_types):
 
     Parameters
     ----------
-    f_edgelist : str
+    f_edgelist : ``str``
         The path to the types file
 
     Returns
     -------
-    edgelist : list
+    edgelist : ``list``
         The list of types of each node.
 
     >>> import ioutils
@@ -60,11 +60,12 @@ def save_mb_to_file(path, mb):
 
     Parameters
     ----------
-    path : str, required
+    path : ``str``, required
         File path for the list to save to.
 
-    mb : list[int], required
+    mb : ``list[int]``, required
         Group membership list.
+
     """
     assert type(mb) is list, "[ERROR] the type of the second input parameter should be a list"
     num_nodes = len(mb)

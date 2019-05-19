@@ -1,4 +1,5 @@
-# Choosing parameters
+Choosing parameters
+===================
 * How could I choose `init_ka`, `init_kb`, and `i_th`?
 
   Without other prior information, one could choose `init_ka = init_kb = sqrt(e) / 2`, where `e` is the number of edges.

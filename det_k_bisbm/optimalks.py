@@ -10,7 +10,7 @@ class OptimalKs(object):
 
     Parameters
     ----------
-    engine : :class:`engine`, required
+    engine : :class:`engine` (required)
         The inference engine class.
 
     edgelist : ``iterable`` or :class:`numpy.ndarray`, required
@@ -20,13 +20,25 @@ class OptimalKs(object):
         Types of each node specifying the type membership.
 
     verbose : ``bool`` (optional, default: ``False``)
-        Logging level used.
+        Logging level used. If ``True``, progress information will be shown.
 
-    default_args :  ``bool`` (optional, default: ``True``)
+    is_default_args :  ``bool`` (optional, default: ``True``)
+        Arguments for initiating the heuristic. If ``False``, we should use :func:`set_params`,
+        :func:`set_adaptive_ratio`, :func:`set_k_th_neighbor_to_search`, and :func:`set_nm` to set the default
+        parameters.
 
-    random_init_k : ``bool`` (optional, default: `False`)
+    is_random_init_k : ``bool`` (optional, default: `False`)
 
-    bipartite_prior : ``bool`` (optional, default: ``True``)
+    is_bipartite_prior : ``bool`` (optional, default: ``True``)
+        Whether to use the bipartite prior for edge counts for the algorithm. If ``False``, we will pretend that we
+        do not assume a bipartite structure at the level of the :math:`e_{rs}` matrix. This is what has been used in
+        :func:`graph_tool.inference.minimize_blockmodel_dl`, even if its ``state_args`` is customized to be bipartite.
+
+    tempdir : ``str`` (optional, default: ``None``)
+        The directory entry for generated temporary network data, which will be removed immediately after the
+        class is deleted. If ``tempdir`` is unset or ``None``, we will search for a standard list of directories
+        and sets tempdir to the first one which the calling user can create files in, as :func:`tempfile.gettempdir`
+        dictates. We will pass the file to the inference :mod:`engines`.
 
     """
 
@@ -35,9 +47,10 @@ class OptimalKs(object):
                  edgelist,
                  types,
                  verbose=False,
-                 default_args=True,
-                 random_init_k=False,
-                 bipartite_prior=True):
+                 is_default_args=True,
+                 is_random_init_k=False,
+                 is_bipartite_prior=True,
+                 tempdir=None):
 
         self.engine_ = engine.engine  # TODO: check that engine is an object
         self.max_n_sweeps_ = engine.MAX_NUM_SWEEPS
@@ -65,13 +78,13 @@ class OptimalKs(object):
         self.edgelist = np.array(edgelist, dtype=np.uint32)
         self.bm_state["e"] = len(self.edgelist)
         self.i_0s = []
-        if engine.ALGM_NAME == "mcmc" and default_args:
+        if engine.ALGM_NAME == "mcmc" and is_default_args:
             engine.set_steps(self.bm_state["n"] * 1e5)
             engine.set_await_steps(self.bm_state["n"] * 2e3)
             engine.set_cooling("abrupt_cool")
             engine.set_cooling_param_1(self.bm_state["n"] * 1e3)
             engine.set_epsilon(1.)
-        if default_args:
+        if is_default_args:
             self.bm_state["ka"] = int(self.bm_state["e"] ** 0.5 / 2)
             self.bm_state["kb"] = int(self.bm_state["e"] ** 0.5 / 2)
             self.i_0 = 1.
@@ -81,7 +94,7 @@ class OptimalKs(object):
         else:
             self.bm_state["ka"] = self.bm_state["kb"] = self.i_0 = \
                 self.adaptive_ratio = self._k_th_nb_to_search = self._nm = None
-        if random_init_k:
+        if is_random_init_k:
             self.bm_state["ka"] = np.random.randint(1, self.bm_state["ka"] + 1)
             self.bm_state["kb"] = np.random.randint(1, self.bm_state["kb"] + 1)
 
@@ -94,9 +107,8 @@ class OptimalKs(object):
         self.trace_mb = OrderedDict()
 
         # for debug/temp variables
-        self.is_tempfile_existed = True
-        self.f_edgelist = tempfile.NamedTemporaryFile(mode='w', delete=False)
-        # self.f_edgelist = tempfile.NamedTemporaryFile(mode='w', dir='/scratch/Users/tzye5331/.tmp/', delete=False)
+        if tempdir is not None or "":
+            self.f_edgelist = tempfile.NamedTemporaryFile(mode='w', dir=tempdir, delete=False)
         # To prevent "TypeError: cannot serialize '_io.TextIOWrapper' object" when using loky
         self._f_edgelist_name = self._get_tempfile_edgelist()
 
@@ -106,7 +118,7 @@ class OptimalKs(object):
         else:
             _logging_level = "WARNING"
         self._logger = logging.Logger
-        self.set_logging_level(_logging_level)
+        self._set_logging_level(_logging_level)
         self._summary = OrderedDict()
         self._summary["init_ka"] = self.bm_state["ka"]
         self._summary["init_kb"] = self.bm_state["kb"]
@@ -116,26 +128,19 @@ class OptimalKs(object):
         self._summary["avg_k"] = 2 * self.bm_state["e"] / (self.bm_state["n_a"] + self.bm_state["n_b"])
 
         # look-up tables
-        self.__q_cache_f_name = os.path.join(tempfile.mkdtemp(), '__q_cache.dat')  # for restricted integer partitions
-        # self.__q_cache_f_name = os.path.join(tempfile.mkdtemp(dir='/scratch/Users/tzye5331/.tmp/'), '__q_cache.dat')
-        self.__q_cache = np.array([], ndmin=2)
+        self.__q_cache_f_name = os.path.join(tempfile.mkdtemp(dir=tempdir), '__q_cache.dat')
         self.__q_cache_max_e_r = self.bm_state["e"] if self.bm_state["e"] <= int(1e4) else int(1e4)
+        self.__q_cache = init_q_cache(self.__q_cache_max_e_r)
 
-        max_e_r = self.__q_cache_max_e_r
-        fp = np.memmap(self.__q_cache_f_name, dtype='uint32', mode="w+", shape=(max_e_r + 1, max_e_r + 1))
-        self.__q_cache = init_q_cache(max_e_r, np.array([], ndmin=2))
-        fp[:] = self.__q_cache[:]
-        del fp
-        # self.__q_cache = np.memmap(self.__q_cache_f_name, dtype='uint32', mode='r', shape=(max_e_r + 1, max_e_r + 1))
+        self.bipartite_prior_ = is_bipartite_prior
 
-        self.bipartite_prior_ = bipartite_prior
-
-    def minimize_bisbm_dl(self, bipartite_prior=True):
-        """Fit the bipartite stochastic block model, by minimizing its description length using an agglomerative heuristic.
+    def minimize_bisbm_dl(self, is_bipartite_prior=True):
+        """Fit the bipartite stochastic block model, by minimizing its description length using an agglomerative
+        heuristic.
 
         Parameters
         ----------
-        bipartite_prior : ``bool`` (optional, default ``True``)
+        is_bipartite_prior : ``bool`` (optional, default ``True``)
 
         Returns
         -------
@@ -146,17 +151,14 @@ class OptimalKs(object):
         .. [yen-bipartite-2019] Tzu-Chi Yen and Daniel B. Larremore, "Blockmodeling on a Bipartite Network with Bipartite Priors", in preparation.
 
         """
-        self.bipartite_prior_ = bipartite_prior
+        self.bipartite_prior_ = is_bipartite_prior
         self._prerunning_checks()
-        if not self.is_tempfile_existed:
-            self._f_edgelist_name = self._get_tempfile_edgelist()
 
         self._compute_dl_and_update(1, 1)
         if self.algm_name_ == "mcmc" and self.virgin_run:
             self._natural_merge()
 
         if self._check_if_local_minimum(self.bm_state["ka"], self.bm_state["kb"]):
-            self._clean_up()
             return self.bookkeeping_dl
         else:
             diff_dl = 0.
@@ -176,7 +178,7 @@ class OptimalKs(object):
                 else:
                     break
             self._logger.info("Escape while-loop, Re-do minimize_bisbm_dl().")
-            return self.minimize_bisbm_dl(bipartite_prior=self.bipartite_prior_)
+            return self.minimize_bisbm_dl(is_bipartite_prior=self.bipartite_prior_)
 
     def summary(self):
         """Return a summary of the algorithmic outcome.
@@ -184,6 +186,7 @@ class OptimalKs(object):
         Returns
         -------
         OptimalKs._summary : ``dict``
+            A summary of the algorithmic outcome with minimal description length (in nats).
 
         """
         ka, kb = sorted(self.bookkeeping_dl, key=self.bookkeeping_dl.get)[0]
@@ -192,8 +195,8 @@ class OptimalKs(object):
         self._summary["mdl"] = self.bookkeeping_dl[(ka, kb)]
         return self._summary
 
-    def compute_and_update(self, ka, kb, recompute=False):
-        """Compute biSBM inference pointwise and update the base class.
+    def compute_and_update(self, ka, kb, recompute=True):
+        """Infer the partitions at a specific :math:`(K_a, K_b)` and then update the base class.
 
         Parameters
         ----------
@@ -201,21 +204,12 @@ class OptimalKs(object):
 
         kb : ``int``
 
-        recompute : ``bool`` (optional, default: ``False``)
+        recompute : ``bool`` (optional, default: ``True``)
 
         """
-        try:
-            os.remove(self._f_edgelist_name)
-        except FileNotFoundError as e:
-            self._logger.warning(f"FileNotFoundError: {e}")
-        finally:
-            self._f_edgelist_name = self._get_tempfile_edgelist()
-            q_cache = np.array([], ndmin=2)
-            q_cache = init_q_cache(self.__q_cache_max_e_r, q_cache)
-            self.set__q_cache(q_cache)  # todo: add some checks here
-            if recompute:
-                self.bookkeeping_dl[(ka, kb)] = 0
-            self._compute_dl_and_update(ka, kb, recompute=recompute)
+        if recompute:
+            self.bookkeeping_dl[(ka, kb)] = 0
+        self._compute_dl_and_update(ka, kb, recompute=recompute)
 
     def compute_dl(self, ka, kb, recompute=False):
         """Execute the partitioning code by spawning child processes in the shell; saves its output afterwards.
@@ -223,10 +217,10 @@ class OptimalKs(object):
         Parameters
         ----------
         ka : ``int``
-            Number of type-a communities that one wants to partition on the bipartite graph
+            Number of type-a communities that we want to partition.
 
         kb : ``int``
-            Number of type-b communities that one wants to partition on the bipartite graph
+            Number of type-b communities that we want to partition.
 
         recompute : ``bool`` (optional, default: ``False``)
             TODO.
@@ -234,7 +228,7 @@ class OptimalKs(object):
         Returns
         -------
         dl : ``float``
-            the description length of the found partition
+            The description length of the partition found.
 
         e_rs : :class:`numpy.ndarray`
             the affinity matrix via the group membership vector found by the partitioning engine
@@ -396,17 +390,6 @@ class OptimalKs(object):
             kb = self.bm_state["kb"] - 1
         return ka, kb, diff_dl, _mlist
 
-    def _clean_up(self):
-        try:
-            os.remove(self._f_edgelist_name)
-        except FileNotFoundError as e:
-            self._logger.warning(f"FileNotFoundError: {e}")
-        try:
-            os.remove(self.__q_cache_f_name)
-        except FileNotFoundError as e:
-            self._logger.warning(f"FileNotFoundError: {e}")
-        self.is_tempfile_existed = False
-
     def _rollback(self):
         dl = self.summary()["mdl"]
         ka = self.summary()["ka"]
@@ -495,19 +478,27 @@ class OptimalKs(object):
     # #######################
     # Set & Get of parameters
     # #######################
-    def set_logging_level(self, level):
-        _level = 0
-        if level.upper() == "INFO":
-            _level = logging.INFO
-        elif level.upper() == "WARNING":
-            _level = logging.WARNING
-        logging.basicConfig(
-            level=_level,
-            format="%(asctime)s:%(levelname)s:%(message)s"
-        )
-        self._logger = logging.getLogger(__name__)
+    def set_params(self, init_ka=10, init_kb=10, i_0=0.005):
+        """Set the parameters for the heuristic.
 
-    def set_params(self, init_ka=10, init_kb=10, i_0=0.01):
+        Parameters
+        ----------
+        init_ka : ``int`` (required, default: ``10``)
+
+        init_kb : ``int`` (required, default: ``10``)
+
+        i_0 : ``float`` (required, default: ``0.005``)
+
+        Notes
+        -----
+        TODO.
+
+        .. warning::
+
+           If :math:``i_0`` is set too small, the heuristic will be slow and tends to get trapped in
+           a local minimum (in the description length landscape) where :math:`K_a` and :math:`K_b` are large.
+
+        """
         # params for the heuristic
         self.bm_state["ka"] = int(init_ka)
         self.bm_state["kb"] = int(init_kb)
@@ -520,23 +511,59 @@ class OptimalKs(object):
         self._summary["init_ka"] = self.bm_state["ka"]
         self._summary["init_kb"] = self.bm_state["kb"]
 
-    def set_adaptive_ratio(self, adaptive_ratio):
+    def set_adaptive_ratio(self, adaptive_ratio=0.95):
+        """Set the adaptive ratio (``float`` between 0 to 1, defaults to ``0.95``)."""
+        assert 0. < adaptive_ratio < 1, "[ERROR] Allowed range for adaptive_ratio is (0, 1)."
         self.adaptive_ratio = float(adaptive_ratio)
 
     def set_k_th_neighbor_to_search(self, k):
         self._k_th_nb_to_search = int(k)
 
-    def set_nm(self, s):
+    def set_nm(self, s=10):
+        """Set the :math:`n_m` parameter (defaults to ``10``)."""
         self._nm = int(s)
 
     def get__q_cache(self):
         return self.__q_cache
 
-    def set__q_cache(self, q_cache):
+    def create_q_cache_memmap(self, q_cache=np.array([], ndmin=2)):
+        """`Deprecated.`
+
+        Create and assign a memory-map to an array of values for restricted integer partitions in a binary file on disk.
+
+        >>>    # Attempted usage internally.
+        >>>    try:
+        >>>        max_e_r = self.bm_state["e"] if self.bm_state["e"] <= int(1e4) else int(1e4)
+        >>>        self.__q_cache = np.memmap(self.__q_cache_f_name, dtype='uint32', mode='r', shape=(
+        >>>            max_e_r + 1, max_e_r + 1)
+        >>>         )
+        >>>    except FileNotFoundError as e:
+        >>>        self._logger.warning(f"q_cache memmap file not found!: {e}")
+        >>>    else:
+        >>>        q_cache = init_q_cache(self.__q_cache_max_e_r, np.array([], ndmin=2))
+        >>>        self.create_q_cache_memmap(q_cache)
+
+        Parameters
+        ----------
+        q_cache : :class:`numpy.ndarray` (required, default: ``np.array([], ndmin=2)``)
+
+        """
         self.__q_cache = q_cache
         fp = np.memmap(self.__q_cache_f_name, dtype='uint32', mode="w+", shape=(q_cache.shape[0], q_cache.shape[1]))
         fp[:] = self.__q_cache[:]
         del fp
+
+    def _set_logging_level(self, level):
+        _level = 0
+        if level.upper() == "INFO":
+            _level = logging.INFO
+        elif level.upper() == "WARNING":
+            _level = logging.WARNING
+        logging.basicConfig(
+            level=_level,
+            format="%(asctime)s:%(levelname)s:%(message)s"
+        )
+        self._logger = logging.getLogger(__name__)
 
     def _get_tempfile_edgelist(self):
         try:

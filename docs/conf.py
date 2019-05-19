@@ -48,7 +48,8 @@ source_parsers = {
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.doctest',
-    'sphinx.ext.intersphinx', 'sphinx.ext.mathjax',
+    'sphinx.ext.intersphinx',
+    'sphinx.ext.mathjax',
     'sphinx.ext.autosummary',
     'numpydoc',
     'sphinx.ext.extlinks',
@@ -56,6 +57,7 @@ extensions = [
 ]
 
 numpydoc_show_class_members = False
+mathjax_path = "MathJax/MathJax.js?config=default"
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -81,7 +83,7 @@ language = None
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = None
+pygments_style = 'sphinx'
 
 
 # -- Options for HTML output -------------------------------------------------

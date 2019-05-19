@@ -1,9 +1,12 @@
 """
-The `int_part` module computes the number of `restricted integer partitions` of the integer `m` into at most `n` parts.
-In other words, it counts the number of different degree counts with the sum of degrees being exactly `m` and
-that have at most `n` nonzero counts. Since the quantity can only computed via a recurrence, we pre-compute the values
-to fill up a memoization table when the number of edges and nodes is not too large; otherwise, we use accurate
-asymptotic expressions to efficiently compute the values for large arguments. [peixoto-nonparametric-2017]_
+The `int_part` module computes the number of `restricted integer partitions` :math:`q(m, n)` of the integer :math:`m`
+into at most :math:`n` parts.
+
+Specifically, it counts the number of different degree counts with the sum of degrees
+being exactly :math:`m` and that have at most :math:`n` nonzero counts. Since the quantity can only computed via a
+recurrence, we pre-compute the values to fill up a memoization table when the number of edges and nodes is not too
+large; otherwise, we use accurate asymptotic expressions to efficiently compute the values for large arguments.
+[peixoto-nonparametric-2017]_
 
 .. [peixoto-nonparametric-2017] Tiago P. Peixoto, “Nonparametric Bayesian inference of the microcanonical stochastic block model”, Phys. Rev. E 95 012317 (2017). DOI: 10.1103/PhysRevE.95.012317 [sci-hub, @tor], arXiv: 1610.02703
 """
@@ -108,14 +111,14 @@ def log_q_approx(n, k):
 
 # @jit(float32(uint32, float32[:, :]), cache=True)
 @jit(cache=True)
-def init_q_cache(n_max, __q_cache):
-    """init_q_cache
+def init_q_cache(n_max, __q_cache=np.array([], ndmin=2)):
+    """Initiate the look-up table for :math:`q(m, n)`.
 
     Parameters
     ----------
     n_max : ``int``
 
-    __q_cache : :class:`numpy.ndarray`
+    __q_cache : :class:`numpy.ndarray` (required, default: ``np.array([], ndmin=2)``)
 
     Returns
     -------

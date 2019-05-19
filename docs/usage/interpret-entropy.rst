@@ -1,0 +1,2 @@
+How to interpret entropy?
+=========================

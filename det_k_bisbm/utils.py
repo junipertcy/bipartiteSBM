@@ -1,4 +1,4 @@
-""" utilities """
+""" Utilities for network data manipulation and entropy computation. """
 from .int_part import *
 from numba import jit, uint32
 from scipy.sparse import lil_matrix, coo_matrix
@@ -34,25 +34,25 @@ def partition_entropy(ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=Non
 
     Parameters
     ----------
-    ka: ``int``
+    ka : ``int``
 
-    kb: ``int``
+    kb : ``int``
 
-    k: ``int``
+    k : ``int``
 
-    na: ``int``
+    na : ``int``
 
-    nb: ``int``
+    nb : ``int``
 
-    n: ``int``
+    n : ``int``
 
-    nr: ``array-like``
+    nr : :class:`numpy.ndarray`
 
-    allow_empty: ``bool``
+    allow_empty : ``bool``
 
     Returns
     -------
-    ent: ``float``
+    ent : ``float``
 
     """
     if type(n) is int:
@@ -226,7 +226,7 @@ def degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree_dl_kind
 
     mb : ``iterable`` or :class:`numpy.ndarray`
 
-    __q_cache : :class:`numpy.ndarray`
+    __q_cache : :class:`numpy.ndarray` (required, default: ``np.array([], ndmin=2)``)
 
     degree_dl_kind: ``str``
 

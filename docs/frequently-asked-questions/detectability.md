@@ -1,2 +1,0 @@
-## Detectability limit
-TODO.

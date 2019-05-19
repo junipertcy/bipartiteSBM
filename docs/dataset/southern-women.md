@@ -1,3 +1,0 @@
-# Southern women network
-TODO.
-

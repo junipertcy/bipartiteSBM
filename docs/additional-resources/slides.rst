@@ -1,2 +1,3 @@
-## Useful slides
+Useful slides
+=============
 There are some useful slides.

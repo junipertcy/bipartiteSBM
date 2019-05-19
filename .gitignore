@@ -39,6 +39,7 @@ htmlcov/
 .coverage
 .tox/
 deploy.sh
+MathJax/
 
 # unless otherwise forcefully added
 tutorials/ 
