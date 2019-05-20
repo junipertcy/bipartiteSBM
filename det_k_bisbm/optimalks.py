@@ -201,8 +201,10 @@ class OptimalKs(object):
         Parameters
         ----------
         ka : ``int``
+            Number of type-`a` communities that we want to partition.
 
         kb : ``int``
+            Number of type-`b` communities that we want to partition.
 
         recompute : ``bool`` (optional, default: ``True``)
 
@@ -217,10 +219,10 @@ class OptimalKs(object):
         Parameters
         ----------
         ka : ``int``
-            Number of type-a communities that we want to partition.
+            Number of type-`a` communities that we want to partition.
 
         kb : ``int``
-            Number of type-b communities that we want to partition.
+            Number of type-`b` communities that we want to partition.
 
         recompute : ``bool`` (optional, default: ``False``)
             TODO.

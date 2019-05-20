@@ -440,13 +440,13 @@ def gen_e_rs_unequal(ka, kb, n_edges):
     Parameters
     ----------
     ka: ``int``
-        The number of communities within type-a.
+        Number of communities within type-`a`.
 
     kb: ``int``
-        The number of communities within type-b.
+        Number of communities within type-`b`.
 
     n_edges: ``int``
-        The number of edges planted in the system.
+        Number of edges planted in the system.
 
     Returns
     -------
@@ -474,10 +474,13 @@ def gen_e_rs_hard(ka, kb, n_edges, p=0):
     Parameters
     ----------
     ka : ``int``
+        Mumber of communities within type-`a`.
 
     kb : ``int``
+        Number of communities within type-`b`.
 
     n_edges : ``int``
+        Number of edges planted in the system.
 
     p : ``float``
 
@@ -548,9 +551,133 @@ def gen_equal_bipartite_partition(na, nb, ka, kb):
     return n
 
 
+@jit(cache=True)
+def gen_bicliques_edgelist(b, num_nodes):
+    """Generate an array of edgelist and node-type mapping for a group of bi-cliques.
+
+    Parameters
+    ----------
+    b : ``int``
+       Number of bi-cliques.
+    num_nodes : ``int``
+       Number of nodes (size) for each bi-clique.
+
+    Returns
+    -------
+    el : :class:`numpy.ndarray`
+        The edgelist of a group of bi-cliques.
+
+    types : :class:`numpy.ndarray`
+        The types-array that maps each node id to a bipartite type (``0`` or ``1``).
+
+    """
+    total_num_nodes = b * num_nodes
+    types = np.zeros(total_num_nodes, dtype=np.uint64)
+    num_edges_each_clique = int(num_nodes ** 2 / 4)
+    el = np.zeros([num_edges_each_clique * b, 2], dtype=np.uint64)
+
+    idx = 0
+    base = 0
+    for _b in range(0, b):
+        for i in range(0, int(num_nodes / 2)):
+            types[i + base] = 1
+            for j in range(int(num_nodes / 2), num_nodes):
+                types[j + base] = 2
+                el[idx] = [i + base, j + base]
+                idx += 1
+        base = (_b + 1) * num_nodes
+    return el, types
+
+
+def assemble_old2new_mapping(types):
+    """Create a mapping that map the old node-id's to new ones, such that the types-array is sorted orderly.
+
+    Parameters
+    ----------
+    types : :class:`numpy.ndarray`
+
+    Returns
+    -------
+    old2new : ``dict``
+        Dictionary that maps the old node index to a new one.
+
+    new2old : ``dict``
+        Dictionary that maps the new node index to the old one; i.e., a reverse mapping of ``old2new``.
+
+    new_types : :class:`numpy.ndarray`
+        The new types-array, which is sorted orderly and directly applicable to :class:`det_k_bisbm.OptimalKs`.
+
+    """
+    old2new = dict()
+    new_types = np.zeros(len(types), dtype=np.uint64)
+
+    new_id = 0
+    for _id, t in enumerate(types):
+        if t == 1:
+            old2new[_id] = new_id
+            new_types[new_id] = 1
+            new_id += 1
+
+    for _id, t in enumerate(types):
+        if t == 2:
+            old2new[_id] = new_id
+            new_types[new_id] = 2
+            new_id += 1
+
+    new2old = {value: key for key, value in old2new.items()}
+    return old2new, new2old, new_types
+
+
 # ##################
 # ASSEMBLE FUNCTIONS
 # ##################
+
+
+@jit(cache=True)
+def assemble_edgelist_old2new(edgelist, old2new):
+    """Assemble the new edgelist array via an old2new mapping.
+
+    Parameters
+    ----------
+    edgelist : :class:`numpy.ndarray`
+
+    old2new : ``dict``
+        Dictionary that maps the old node index to a new one.
+
+    Returns
+    -------
+    el : :class:`numpy.ndarray`
+      The new edgelist of a group of bi-cliques (directly pluggable to :class:`det_k_bisbm.OptimalKs`)
+
+    """
+    el = np.zeros([len(edgelist), 2], dtype=np.uint64)
+    for _id, _ in enumerate(edgelist):
+        el[_id][0] = old2new[_[0]]
+        el[_id][1] = old2new[_[1]]
+    return el
+
+
+@jit(cache=True)
+def assemble_mb_new2old(mb, new2old):
+    """Assemble the partition that corresponds to the old space of node indices.
+
+    Parameters
+    ----------
+    mb : :class:`numpy.ndarray`
+
+    new2old : ``dict``
+        Dictionary that maps the new node index to the old one; i.e., a reverse mapping of ``old2new``.
+
+    Returns
+    -------
+    old_mb : :class:`numpy.ndarray`
+      The partition that corresponds to the old space of node indices.
+
+    """
+    old_mb = np.zeros(len(mb), dtype=np.uint64)
+    for _id, _ in enumerate(mb):
+        old_mb[new2old[_id]] = _
+    return old_mb
 
 
 @jit(cache=True)

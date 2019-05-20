@@ -43,9 +43,12 @@ def get_types(f_types):
     edgelist : ``list``
         The list of types of each node.
 
-    >>> import ioutils
+    Examples
+    --------
+    >>> from det_k_bisbm.ioutils import get_types
     >>> edgelist = get_types(f_types)
     >>> print(edgelist)
+
     """
     types = []
     with open(f_types, "r") as f:
