@@ -1,6 +1,7 @@
 """ Utilities for network data manipulation and entropy computation. """
+import heapq
 from .int_part import *
-from numba import jit, uint32
+from numba import jit, uint64
 from scipy.sparse import lil_matrix, coo_matrix
 from scipy.special import comb
 from itertools import product, combinations
@@ -108,8 +109,8 @@ def adjacency_entropy(edgelist, mb, exact=True, multigraph=True):
         the entropy.
     """
     ent = 0.
-    e_rs = np.zeros((max(mb) + 1, max(mb) + 1), dtype=np.uint32)
-    m_ij = lil_matrix((len(mb), len(mb)), dtype=np.uint32)
+    e_rs = np.zeros((max(mb) + 1, max(mb) + 1), dtype=np.uint64)
+    m_ij = lil_matrix((len(mb), len(mb)), dtype=np.uint64)
     for i in edgelist:
         # Please do check the index convention of the edgelist
         source_group = int(mb[int(i[0])])
@@ -118,7 +119,7 @@ def adjacency_entropy(edgelist, mb, exact=True, multigraph=True):
         e_rs[target_group][source_group] += 1
         m_ij[int(i[0]), int(i[1])] += 1  # we only update the upper triangular part of the adj-matrix
     italic_i = 0.
-    e_r = np.sum(e_rs, axis=1, dtype=np.uint32)
+    e_r = np.sum(e_rs, axis=1, dtype=np.uint64)
     sum_m_ii = 0.
     sum_m_ij = 0.
     sum_e_rs = 0.
@@ -360,13 +361,13 @@ def gen_unequal_partition(n, total, avg_deg, alpha):
     Parameters
     ----------
     n : ``int``
-        The number of communities.
+        Number of communities.
 
     total : ``int``
-        The number of nodes.
+        Number of nodes.
 
     avg_deg : ``float``
-        The average degree of the network.
+        Average degree of the network.
 
     alpha : ``float``
         The parameter of the Dirichlet distribution (the smaller the unevener the distribution is).
@@ -402,13 +403,13 @@ def gen_e_rs(b, n_edges, p=0):
     Parameters
     ----------
     b : ``int``
-        The number of communities within each type. (suppose Ka = Kb)
+        Number of communities within each type. (suppose Ka = Kb)
 
     n_edges : ``int``
-        The number of edges planted in the system.
+        Number of edges planted in the system.
 
     p : ``float``
-        The edge propensity between groups; i.e., the ratio c_out / c_in
+        Edge propensity between groups; i.e., the ratio :math:`c_{out} / c_{in}`.
 
     Returns
     -------
@@ -418,10 +419,10 @@ def gen_e_rs(b, n_edges, p=0):
     c = n_edges / (b + (b ** 2 - b) * p)
     c_in = c
     c_out = c * p
-    e_rs = np.zeros([b * 2, b * 2], dtype=np.uint32)
+    e_rs = np.zeros([b * 2, b * 2], dtype=np.uint64)
 
     perm = product(range(0, b), range(b, b * 2))
-    idx_in = np.linspace(0, b ** 2 - 1, b, dtype=np.uint32)
+    idx_in = np.linspace(0, b ** 2 - 1, b, dtype=np.uint64)
     for idx, p in enumerate(perm):
         i = p[0]
         j = p[1]
@@ -434,38 +435,54 @@ def gen_e_rs(b, n_edges, p=0):
 
 
 @jit(cache=True)
-def gen_e_rs_unequal(ka, kb, n_edges):
-    """gen_e_rs_unequal
+def gen_e_rs_harder(ka, kb, n_edges, samples=1, top_k=1):
+    """gen_e_rs_harder
 
     Parameters
     ----------
-    ka: ``int``
+    ka : ``int``
         Number of communities within type-`a`.
 
-    kb: ``int``
+    kb : ``int``
         Number of communities within type-`b`.
 
-    n_edges: ``int``
+    n_edges : ``int``
         Number of edges planted in the system.
+
+    samples : ``int``
+        Number of random draws made on :math:`e_{rs}`.
+
+    top_k : ``int``
+        Number of samples selected. These are `top-k` samples with higher profile likelihood.
 
     Returns
     -------
-    e_rs : :class:`numpy.ndarray`
+    e_rs : :class:`numpy.ndarray` or ``list[numpy.ndarray]`` (when ``top_k > 1``)
 
     """
-    c = list(map(int, np.random.dirichlet([1] * ka * kb, 1)[0] * n_edges))
-    remain_c = n_edges - sum(c)
-    for idx, _ in enumerate(range(remain_c)):
-        c[idx] += 1
-    e_rs = np.zeros([ka + kb, ka + kb], dtype=np.uint32)
-
-    perm = product(range(0, ka), range(ka, ka + kb))
-    for idx, p in enumerate(perm):
-        i = p[0]
-        j = p[1]
-        e_rs[i][j] = c[idx]
-        e_rs[j][i] = e_rs[i][j]
-    return e_rs
+    assert type(top_k) is int and top_k > 0, "Argument `top_k` needs to be a positive integer."
+    e_rs_inst = []
+    for _ in range(int(samples)):
+        e_rs = np.zeros([ka + kb, ka + kb], dtype=np.uint64)
+        c = list(map(int, np.random.dirichlet([1] * ka * kb, 1)[0] * n_edges))
+        remain_c = n_edges - sum(c)
+        for idx, _ in enumerate(range(remain_c)):
+            c[idx] += 1
+        perm = product(range(0, ka), range(ka, ka + kb))
+        for idx, p in enumerate(perm):
+            i = p[0]
+            j = p[1]
+            e_rs[i][j] = c[idx]
+            e_rs[j][i] = e_rs[i][j]
+        heapq.heappush(e_rs_inst, (- compute_profile_likelihood_from_e_rs(e_rs), e_rs))
+    e_rs = heapq.heappop(e_rs_inst)[1]
+    if samples == 1 or top_k == 1:
+        return e_rs
+    else:
+        e_rs = []
+        for _ in range(top_k):
+            e_rs += [heapq.heappop(e_rs_inst)[1]]
+        return e_rs
 
 
 def gen_e_rs_hard(ka, kb, n_edges, p=0):
@@ -483,6 +500,7 @@ def gen_e_rs_hard(ka, kb, n_edges, p=0):
         Number of edges planted in the system.
 
     p : ``float``
+        Edge propensity between groups; i.e., the ratio :math:`c_{out} / c_{in}`.
 
     Returns
     -------
@@ -513,7 +531,7 @@ def gen_e_rs_hard(ka, kb, n_edges, p=0):
     c_in = c
     c_out = c * p
 
-    e_rs = np.zeros([ka + kb, ka + kb], dtype=np.uint32)
+    e_rs = np.zeros([ka + kb, ka + kb], dtype=np.uint64)
     perm = product(range(0, ka), range(ka, ka + kb))
     for _, p in enumerate(perm):
         i = p[0]
@@ -696,11 +714,11 @@ def assemble_n_r_from_mb(mb):
     n_r = np.zeros(np.max(mb) + 1)
     for block_id in mb:
         n_r[block_id] += 1
-    n_r = np.array([int(x) for x in n_r], dtype=np.uint32)
+    n_r = np.array([int(x) for x in n_r], dtype=np.uint64)
     return n_r
 
 
-@jit(uint32[:](uint32[:, :], uint32[:]), cache=True)
+@jit(uint64[:](uint64[:, :], uint64[:]), cache=True)
 def assemble_n_k_from_edgelist(edgelist, mb):
     """Get n_k, or the number n_k of nodes of degree k.
 
@@ -721,7 +739,7 @@ def assemble_n_k_from_edgelist(edgelist, mb):
         k[edge[1]] += 1
 
     max_ = np.max(k).__int__()
-    n_k = np.zeros(max_ + 1, dtype=np.uint32)
+    n_k = np.zeros(max_ + 1, dtype=np.uint64)
     for k_ in k:
         n_k[k_.__int__()] += 1
     return n_k
@@ -750,7 +768,7 @@ def assemble_e_rs_from_mb(edgelist, mb):
     return e_rs.toarray()
 
 
-@jit(uint32[:, :](uint32[:, :], uint32[:]), cache=True)
+@jit(uint64[:, :](uint64[:, :], uint64[:]), cache=True)
 def assemble_eta_rk_from_edgelist_and_mb(edgelist, mb):
     """Get eta_rk, or the number eta_rk of nodes of degree k that belong to group r.
 
@@ -966,7 +984,7 @@ def get_desc_len_from_data_uni(n, n_edges, k, edgelist, mb):
     return desc_len_b
 
 
-@jit(uint32[:](uint32[:], uint32[:]), cache=True, fastmath=True)
+@jit(uint64[:](uint64[:], uint64[:]), cache=True, fastmath=True)
 def accept_mb_merge(mb, mlist):
     """accept_mb_merge
 
@@ -986,7 +1004,7 @@ def accept_mb_merge(mb, mlist):
         The merged partition.
 
     """
-    _mb = np.zeros(mb.size, dtype=np.uint32)
+    _mb = np.zeros(mb.size, dtype=np.uint64)
     mlist.sort()
     for _node_id, _g in enumerate(mb):
         if _g == mlist[1]:
@@ -1000,9 +1018,11 @@ def accept_mb_merge(mb, mlist):
     return _mb
 
 
-@jit(Tuple((uint32, uint32, uint32[:, :], uint32[:]))(uint32, uint32, uint32[:, :]), cache=True, fastmath=True)
+@jit(Tuple((uint64, uint64, uint64[:, :], uint64[:]))(uint64, uint64, uint64[:, :]), cache=True, fastmath=True)
 def merge_matrix(ka, kb, m_e_rs):
     """
+    Deprecated.
+
     Merge random two rows of the affinity matrix (dim = K) to gain a reduced matrix (dim = K - 1)
 
     Parameters

@@ -10,7 +10,7 @@ If one wants to do the graph partitioning using Kerninghan-Lin, one initiates a 
     from engines.kl import *
     kl = KL(f_engine="engines/bipartiteSBM-KL/biSBM",
             n_sweeps=2,                                        # Note that this will generate <n_sweeps> output sub-folders in <f_kl_output>
-            is_parallel=True,
+            is_parallel=False,
             n_cores=2,
             kl_edgelist_delimiter="\t",                        # [KL] due to the KL code accepts 1-indexed nodes by default, we used the delimiter to transform our 0-indexed input.
             kl_steps=4,                                        # [KL] the number of random initializations (see the README_cplusplus.txt file)
@@ -34,7 +34,7 @@ The remaining codes are similar. ::
    types = kl.gen_types(500, 500)
 
    oks = OptimalKs(kl, edgelist, types)
-   oks.set_params(init_ka=10, init_kb=10, i_th=0.1)
+   oks.set_params(init_ka=10, init_kb=10, i_0=0.1)
    oks.minimize_bisbm_dl()
 
 We will see that it correctly finds :math:`K_a=4` and :math:`K_b=6` as a result.

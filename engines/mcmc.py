@@ -11,13 +11,13 @@ class MCMC(object):
     f_engine : ``str`` (required, default: `"engines/bipartiteSBM-MCMC/bin/mcmc"`)
         Path to the graph partitioning binary.
 
-    n_sweeps : ``int`` (required, default: `4`)
+    n_sweeps : ``int`` (required, default: `1`)
         Number of partitioning computations for each :math:`(K_a, K_b)` data point.
 
-    is_parallel : ``bool`` (required, default: `True`)
+    is_parallel : ``bool`` (required, default: `False`)
         Whether to compute the partitioning in parallel.
 
-    n_cores : ``int`` (required, default: `4`)
+    n_cores : ``int`` (required, default: `1`)
         The number of cores used when `is_parallel is True`.
 
     algm_name : ``str`` (required, default: `mcmc`)
@@ -46,9 +46,9 @@ class MCMC(object):
     """
     def __init__(self,
                  f_engine="engines/bipartiteSBM-MCMC/bin/mcmc",
-                 n_sweeps=4,
-                 is_parallel=True,
-                 n_cores=4,
+                 n_sweeps=1,
+                 is_parallel=False,
+                 n_cores=1,
                  algm_name="mcmc",
                  mcmc_steps=1e5,
                  mcmc_await_steps=2e3,

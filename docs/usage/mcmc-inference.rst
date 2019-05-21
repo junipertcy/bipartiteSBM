@@ -3,9 +3,9 @@ Example MCMC inference
 As an example, we are going to find the partition that gives the minimum description length on a small graph
 in `dataset/southernWomen.edgelist`.
 
-To begin, let's first import the class and functions. ::
+To begin, let's first import the functions that we need. ::
 
-   from det_k_bisbm.ioutils import *
+   from det_k_bisbm.ioutils import get_edgelist, get_types
    from det_k_bisbm.optimalks import *
 
 Here, we will fit the biSBM via the `Markov Chain Monte Carlo <https://github.com/junipertcy/bipartiteSBM-MCMC>`_ algorithm. ::
@@ -20,13 +20,13 @@ of the `southern women dataset` at :math:`K_a=3` and :math:`K_b=2`. ::
    mcmc.prepare_engine("dataset/test/southernWomen.edgelist", 18, 14, 3, 2)
    # Out[*]: 'engines/bipartiteSBM-MCMC/bin/mcmc -e dataset/test/southernWomen.edgelist -n 6 6 6 7 7 -t 1000000 -x 100000 -c abrupt_cool -a 100000.0 -y 18 14 -z 3 2 -E 0.001 -g
 
-In addition, we have to tell the program which are type-1 nodes and which are type-2.
+In addition, we have to tell the program which are type-`a` nodes and which are type-`b`.
 We assume that the node indices in the dataset run in a specific order; that is,
-nodes of type-1 are indexed first and then followed by nodes of type-2.
+nodes of type-`a` are indexed first and then followed by nodes of type-`b`.
 For example, we have the number (i.e., size) of type-1 nodes as :math:`n_a=18`,
 while number of type-2 nodes is :math:`n_b=14`.
 
-This means that the node indices `0 .. 18` are type-1 nodes and `18 .. 32` are type-2 nodes.
+This means that the node indices :math:`0 \dots 18` are type-`a` nodes and :math:`18 \dots 32` are type-`b` nodes.
 Once we specified the engine that we liked, it's time to bake the dataset!  ::
 
    edgelist = get_edgelist("dataset/test/southernWomen.edgelist", "\t")
@@ -68,14 +68,13 @@ We may simply run,  ::
 
     oks.summary()
     # Out[*]:
-    # OrderedDict([('init_ka', 6),
-    #              ('init_kb', 7),
-    #              ('na', 18),
-    #              ('nb', 14),
-    #              ('e', 89),
-    #              ('avg_k', 5.5625),
-    #              ('ka', 1),
-    #              ('kb', 1),
-    #              ('mdl', 191.72536162138402)])
+    # {'algm_args': {'init_ka': 6, 'init_kb': 7, 'i_0': 0.3065136807765042},
+    #  'na': 18,
+    #  'nb': 14,
+    #  'e': 89,
+    #  'avg_k': 5.5625,
+    #  'ka': 1,
+    #  'kb': 1,
+    #  'mdl': 191.72536162138402}
 
 We conclude a trivial bipartite partition for the southern women dataset!

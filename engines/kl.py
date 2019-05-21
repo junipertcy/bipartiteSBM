@@ -43,9 +43,9 @@ class KL(object):
     """
     def __init__(self,
                  f_engine="engines/bipartiteSBM-KL/biSBM",
-                 n_sweeps=4,
-                 is_parallel=True,
-                 n_cores=4,
+                 n_sweeps=1,
+                 is_parallel=False,
+                 n_cores=1,
                  algm_name="kl",
                  kl_edgelist_delimiter="\t",
                  kl_steps=5,

@@ -22,14 +22,14 @@ class OptimalKs(object):
     verbose : ``bool`` (optional, default: ``False``)
         Logging level used. If ``True``, progress information will be shown.
 
-    is_default_args :  ``bool`` (optional, default: ``True``)
+    default_args :  ``bool`` (optional, default: ``True``)
         Arguments for initiating the heuristic. If ``False``, we should use :func:`set_params`,
         :func:`set_adaptive_ratio`, :func:`set_k_th_neighbor_to_search`, and :func:`set_nm` to set the default
         parameters.
 
-    is_random_init_k : ``bool`` (optional, default: `False`)
+    random_init_k : ``bool`` (optional, default: `False`)
 
-    is_bipartite_prior : ``bool`` (optional, default: ``True``)
+    bipartite_prior : ``bool`` (optional, default: ``True``)
         Whether to use the bipartite prior for edge counts for the algorithm. If ``False``, we will pretend that we
         do not assume a bipartite structure at the level of the :math:`e_{rs}` matrix. This is what has been used in
         :func:`graph_tool.inference.minimize_blockmodel_dl`, even if its ``state_args`` is customized to be bipartite.
@@ -47,9 +47,9 @@ class OptimalKs(object):
                  edgelist,
                  types,
                  verbose=False,
-                 is_default_args=True,
-                 is_random_init_k=False,
-                 is_bipartite_prior=True,
+                 default_args=True,
+                 random_init_k=False,
+                 bipartite_prior=True,
                  tempdir=None):
 
         self.engine_ = engine.engine  # TODO: check that engine is an object
@@ -57,7 +57,7 @@ class OptimalKs(object):
         self.is_par_ = engine.PARALLELIZATION
         self.n_cores_ = engine.NUM_CORES
         self.algm_name_ = engine.ALGM_NAME
-        self.virgin_run = True
+        self._virgin_run = True
 
         self.bm_state = dict()
         self.bm_state["types"] = types  # TODO: "types" is only used to compute na and nb. Can be made more generic.
@@ -75,16 +75,16 @@ class OptimalKs(object):
             elif _type in ["2", 2]:
                 self.bm_state["n_b"] += 1
 
-        self.edgelist = np.array(edgelist, dtype=np.uint32)
+        self.edgelist = np.array(edgelist, dtype=np.uint64)
         self.bm_state["e"] = len(self.edgelist)
         self.i_0s = []
-        if engine.ALGM_NAME == "mcmc" and is_default_args:
+        if engine.ALGM_NAME == "mcmc" and default_args:
             engine.set_steps(self.bm_state["n"] * 1e5)
             engine.set_await_steps(self.bm_state["n"] * 2e3)
             engine.set_cooling("abrupt_cool")
             engine.set_cooling_param_1(self.bm_state["n"] * 1e3)
             engine.set_epsilon(1.)
-        if is_default_args:
+        if default_args:
             self.bm_state["ka"] = int(self.bm_state["e"] ** 0.5 / 2)
             self.bm_state["kb"] = int(self.bm_state["e"] ** 0.5 / 2)
             self.i_0 = 1.
@@ -94,7 +94,7 @@ class OptimalKs(object):
         else:
             self.bm_state["ka"] = self.bm_state["kb"] = self.i_0 = \
                 self.adaptive_ratio = self._k_th_nb_to_search = self._nm = None
-        if is_random_init_k:
+        if random_init_k:
             self.bm_state["ka"] = np.random.randint(1, self.bm_state["ka"] + 1)
             self.bm_state["kb"] = np.random.randint(1, self.bm_state["kb"] + 1)
 
@@ -108,9 +108,12 @@ class OptimalKs(object):
 
         # for debug/temp variables
         self.tempdir = tempdir
-        if tempdir is not None or "":
+        if self.is_par_:
+            # To prevent "TypeError: cannot serialize '_io.TextIOWrapper' object" when using loky
+            self.f_edgelist = tempfile.NamedTemporaryFile(mode='w+b', dir=tempdir, delete=False)
+            self.__del__no_call = True
+        else:
             self.f_edgelist = tempfile.NamedTemporaryFile(mode='w+b', dir=tempdir, delete=True)
-        # To prevent "TypeError: cannot serialize '_io.TextIOWrapper' object" when using loky
         self._f_edgelist_name = self._get_tempfile_edgelist()
 
         # logging
@@ -120,9 +123,10 @@ class OptimalKs(object):
             _logging_level = "WARNING"
         self._logger = logging.Logger
         self._set_logging_level(_logging_level)
-        self._summary = OrderedDict()
-        self._summary["init_ka"] = self.bm_state["ka"]
-        self._summary["init_kb"] = self.bm_state["kb"]
+        self._summary = dict()
+        self._summary["algm_args"] = {}
+        self._summary["algm_args"]["init_ka"] = self.bm_state["ka"]
+        self._summary["algm_args"]["init_kb"] = self.bm_state["kb"]
         self._summary["na"] = self.bm_state["n_a"]
         self._summary["nb"] = self.bm_state["n_b"]
         self._summary["e"] = self.bm_state["e"]
@@ -132,15 +136,15 @@ class OptimalKs(object):
         self.__q_cache_max_e_r = self.bm_state["e"] if self.bm_state["e"] <= int(1e4) else int(1e4)
         self.__q_cache = init_q_cache(self.__q_cache_max_e_r)
 
-        self.bipartite_prior_ = is_bipartite_prior
+        self.bipartite_prior_ = bipartite_prior
 
-    def minimize_bisbm_dl(self, is_bipartite_prior=True):
+    def minimize_bisbm_dl(self, bipartite_prior=True):
         """Fit the bipartite stochastic block model, by minimizing its description length using an agglomerative
         heuristic.
 
         Parameters
         ----------
-        is_bipartite_prior : ``bool`` (optional, default ``True``)
+        bipartite_prior : ``bool`` (optional, default ``True``)
 
         Returns
         -------
@@ -151,11 +155,11 @@ class OptimalKs(object):
         .. [yen-bipartite-2019] Tzu-Chi Yen and Daniel B. Larremore, "Blockmodeling on a Bipartite Network with Bipartite Priors", in preparation.
 
         """
-        self.bipartite_prior_ = is_bipartite_prior
+        self.bipartite_prior_ = bipartite_prior
         self._prerunning_checks()
 
         self._compute_dl_and_update(1, 1)
-        if self.algm_name_ == "mcmc" and self.virgin_run:
+        if self.algm_name_ == "mcmc" and self._virgin_run:
             self._natural_merge()
 
         if self._check_if_local_minimum(self.bm_state["ka"], self.bm_state["kb"]):
@@ -178,7 +182,7 @@ class OptimalKs(object):
                 else:
                     break
             self._logger.info("Escape while-loop, Re-do minimize_bisbm_dl().")
-            return self.minimize_bisbm_dl(is_bipartite_prior=self.bipartite_prior_)
+            return self.minimize_bisbm_dl(bipartite_prior=self.bipartite_prior_)
 
     def summary(self):
         """Return a summary of the algorithmic outcome.
@@ -255,8 +259,8 @@ class OptimalKs(object):
             return res[0], res[1], res[2]
 
         if not recompute:
-            ka_ = self._summary["init_ka"]
-            kb_ = self._summary["init_kb"]
+            ka_ = self._summary["algm_args"]["init_ka"]
+            kb_ = self._summary["algm_args"]["init_kb"]
             dist = np.sqrt((ka_ - ka) ** 2 + (kb_ - kb) ** 2)
             if dist <= self._k_th_nb_to_search * np.sqrt(2):
                 _mb = None
@@ -277,7 +281,9 @@ class OptimalKs(object):
         results = []
         if self.is_par_:
             # automatically shutdown after idling for 600s
+            self.__del__no_call = True
             results = list(loky_executor(self.n_cores_, 600, lambda x: run(ka, kb), list(range(self.max_n_sweeps_))))
+            self.__del__no_call = False
         else:
             for _ in range(self.max_n_sweeps_):
                 results += [run(ka, kb)]
@@ -298,7 +304,9 @@ class OptimalKs(object):
         results = []
         if self.is_par_:
             # automatically shutdown after idling for 600s
+            self.__del__no_call = True
             results = list(loky_executor(self.n_cores_, 600, lambda x: run(0), list(range(self.max_n_sweeps_))))
+            self.__del__no_call = False
         else:
             for _ in range(self.max_n_sweeps_):
                 results += [run(0)]
@@ -315,8 +323,8 @@ class OptimalKs(object):
 
     def _natural_merge(self):
         dl, e_rs, mb, ka, kb = self.natural_merge()
-        self._summary["init_ka"] = ka
-        self._summary["init_kb"] = kb
+        self._summary["algm_args"]["init_ka"] = ka
+        self._summary["algm_args"]["init_kb"] = kb
         self._logger.info(f"Natural agglomerative merge to ({ka}, {kb}).")
         self.bookkeeping_dl[(ka, kb)] = dl
         self.bookkeeping_e_rs[(ka, kb)] = e_rs
@@ -324,7 +332,7 @@ class OptimalKs(object):
             max(mb) + 1, ka + kb)
         self.trace_mb[(ka, kb)] = mb
         self._update_bm_state(ka, kb, e_rs, mb)
-        self.virgin_run = False
+        self._virgin_run = False
 
     def _determine_i_0(self, diff_dl):
         if self.i_0 < 1:
@@ -334,6 +342,8 @@ class OptimalKs(object):
         iqr = np.percentile(self.i_0s, 75) - np.percentile(self.i_0s, 25)
         if i_0 > 3 * iqr + np.percentile(self.i_0s, 75):
             self.i_0 = i_0
+            self._summary["algm_args"]["i_0"] = i_0
+            self._logger.info(f"Determining i_0 at {i_0}.")
             return True
         else:
             return False
@@ -426,7 +436,6 @@ class OptimalKs(object):
 
     def _check_if_local_minimum(self, ka, kb):
         """The `neighborhood search` as described in the paper."""
-        self.is_tempfile_existed = True
         k_th = self._k_th_nb_to_search
         self._logger.info(f"Checking if {(ka, kb)} is a local minimum.")
         _dl, _e_rs, _mb = self._compute_dl_and_update(ka, kb)
@@ -510,8 +519,9 @@ class OptimalKs(object):
             "n_a"], "[ERROR] Number of type-a communities must be smaller than the # nodes in type-a."
         assert self.bm_state["kb"] <= self.bm_state[
             "n_b"], "[ERROR] Number of type-b communities must be smaller than the # nodes in type-b."
-        self._summary["init_ka"] = self.bm_state["ka"]
-        self._summary["init_kb"] = self.bm_state["kb"]
+        self._summary["algm_args"]["init_ka"] = self.bm_state["ka"]
+        self._summary["algm_args"]["init_kb"] = self.bm_state["kb"]
+        self._summary["algm_args"]["i_0"] = float(i_0)
 
     def set_adaptive_ratio(self, adaptive_ratio=0.95):
         """Set the adaptive ratio (``float`` between 0 to 1, defaults to ``0.95``)."""
@@ -525,6 +535,9 @@ class OptimalKs(object):
         """Set the :math:`n_m` parameter (defaults to ``10``)."""
         self._nm = int(s)
 
+    def get_f_edgelist_name(self):
+        return self._f_edgelist_name
+
     def get__q_cache(self):
         return self.__q_cache
 
@@ -537,7 +550,7 @@ class OptimalKs(object):
         >>>    self.__q_cache_f_name = os.path.join(tempfile.mkdtemp(dir=tempdir), '__q_cache.dat')
         >>>    try:
         >>>        max_e_r = self.bm_state["e"] if self.bm_state["e"] <= int(1e4) else int(1e4)
-        >>>        self.__q_cache = np.memmap(self.__q_cache_f_name, dtype='uint32', mode='r', shape=(
+        >>>        self.__q_cache = np.memmap(self.__q_cache_f_name, dtype='uint64', mode='r', shape=(
         >>>            max_e_r + 1, max_e_r + 1)
         >>>         )
         >>>    except FileNotFoundError as e:
@@ -552,7 +565,7 @@ class OptimalKs(object):
 
         """
         self.__q_cache = q_cache
-        fp = np.memmap(self.__q_cache_f_name, dtype='uint32', mode="w+", shape=(q_cache.shape[0], q_cache.shape[1]))
+        fp = np.memmap(self.__q_cache_f_name, dtype='uint64', mode="w+", shape=(q_cache.shape[0], q_cache.shape[1]))
         fp[:] = self.__q_cache[:]
         del fp
 
@@ -572,10 +585,23 @@ class OptimalKs(object):
         try:
             self.f_edgelist.seek(0)
         except AttributeError:
-            self.f_edgelist = tempfile.NamedTemporaryFile(mode='w+b', dir=self.tempdir, delete=True)
+            if self.is_par_:
+                delete = False
+            else:
+                delete = True
+            self.f_edgelist = tempfile.NamedTemporaryFile(mode='w+b', dir=self.tempdir, delete=delete)
         finally:
             for edge in self.edgelist:
                 content = str(edge[0]) + "\t" + str(edge[1]) + "\n"
                 self.f_edgelist.write(content.encode())
             self.f_edgelist.flush()
-        return self.f_edgelist.name
+            f_edgelist_name = self.f_edgelist.name
+        if self.is_par_:
+            del self.f_edgelist
+        return f_edgelist_name
+
+    def __del__(self):
+        if self.__del__no_call:
+            return
+        if self.is_par_:
+            os.remove(self._f_edgelist_name)

@@ -9,21 +9,36 @@ we call `Graph-tool <https://graph-tool.skewed.de/>`_'s
 generate a graph-tool graph instance,
 and then use that instance as an input for our :class:`det_k_bisbm.optimalks.OptimalKs` class.
 
-Block membership
-----------------
+Block membership :math:`\textbf{b}`
+---------------------------------
 
-Edge count matrix
------------------
+Edge count matrix :math:`e_{rs}`
+--------------------------------
 
 Easy cases
 ~~~~~~~~~~
 The easy cases are like planted partition models, but in the bipartite form, where :math:`K_a = K_b`.
 
 
+.. figure:: ../_images/easy_(5-5).png
+   :scale: 50%
+   :align: center
+
+   A easy case with :math:`\langle k\rangle = 10` and :math:`p=0.1`, planted as :math:`(K_a, K_b) = (5, 5)`
+   equally-sized communities.
+
 Hard cases
 ~~~~~~~~~~
 The hard cases are planted networks where :math:`K_a \neq K_b`, but the edge count matrix is still
 designed in a way that allow the control of network structural strength.
+
+.. figure:: ../_images/hard_(5-31).png
+   :scale: 50%
+   :align: center
+
+   A hard case with :math:`\langle k\rangle = 10` and :math:`p=0.1`, planted as :math:`(K_a, K_b) = (5, 31)`
+   equally-sized communities.
+
 
 
 Even harder cases
@@ -31,6 +46,13 @@ Even harder cases
 A even harder case is simply a random draw out of the ensemble of edge count matrices where we 
 only fix :math:`K_a` and :math:`K_b`.
 
+.. figure:: ../_images/harder_(5-31).png
+   :scale: 50%
+   :align: center
 
-Degree distribution
--------------------
+   A harder case with :math:`\langle k\rangle = 10`, planted as :math:`(K_a, K_b) = (5, 31)`
+   equally-sized communities. This is the strongest structure out of :math:`10^6` random :math:`e_{rs}` draws.
+
+
+Degree distribution :math:`d`
+-----------------------------

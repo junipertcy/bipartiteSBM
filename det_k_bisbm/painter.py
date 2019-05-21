@@ -101,8 +101,11 @@ def paint_block_mat(mb, edgelist, save2file=False, figsize=(3, 3), **kwargs):
         plt.savefig(path + '.eps', format='eps', dpi=300)
 
 
-def paint_sorted_adj_mat(mb, edgelist, save2file=False, figsize=(3, 3), **kwargs):
+def paint_sorted_adj_mat(mb, edgelist, output=None, fmt='auto', figsize=(3, 3), dpi=200, output_size=(600, 600),
+                         invert=True, **kwargs):
+    font = {'family': 'serif'}
     plt.figure(figsize=figsize)
+    fig, ax = plt.subplots()
     mb = np.argsort(mb)
     A = np.zeros([len(mb), len(mb)])
     for edge in edgelist:
@@ -111,13 +114,21 @@ def paint_sorted_adj_mat(mb, edgelist, save2file=False, figsize=(3, 3), **kwargs
         A[np.argwhere(mb == e0)[0][0]][np.argwhere(mb == e1)[0][0]] += 1
         A[np.argwhere(mb == e1)[0][0]][np.argwhere(mb == e0)[0][0]] += 1
     M = sps.csr_matrix(A)
-    plt.spy(M, markersize=0.25, marker=".")
-    if save2file:
-        try:
-            path = kwargs["path"]
-        except KeyError:
-            raise (KeyError, "Please specify `path` for save2file.")
-        plt.savefig(path + '.eps', format='eps', dpi=300)
+    plt.spy(M, markersize=0.1, marker=",")
+    plt.xlabel(f"(Node index $i$) / {len(mb)}", fontdict=font)
+    plt.ylabel(f"(Node index $i$) / {len(mb)}", fontdict=font)
+
+    plt.xticks(np.linspace(0, 1, 5) * len(mb), ('0', '0.25', '0.5', '0.75', '1'))
+    plt.yticks(np.linspace(0, 1, 5) * len(mb), ('0', '0.25', '0.5', '0.75', '1'))
+    if invert:
+        plt.gca().invert_yaxis()
+        ax.tick_params(axis="y", direction="in")
+        ax.tick_params(axis="x", direction="in")
+        ax.xaxis.set_ticks_position("bottom")
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+    if output is not None:
+        plt.savefig(output, format=fmt, dpi=dpi, transparent=True)
 
 
 def paint_trace(oks, save2file=False, figsize=(3, 3), **kwargs):
