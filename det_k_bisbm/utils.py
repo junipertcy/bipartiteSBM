@@ -173,7 +173,11 @@ def adjacency_entropy(edgelist, mb, exact=True, multigraph=True):
 def model_entropy(e, ka=None, kb=None, na=None, nb=None, nr=None, allow_empty=False, is_bipartite=True):
     """model_entropy
 
-    model_entropy
+    Computes the amount of information necessary for the parameters of the (bipartite) blockmodel ensemble,
+    for ``ka`` type-`a` blocks, ``kb`` type-`b` blocks, ``na`` type-`a` vertices,
+    ``nb`` vertices, ``e`` edges, and either bipartite or general as a prior.
+
+    Note that if we know `a priori` that the network is bipartite, we can further compress the model.
 
     Parameters
     ----------
@@ -187,7 +191,7 @@ def model_entropy(e, ka=None, kb=None, na=None, nb=None, nr=None, allow_empty=Fa
 
     nb : ``int``
 
-    nr : ``int``
+    nr : :class:`numpy.ndarray`
 
     allow_empty : ``bool``
 
@@ -196,6 +200,17 @@ def model_entropy(e, ka=None, kb=None, na=None, nb=None, nr=None, allow_empty=Fa
     Returns
     -------
     dl : ``float``
+
+    References
+    ----------
+
+    .. [peixoto-parsimonious-2013] Tiago P. Peixoto, "Parsimonious module
+       inference in large networks", Phys. Rev. Lett. 110, 148701 (2013),
+       :doi:`10.1103/PhysRevLett.110.148701`, :arxiv:`1212.4794`.
+    .. [peixoto-nonparametric-2017] Tiago P. Peixoto, "Nonparametric
+       Bayesian inference of the microcanonical stochastic block model",
+       Phys. Rev. E 95 012317 (2017), :doi:`10.1103/PhysRevE.95.012317`,
+       :arxiv:`1610.02703`
 
     """
     if not is_bipartite:
@@ -762,8 +777,9 @@ def assemble_e_rs_from_mb(edgelist, mb):
     sources, targets = zip(*edgelist)
     sources = [mb[node] for node in sources]
     targets = [mb[node] for node in targets]
-    data = np.ones(len(sources + targets), dtype=int)
-    e_rs = coo_matrix((data, (sources + targets, targets + sources)), shape=(max(mb) + 1, max(mb) + 1))
+    data = np.ones(len(sources + targets), dtype=np.uint64)
+    shape = int(np.max(mb) + 1)
+    e_rs = coo_matrix((data, (sources + targets, targets + sources)), shape=(shape, shape))
 
     return e_rs.toarray()
 
@@ -1151,3 +1167,55 @@ def loky_executor(max_workers, timeout, func, feeds):
     loky_executor = get_reusable_executor(max_workers=int(max_workers), timeout=int(timeout))
     results = loky_executor.map(func, feeds)
     return results
+
+
+# ##########################
+# Requires graph-tool to run
+# ##########################
+
+def get_flat_entropies(state):
+    na = sum(state.pclabel.a == 0)
+    dl = dict()
+    dl["mdl"] = state.entropy()
+    dl["ka"] = len(set(state.b.a.tolist()[:na]))
+    dl["kb"] = len(set(state.b.a.tolist()[na:]))
+    dl["adjacency"] = state.entropy(adjacency=1) - state.entropy(adjacency=0)
+    dl["partition"] = state.entropy(partition_dl=1) - state.entropy(partition_dl=0)
+    dl["degree"] = state.entropy(degree_dl=1) - state.entropy(degree_dl=0)
+    dl["edges"] = state.entropy(edges_dl=1) - state.entropy(edges_dl=0)
+    return dl
+
+
+def get_nested_entropies(state):
+    na = sum(state.pclabel.a == 0)
+    dl = dict()
+    dl["mdl"] = state.entropy()
+    dl["ka"] = len(set(state.levels[0].b.a.tolist()[:na]))
+    dl["kb"] = len(set(state.levels[0].b.a.tolist()[na:]))
+
+    dl["partition"] = state.levels[0].entropy(partition_dl=1) - state.levels[0].entropy(partition_dl=0)
+    dl["edges"] = state.levels[0].entropy(edges_dl=1) - state.levels[0].entropy(edges_dl=0)
+    dl["degree"] = state.levels[0].entropy(degree_dl=1) - state.levels[0].entropy(degree_dl=0)
+    dl["adjacency"] = state.levels[0].entropy(adjacency=1) - state.levels[0].entropy(adjacency=0)
+
+    multigraph_dls = []
+    for i in range(1, len(state.levels)):
+        adj = state.levels[i].entropy(adjacency=1, multigraph=1, partition_dl=0, degree_dl=0, edges_dl=0, dense=1)
+        partition = state.levels[i].entropy(adjacency=0, multigraph=1, partition_dl=1, degree_dl=0, edges_dl=0, dense=1)
+
+        if i != len(state.levels) - 1:
+            edges = 0.
+        else:
+            edges = state.levels[i].entropy(adjacency=0, multigraph=1, partition_dl=0, degree_dl=0, edges_dl=1, dense=1)
+        degree = state.levels[i].entropy(adjacency=0, multigraph=1, partition_dl=0, degree_dl=1, edges_dl=0, dense=1)
+        total = adj + partition + edges + degree
+        multigraph_dls += [{
+            "sum": total,
+            "adjacency": adj,
+            "partition": partition,
+            "edges": edges,
+            "degree": degree
+        }]
+    dl["intermediate_dls"] = multigraph_dls
+    dl["edge_dl_nested"] = sum(map(lambda x: x["sum"], multigraph_dls))
+    return dl

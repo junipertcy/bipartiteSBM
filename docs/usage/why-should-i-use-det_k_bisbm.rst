@@ -1,16 +1,16 @@
 Why should I use det_k_bisbm?
 =============================
 
-The :mod:`det_k_bisbm` is a replacement for `graph-tool <https://graph-tool.skewed.de/>`_'s
-`minimize_blockmodel_dl() <https://graph-tool.skewed.de/static/doc/inference.html#graph_tool.inference.minimize.minimize_blockmodel_dl>`_ function,
+The :mod:`det_k_bisbm` is a replacement for `Graph-tool <https://graph-tool.skewed.de/>`_'s
+:func:`graph_tool.inference.minimize.minimize_blockmodel_dl` function,
 specifically targets for bipartite networks, with the following advantages:
 
 * control directly the numbers of communities to infer for a bipartite network. There are 2 numbers that we can specify; i.e., :math:`K_a` and :math:`K_b`, one for each node type.
 
 * conclude a different partition with a smaller description length (and a higher AMI on tested synthetic dataset).
 
-And, similar to `minimize_blockmodel_dl() <https://graph-tool.skewed.de/static/doc/inference.html#graph_tool.inference.minimize.minimize_blockmodel_dl>`_
-and `minimize_nested_blockmodel_dl() <https://graph-tool.skewed.de/static/doc/inference.html#graph_tool.inference.minimize.minimize_nested_blockmodel_dl>`_,
+And, similar to :func:`graph_tool.inference.minimize.minimize_blockmodel_dl`
+and :func:`graph_tool.inference.minimize.minimize_nested_blockmodel_dl`,
 it shares with many of their good properties:
 
 * converge to consistent partitions.
@@ -19,6 +19,6 @@ it shares with many of their good properties:
 
 However, there are also some disadvantages of this program:
 
-* It's slower than :func:`minimize_blockmodel_dl`.
+* It's slower than :func:`graph_tool.inference.minimize.minimize_blockmodel_dl`.
 
 * It is not guaranteed to find the globally optimal partition.

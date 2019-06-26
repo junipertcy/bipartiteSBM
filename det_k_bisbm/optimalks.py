@@ -108,10 +108,11 @@ class OptimalKs(object):
 
         # for debug/temp variables
         self.tempdir = tempdir
+
+        self.__del__no_call = True
         if self.is_par_:
             # To prevent "TypeError: cannot serialize '_io.TextIOWrapper' object" when using loky
             self.f_edgelist = tempfile.NamedTemporaryFile(mode='w+b', dir=tempdir, delete=False)
-            self.__del__no_call = True
         else:
             self.f_edgelist = tempfile.NamedTemporaryFile(mode='w+b', dir=tempdir, delete=True)
         self._f_edgelist_name = self._get_tempfile_edgelist()
@@ -197,6 +198,18 @@ class OptimalKs(object):
         self._summary["ka"] = ka
         self._summary["kb"] = kb
         self._summary["mdl"] = self.bookkeeping_dl[(ka, kb)]
+
+        self._summary["dl"] = dict()
+        na = self.bm_state["n_a"]
+        nb = self.bm_state["n_b"]
+        e = self.bm_state["e"]
+        mb = self.trace_mb[(ka, kb)]
+        nr = assemble_n_r_from_mb(mb)
+        self._summary["dl"]["adjacency"] = float(adjacency_entropy(self.edgelist, mb))
+        self._summary["dl"]["partition"] = float(partition_entropy(ka=ka, kb=kb, na=na, nb=nb, nr=nr))
+        self._summary["dl"]["degree"] = float(degree_entropy(self.edgelist, mb, __q_cache=self.__q_cache))
+        self._summary["dl"]["edges"] = float(
+            model_entropy(e, ka=ka, kb=kb, na=na, nb=nb, nr=nr) - self._summary["dl"]["partition"])
         return self._summary
 
     def compute_and_update(self, ka, kb, recompute=True):

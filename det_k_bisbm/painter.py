@@ -185,11 +185,10 @@ def paint_trace(oks, save2file=False, figsize=(3, 3), **kwargs):
 
 
 def paint_dl_trace(oks, save2file=False, figsize=(5, 3), **kwargs):
+    qc = oks.get__q_cache()
     na = oks.summary()["na"]
     nb = oks.summary()["nb"]
     e = oks.summary()["e"]
-    max_e_r = e if e <= int(1e4) else int(1e4)
-    qc = init_q_cache(max_e_r, np.array([], ndmin=2))
 
     fig, ax = plt.subplots(figsize=figsize, dpi=300)
     desc_len_list = []

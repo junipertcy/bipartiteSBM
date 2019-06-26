@@ -9,15 +9,18 @@ we call `Graph-tool <https://graph-tool.skewed.de/>`_'s
 generate a graph-tool graph instance,
 and then use that instance as an input for our :class:`det_k_bisbm.optimalks.OptimalKs` class.
 
-Block membership :math:`\textbf{b}`
----------------------------------
+Block membership :math:`b`
+--------------------------
 
 Edge count matrix :math:`e_{rs}`
 --------------------------------
 
 Easy cases
 ~~~~~~~~~~
-The easy cases are like planted partition models, but in the bipartite form, where :math:`K_a = K_b`.
+The easy cases are bipartite version of the planted partition models. It is a :math:`(K_a, K_b)`-bipartite structure
+with :math:`e_{rs} = p c / K + (1 - p)(1 - c)/K(K-1)`, where :math:`K_a = K_b = K` and :math:`p = c_{out}/c_{in}` is a
+parameter that controls how `crisp` the structure is. When :math:`p = 0`, we expect no connections at all between nodes
+of different groups, i.e., :math:`e_{rs} = E \delta_{rs}/ K`.
 
 
 .. figure:: ../_images/easy_(5-5).png

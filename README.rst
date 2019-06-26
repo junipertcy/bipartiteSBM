@@ -14,7 +14,7 @@ det_k_bisbm
 The ``det_k_bisbm`` is a Python library of a fast community inference heuristic of the bipartite Stochastic Block Model (biSBM),
 using the `MCMC sampler`_ or the `Kernighan-Lin algorithm`_. It estimates the number of communities (as well as the partition) for a bipartite network.
 
-.. figure::  http://wiki.junipertcy.info/images/1/10/Det_k_bisbm-logo.png
+.. figure::  https://wiki.junipertcy.info/images/1/10/Det_k_bisbm-logo.png
    :align:   center
 
    The ``det_k_bisbm`` helps you infer the number of communities in a bipartite network.

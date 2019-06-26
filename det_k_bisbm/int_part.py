@@ -9,8 +9,11 @@ large; otherwise, we use accurate asymptotic expressions to efficiently compute 
 [peixoto-nonparametric-2017]_
 
 References
-~~~~~~~~~~
-.. [peixoto-nonparametric-2017] Tiago P. Peixoto, “Nonparametric Bayesian inference of the microcanonical stochastic block model”, Phys. Rev. E 95 012317 (2017). DOI: 10.1103/PhysRevE.95.012317 [sci-hub, @tor], arXiv: 1610.02703
+----------
+.. [peixoto-nonparametric-2017] Tiago P. Peixoto, "Nonparametric
+   Bayesian inference of the microcanonical stochastic block model",
+   Phys. Rev. E 95 012317 (2017), :doi:`10.1103/PhysRevE.95.012317`,
+   :arxiv:`1610.02703`
 
 """
 import numpy as np
