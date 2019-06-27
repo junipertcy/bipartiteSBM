@@ -209,7 +209,8 @@ class OptimalKs(object):
         self._summary["dl"]["partition"] = float(partition_entropy(ka=ka, kb=kb, na=na, nb=nb, nr=nr))
         self._summary["dl"]["degree"] = float(degree_entropy(self.edgelist, mb, __q_cache=self.__q_cache))
         self._summary["dl"]["edges"] = float(
-            model_entropy(e, ka=ka, kb=kb, na=na, nb=nb, nr=nr) - self._summary["dl"]["partition"])
+            model_entropy(e, ka=ka, kb=kb, na=na, nb=nb, nr=nr, is_bipartite=self.bipartite_prior_) -
+            self._summary["dl"]["partition"])
         return self._summary
 
     def compute_and_update(self, ka, kb, recompute=True):

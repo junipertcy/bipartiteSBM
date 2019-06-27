@@ -1083,7 +1083,7 @@ def get_flat_entropies(state):
 
 
 def get_nested_entropies(state):
-    na = sum(state.pclabel.a == 0)
+    na = sum(state.levels[0].pclabel.a == 0)
     dl = dict()
     dl["mdl"] = state.entropy()
     dl["ka"] = len(set(state.levels[0].b.a.tolist()[:na]))
