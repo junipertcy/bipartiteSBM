@@ -36,24 +36,33 @@ def partition_entropy(ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=Non
     Parameters
     ----------
     ka : ``int``
+        Number of communities in type-*a*.
 
     kb : ``int``
+        Number of communities in type-*b*.
 
     k : ``int``
+        Number of communities in the graph.
 
     na : ``int``
+        Number of vertices in type-*a*.
 
     nb : ``int``
+        Number of vertices in type-*b*.
 
     n : ``int``
+        Number of vertices in the graph.
 
     nr : :class:`numpy.ndarray`
+        Vertex property array of the block graph which contains the block sizes.
 
-    allow_empty : ``bool``
+    allow_empty : ``bool`` (optional, default: ``False``)
+        If ``True``, partition description length computed will allow for empty groups.
 
     Returns
     -------
     ent : ``float``
+        The description length (or entropy) in nat of the partition.
 
     """
     if type(n) is int:
@@ -106,7 +115,7 @@ def adjacency_entropy(edgelist, mb, exact=True, multigraph=True):
     Returns
     -------
     ent : ``float``
-        the entropy.
+        The description length (or entropy) in nat of the fitting.
     """
     ent = 0.
     e_rs = np.zeros((max(mb) + 1, max(mb) + 1), dtype=np.uint64)
@@ -175,31 +184,41 @@ def model_entropy(e, ka=None, kb=None, na=None, nb=None, nr=None, allow_empty=Fa
 
     Computes the amount of information necessary for the parameters of the (bipartite) blockmodel ensemble,
     for ``ka`` type-`a` blocks, ``kb`` type-`b` blocks, ``na`` type-`a` vertices,
-    ``nb`` vertices, ``e`` edges, and either bipartite or general as a prior.
+    ``nb`` vertices, ``e`` edges, and either bipartite or general as a prior. This includes the entropy from
+    modeling the edge counts and the partition.
 
     Note that if we know `a priori` that the network is bipartite, we can further compress the model.
 
     Parameters
     ----------
     e : ``int``
+        Number of edges.
 
     ka : ``int``
+        Number of communities in type-*a*.
 
     kb : ``int``
+        Number of communities in type-*b*.
 
     na : ``int``
+        Number of vertices in type-*a*.
 
     nb : ``int``
+        Number of vertices in type-*b*.
 
     nr : :class:`numpy.ndarray`
+        Vertex property array of the block graph which contains the block sizes.
 
-    allow_empty : ``bool``
+    allow_empty : ``bool`` (optional, default: ``False``)
+        If ``True``, partition description length computed will allow for empty groups.
 
-    is_bipartite : ``bool``
+    is_bipartite : ``bool`` (optional, default: ``True``)
+        If ``False``, edge counts description length computed will assume a purely flat :math:`e_{rs}`.
 
     Returns
     -------
     dl : ``float``
+        The description length (or entropy) in nat of the model.
 
     References
     ----------
@@ -907,19 +926,19 @@ def get_desc_len_from_data(na, nb, n_edges, ka, kb, edgelist, mb, diff=False, nr
     Parameters
     ----------
     na : ``int``
-        Number of nodes in type-a.
+        Number of nodes in type-*a*.
 
     nb : ``int``
-        Number of nodes in type-b.
+        Number of nodes in type-*b*.
 
     n_edges : ``int``
         Number of edges.
 
     ka : ``int``
-        Number of communities in type-a.
+        Number of communities in type-*a*.
 
     kb : ``int``
-        Number of communities in type-b.
+        Number of communities in type-*b*.
 
     edgelist : ``list``
         Edgelist in Python list structure.
@@ -1032,129 +1051,6 @@ def accept_mb_merge(mb, mlist):
     assert max(_mb) + 1 == max(mb), \
         "[ERROR] inconsistency between the membership indexes and the number of blocks."
     return _mb
-
-
-@jit(Tuple((uint64, uint64, uint64[:, :], uint64[:]))(uint64, uint64, uint64[:, :]), cache=True, fastmath=True)
-def merge_matrix(ka, kb, m_e_rs):
-    """
-    Deprecated.
-
-    Merge random two rows of the affinity matrix (dim = K) to gain a reduced matrix (dim = K - 1)
-
-    Parameters
-    ----------
-    ka : ``int``
-        number of type-a communities in the affinity matrix
-
-    kb : ``int``
-        number of type-b communities in the affinity matrix
-
-    m_e_rs : :class:`numpy.ndarray`
-        the affinity matrix
-
-    Returns
-    -------
-    new_ka : ``int``
-        the new number of type-a communities in the affinity matrix
-
-    new_kb : ``int``
-        the new number of type-b communities in the affinity matrix
-
-    c : :class:`numpy.ndarray`
-        the new affinity matrix
-
-    merge_list : ``list(int, int)``
-        the two row-indexes of the original affinity matrix that were merged
-
-    """
-    assert type(m_e_rs) is np.ndarray, "[ERROR] input parameter (m_e_rs) should be of type numpy.ndarray"
-    assert np.all(m_e_rs.transpose() == m_e_rs), "[ERROR] input m_e_rs matrix is not symmetric!"
-
-    from_row = random.choices([0, ka], weights=[ka, kb], k=1)[0]
-    a = m_e_rs[0:ka, ka:ka + kb]
-
-    merge_list = list([0, 0])  # which two mb label should be merged together?
-    mb_map = OrderedDict()
-    new_ka = 0
-    new_kb = 0
-
-    if ka == 1:  # do not merge type-a rows (this happens when <i_0> is set too high)
-        from_row = ka
-    elif kb == 1:
-        from_row = 0
-
-    b = np.zeros([ka, kb])
-    if from_row == 0:
-        perm = np.arange(a.shape[0])
-        np.random.shuffle(perm)
-        for _ind in np.arange(a.shape[0]):
-            mb_map[_ind] = perm[_ind]
-        a = a[perm]
-
-        new_ka = ka - 1
-        new_kb = kb
-        b = np.zeros([new_ka, new_kb])
-        for ind_i, _a in enumerate(a):
-            for ind_j, __a in enumerate(_a):
-                if ind_i < from_row:
-                    b[ind_i][ind_j] = __a
-                elif ind_i > from_row + 1:
-                    b[ind_i - 1][ind_j] = __a
-                elif ind_i == from_row:
-                    b[ind_i][ind_j] += __a
-                elif ind_i == from_row + 1:
-                    b[ind_i - 1][ind_j] += __a
-
-        merge_list[0] = mb_map[from_row]
-        merge_list[1] = mb_map[from_row + 1]
-
-    elif from_row == ka:
-        perm = np.arange(a.shape[1])
-        np.random.shuffle(perm)
-        for _ind in np.arange(a.shape[1]):
-            mb_map[_ind] = perm[_ind]
-
-        new_ka = ka
-        new_kb = kb - 1
-        a = a.transpose()
-
-        a = a[perm]
-
-        b = np.zeros([new_kb, new_ka])
-        for ind_i, _a in enumerate(a):
-            for ind_j, __a in enumerate(_a):
-                if ind_i < from_row - new_ka:
-                    b[ind_i][ind_j] = __a
-                elif ind_i > from_row + 1 - new_ka:
-                    b[ind_i - 1][ind_j] = __a
-                elif ind_i == from_row - new_ka:
-                    b[ind_i][ind_j] += __a
-                elif ind_i == from_row + 1 - new_ka:
-                    b[ind_i - 1][ind_j] += __a
-        merge_list[0] = mb_map[from_row - ka] + ka
-        merge_list[1] = mb_map[from_row + 1 - ka] + ka
-
-    c = np.zeros([new_ka + new_kb, new_ka + new_kb])
-    bt = b.transpose()
-    if from_row == ka:
-        b = bt
-        bt = b.transpose()
-
-    for ind_i, _c in enumerate(c):
-        for ind_j, _ in enumerate(_c):
-            if ind_j < new_ka <= ind_i:
-                c[ind_i][ind_j] = bt[ind_i - new_ka][ind_j]
-            elif ind_i < new_ka <= ind_j:
-                c[ind_i][ind_j] = b[ind_i][ind_j - new_ka]
-
-    assert new_ka + new_kb == c.shape[0], "new_ka = {}; new_kb = {}; new_mat.shape[0] = {}".format(
-        new_ka, new_kb, c.shape[0]
-    )
-    assert new_ka + new_kb == c.shape[1], "new_ka = {}; new_kb = {}; new_mat.shape[1] = {}".format(
-        new_ka, new_kb, c.shape[1]
-    )
-    assert np.all(c.transpose() == c), "Error: output m_e_rs matrix is not symmetric!"
-    return new_ka, new_kb, c, merge_list
 
 
 # ###############

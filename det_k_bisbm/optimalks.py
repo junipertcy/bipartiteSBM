@@ -32,7 +32,7 @@ class OptimalKs(object):
     bipartite_prior : ``bool`` (optional, default: ``True``)
         Whether to use the bipartite prior for edge counts for the algorithm. If ``False``, we will pretend that we
         do not assume a bipartite structure at the level of the :math:`e_{rs}` matrix. This is what has been used in
-        :func:`graph_tool.inference.minimize_blockmodel_dl`, even if its ``state_args`` is customized to be bipartite.
+        :func:`graph_tool.inference.minimize.minimize_blockmodel_dl`, even if its ``state_args`` is customized to be bipartite.
 
     tempdir : ``str`` (optional, default: ``None``)
         The directory entry for generated temporary network data, which will be removed immediately after the
