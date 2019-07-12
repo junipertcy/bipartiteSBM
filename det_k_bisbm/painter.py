@@ -101,8 +101,7 @@ def paint_block_mat(mb, edgelist, save2file=False, figsize=(3, 3), **kwargs):
         plt.savefig(path + '.eps', format='eps', dpi=300)
 
 
-def paint_sorted_adj_mat(mb, edgelist, output=None, fmt='auto', figsize=(3, 3), dpi=200, output_size=(600, 600),
-                         invert=True, **kwargs):
+def paint_sorted_adj_mat(mb, edgelist, output=None, fmt='auto', figsize=(3, 3), dpi=200, invert=True):
     font = {'family': 'serif'}
     plt.figure(figsize=figsize)
     fig, ax = plt.subplots()

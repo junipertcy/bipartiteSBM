@@ -1,6 +1,8 @@
 import os
 import logging
 import tempfile
+import random
+from collections import OrderedDict
 
 from det_k_bisbm.utils import *
 
@@ -354,7 +356,7 @@ class OptimalKs(object):
         i_0 = diff_dl / self.bm_state["ref_dl"]
         self.i_0s += [i_0]
         iqr = np.percentile(self.i_0s, 75) - np.percentile(self.i_0s, 25)
-        if i_0 > 3 * iqr + np.percentile(self.i_0s, 75):
+        if i_0 > 3 * iqr + np.percentile(self.i_0s, 75) >= 1e-4:
             self.i_0 = i_0
             self._summary["algm_args"]["i_0"] = i_0
             self._logger.info(f"Determining i_0 at {i_0}.")
@@ -468,7 +470,8 @@ class OptimalKs(object):
 
         nb_points = map(lambda x: (x[0] + ka, x[1] + kb), product(range(-k_th, k_th + 1), repeat=2))
         # if any item has values less than 1, delete it. Also, exclude the suspected point (i.e., [ka, kb]).
-        nb_points = [(i, j) for i, j in nb_points if i >= 1 and j >= 1 and (i, j) != (ka, kb)]
+        nb_points = [(i, j) for i, j in nb_points if
+                     self.bm_state["n_a"] >= i >= 1 and self.bm_state["n_b"] >= j >= 1 and (i, j) != (ka, kb)]
 
         for _ka, _kb in nb_points:
             dl, _, _ = self._compute_dl_and_update(_ka, _kb)

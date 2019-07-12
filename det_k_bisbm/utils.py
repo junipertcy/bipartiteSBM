@@ -5,9 +5,6 @@ from numba import jit, uint64
 from scipy.sparse import lil_matrix, coo_matrix
 from scipy.special import comb
 from itertools import product, combinations
-import random
-from numba.types import Tuple
-from collections import OrderedDict
 from loky import get_reusable_executor
 
 
@@ -355,7 +352,7 @@ def virtual_moves_ds(ori_e_rs, mlists, ka):
             _ds += gammaln(_3 + _4 + 1)
             _ds -= gammaln(_3 + 1) + gammaln(_4 + 1)
 
-            if _ds < t:
+            if 0 <= _ds < t:
                 t = _ds
                 diff_dl, _mlist = _ds, mlist
 
