@@ -17,13 +17,12 @@ References
 
 """
 import numpy as np
-from numba import jit  # TODO: why adding signatures does not make it faster??
+from numba import jit
 
 from scipy.special import gammaln, spence, loggamma
 
 
 # for computing the number of restricted partitions of the integer m into at most n pairs
-# @jit(float32(uint32, uint32, float32[:, :]), cache=True)
 @jit(cache=True)
 def log_q(n, k, __q_cache):
     """log_q
@@ -51,7 +50,6 @@ def log_q(n, k, __q_cache):
     return log_q_approx(n, k)
 
 
-# @jit(uint32(uint32, float32), cache=True)
 @jit(cache=True)
 def get_v(u, epsilon=1e-8):
     """get_v
@@ -75,7 +73,6 @@ def get_v(u, epsilon=1e-8):
     return v
 
 
-# @jit(float32(uint32, uint32), cache=True)
 @jit(cache=True)
 def log_q_approx_small(n, k):
     """log_q_approx_small
@@ -92,7 +89,6 @@ def log_q_approx_small(n, k):
     return lbinom(n - 1, k - 1) - loggamma(k + 1)
 
 
-# @jit(float32(uint32, uint32), cache=True)
 @jit(cache=True)
 def log_q_approx(n, k):
     """log_q_approx
@@ -115,7 +111,6 @@ def log_q_approx(n, k):
     return lf - np.log(n) + np.sqrt(n) * g
 
 
-# @jit(float32(uint32, float32[:, :]), cache=True)
 @jit(cache=True)
 def init_q_cache(n_max, __q_cache=np.array([], ndmin=2)):
     """Initiate the look-up table for :math:`q(m, n)`.
@@ -144,7 +139,6 @@ def init_q_cache(n_max, __q_cache=np.array([], ndmin=2)):
     return __q_cache
 
 
-# @jit(float32(float32, float32), cache=True)
 @jit(cache=True)
 def log_sum(a, b):
     """log_sum

@@ -63,6 +63,7 @@ Acknowledgements
 
 The `det_k_bisbm` is inspired and supported by the following great humans,
 `Daniel B. Larremore`_, `Tiago de Paula Peixoto`_, `Jean-Gabriel Young`_, `Pan Zhang`_, and `Jie Tang`_.
+Thanks `Valentin Haenel`_ who helped debug and fix the Numba code.
 
 
 .. _`MCMC sampler`: https://github.com/junipertcy/bipartiteSBM-MCMC
@@ -72,3 +73,4 @@ The `det_k_bisbm` is inspired and supported by the following great humans,
 .. _`Jean-Gabriel Young`: https://www.jgyoung.ca/
 .. _`Jie Tang`: http://keg.cs.tsinghua.edu.cn/jietang/
 .. _`Pan Zhang`: http://lib.itp.ac.cn/html/panzhang/
+.. _`Valentin Haenel`: http://haenel.co/

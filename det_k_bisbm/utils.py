@@ -1,7 +1,7 @@
 """ Utilities for network data manipulation and entropy computation. """
 import heapq
 from .int_part import *
-from numba import jit, uint64
+from numba import njit, jit
 from scipy.sparse import lil_matrix, coo_matrix
 from scipy.special import comb
 from itertools import product, combinations
@@ -21,7 +21,7 @@ def db_factorial_ln(val):
 # #################
 
 
-@jit(cache=True)
+# @njit(cache=True)
 def partition_entropy(ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=None, allow_empty=False):
     """partition_entropy
 
@@ -92,7 +92,6 @@ def partition_entropy(ka=None, kb=None, k=None, na=None, nb=None, n=None, nr=Non
     return ent
 
 
-@jit(cache=True)
 def adjacency_entropy(edgelist, mb, exact=True, multigraph=True):
     """adjacency_entropy
 
@@ -115,8 +114,9 @@ def adjacency_entropy(edgelist, mb, exact=True, multigraph=True):
         The description length (or entropy) in nat of the fitting.
     """
     ent = 0.
-    e_rs = np.zeros((max(mb) + 1, max(mb) + 1), dtype=np.uint64)
-    m_ij = lil_matrix((len(mb), len(mb)), dtype=np.uint64)
+    e_rs = np.zeros((max(mb) + 1, max(mb) + 1), dtype=np.int_)
+    m_ij = lil_matrix((len(mb), len(mb)), dtype=np.int_)
+
     for i in edgelist:
         # Please do check the index convention of the edgelist
         source_group = int(mb[int(i[0])])
@@ -125,7 +125,7 @@ def adjacency_entropy(edgelist, mb, exact=True, multigraph=True):
         e_rs[target_group][source_group] += 1
         m_ij[int(i[0]), int(i[1])] += 1  # we only update the upper triangular part of the adj-matrix
     italic_i = 0.
-    e_r = np.sum(e_rs, axis=1, dtype=np.uint64)
+    e_r = np.sum(e_rs, axis=1, dtype=np.int_)
     sum_m_ii = 0.
     sum_m_ij = 0.
     sum_e_rs = 0.
@@ -175,7 +175,6 @@ def adjacency_entropy(edgelist, mb, exact=True, multigraph=True):
         return ent
 
 
-@jit(cache=True)
 def model_entropy(e, ka=None, kb=None, na=None, nb=None, nr=None, allow_empty=False, is_bipartite=True):
     """model_entropy
 
@@ -245,7 +244,6 @@ def model_entropy(e, ka=None, kb=None, na=None, nb=None, nr=None, allow_empty=Fa
     return dl
 
 
-@jit(cache=True)
 def degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree_dl_kind="distributed",
                    q_cache_max_e_r=int(1e4)):
     """degree_entropy
@@ -304,7 +302,6 @@ def degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree_dl_kind
             ent -= -gammaln(n_r[mb_] + 1)
     elif degree_dl_kind == "entropy":
         raise NotImplementedError
-    # print("degree_dl: {}".format(ent))
     return ent
 
 
@@ -450,10 +447,10 @@ def gen_e_rs(b, n_edges, p=0):
     c = n_edges / (b + (b ** 2 - b) * p)
     c_in = c
     c_out = c * p
-    e_rs = np.zeros([b * 2, b * 2], dtype=np.uint64)
+    e_rs = np.zeros((b * 2, b * 2), dtype=np.int_)
 
     perm = product(range(0, b), range(b, b * 2))
-    idx_in = np.linspace(0, b ** 2 - 1, b, dtype=np.uint64)
+    idx_in = np.linspace(0, b ** 2 - 1, b, dtype=np.int_)
     for idx, p in enumerate(perm):
         i = p[0]
         j = p[1]
@@ -494,7 +491,7 @@ def gen_e_rs_harder(ka, kb, n_edges, samples=1, top_k=1):
     assert type(top_k) is int and top_k > 0, "Argument `top_k` needs to be a positive integer."
     e_rs_inst = []
     for _ in range(int(samples)):
-        e_rs = np.zeros([ka + kb, ka + kb], dtype=np.uint64)
+        e_rs = np.zeros((ka + kb, ka + kb), dtype=np.int_)
         c = list(map(int, np.random.dirichlet([1] * ka * kb, 1)[0] * n_edges))
         remain_c = n_edges - sum(c)
         for idx, _ in enumerate(range(remain_c)):
@@ -562,7 +559,7 @@ def gen_e_rs_hard(ka, kb, n_edges, p=0):
     c_in = c
     c_out = c * p
 
-    e_rs = np.zeros([ka + kb, ka + kb], dtype=np.uint64)
+    e_rs = np.zeros((ka + kb, ka + kb), dtype=np.int_)
     perm = product(range(0, ka), range(ka, ka + kb))
     for _, p in enumerate(perm):
         i = p[0]
@@ -600,7 +597,7 @@ def gen_equal_bipartite_partition(na, nb, ka, kb):
     return n
 
 
-@jit(cache=True)
+@njit(cache=True)
 def gen_bicliques_edgelist(b, num_nodes):
     """Generate an array of edgelist and node-type mapping for a group of bi-cliques.
 
@@ -621,9 +618,9 @@ def gen_bicliques_edgelist(b, num_nodes):
 
     """
     total_num_nodes = b * num_nodes
-    types = np.zeros(total_num_nodes, dtype=np.uint64)
+    types = np.zeros(total_num_nodes, dtype=np.int_)
     num_edges_each_clique = int(num_nodes ** 2 / 4)
-    el = np.zeros([num_edges_each_clique * b, 2], dtype=np.uint64)
+    el = np.zeros([num_edges_each_clique * b, 2], dtype=np.int_)
 
     idx = 0
     base = 0
@@ -658,7 +655,7 @@ def assemble_old2new_mapping(types):
 
     """
     old2new = dict()
-    new_types = np.zeros(len(types), dtype=np.uint64)
+    new_types = np.zeros(len(types), dtype=np.int_)
 
     new_id = 0
     for _id, t in enumerate(types):
@@ -682,7 +679,7 @@ def assemble_old2new_mapping(types):
 # ##################
 
 
-@jit(cache=True)
+@njit(cache=True)
 def assemble_edgelist_old2new(edgelist, old2new):
     """Assemble the new edgelist array via an old2new mapping.
 
@@ -699,14 +696,14 @@ def assemble_edgelist_old2new(edgelist, old2new):
       The new edgelist of a group of bi-cliques (directly pluggable to :class:`det_k_bisbm.OptimalKs`)
 
     """
-    el = np.zeros([len(edgelist), 2], dtype=np.uint64)
+    el = np.zeros([len(edgelist), 2], dtype=np.int_)
     for _id, _ in enumerate(edgelist):
         el[_id][0] = old2new[_[0]]
         el[_id][1] = old2new[_[1]]
     return el
 
 
-@jit(cache=True)
+@njit(cache=True)
 def assemble_mb_new2old(mb, new2old):
     """Assemble the partition that corresponds to the old space of node indices.
 
@@ -723,13 +720,13 @@ def assemble_mb_new2old(mb, new2old):
       The partition that corresponds to the old space of node indices.
 
     """
-    old_mb = np.zeros(len(mb), dtype=np.uint64)
+    old_mb = np.zeros(len(mb), dtype=np.int_)
     for _id, _ in enumerate(mb):
         old_mb[new2old[_id]] = _
     return old_mb
 
 
-@jit(cache=True)
+@njit(cache=True)
 def assemble_n_r_from_mb(mb):
     """Get n_r vector (number of nodes in each group) from the membership vector.
 
@@ -745,11 +742,11 @@ def assemble_n_r_from_mb(mb):
     n_r = np.zeros(np.max(mb) + 1)
     for block_id in mb:
         n_r[block_id] += 1
-    n_r = np.array([int(x) for x in n_r], dtype=np.uint64)
+    n_r = np.array([int(x) for x in n_r], dtype=np.int_)
     return n_r
 
 
-@jit(uint64[:](uint64[:, :], uint64[:]), cache=True)
+@njit(cache=True)
 def assemble_n_k_from_edgelist(edgelist, mb):
     """Get n_k, or the number n_k of nodes of degree k.
 
@@ -764,15 +761,15 @@ def assemble_n_k_from_edgelist(edgelist, mb):
     n_k : :class:`numpy.ndarray`
 
     """
-    k = np.zeros(len(mb) + 1)
-    for edge in edgelist:
-        k[edge[0]] += 1
-        k[edge[1]] += 1
+    k = np.zeros(len(mb) + 1, dtype=np.int_)
+    for idx in range(len(edgelist)):
+        k[edgelist[idx][0]] += 1
+        k[edgelist[idx][1]] += 1
 
-    max_ = np.max(k).__int__()
-    n_k = np.zeros(max_ + 1, dtype=np.uint64)
+    max_ = np.int_(np.max(k))
+    n_k = np.zeros(max_ + 1, dtype=np.int_)
     for k_ in k:
-        n_k[k_.__int__()] += 1
+        n_k[k_] += 1
     return n_k
 
 
@@ -793,14 +790,14 @@ def assemble_e_rs_from_mb(edgelist, mb):
     sources, targets = zip(*edgelist)
     sources = [mb[node] for node in sources]
     targets = [mb[node] for node in targets]
-    data = np.ones(len(sources + targets), dtype=np.uint64)
+    data = np.ones(len(sources + targets), dtype=np.int_)
     shape = int(np.max(mb) + 1)
     e_rs = coo_matrix((data, (sources + targets, targets + sources)), shape=(shape, shape))
 
     return e_rs.toarray()
 
 
-@jit(uint64[:, :](uint64[:, :], uint64[:]), cache=True)
+@njit(cache=True)
 def assemble_eta_rk_from_edgelist_and_mb(edgelist, mb):
     """Get eta_rk, or the number eta_rk of nodes of degree k that belong to group r.
 
@@ -814,23 +811,26 @@ def assemble_eta_rk_from_edgelist_and_mb(edgelist, mb):
     eta_rk : :class:`numpy.ndarray`
 
     """
-    assert np.min(mb).__int__() == 0, "The index of a membership label must start from 0."
+    mb_max_ = np.int_(np.max(mb))
 
-    mb_max_ = np.max(mb).__int__()
+    k = np.zeros((mb_max_ + 1, len(mb)), dtype=np.int_)
 
-    k = np.zeros([mb_max_ + 1, len(mb)])
-    for edge in edgelist:
-        k[mb[edge[0]]][edge[0]] += 1
-        k[mb[edge[1]]][edge[1]] += 1
-    max_deg_in_each_mb_ = np.max(k, axis=0)
-    max_ = int(np.max(max_deg_in_each_mb_))
-    eta_rk = np.zeros([mb_max_ + 1, max_ + 1])
+    for idx in range(len(edgelist)):
+        k[mb[edgelist[idx][0]]][edgelist[idx][0]] += 1
+        k[mb[edgelist[idx][1]]][edgelist[idx][1]] += 1
+
+    max_array = np.empty(k.shape[0], dtype=np.int_)
+    for _k_idx in range(len(k)):
+        max_array[_k_idx] = np.max(k[_k_idx])
+    max_ = np.max(max_array)
+
+    eta_rk = np.zeros((mb_max_ + 1, max_ + 1), dtype=np.int_)
     for mb_ in range(mb_max_ + 1):
         for node_idx, k_ in enumerate(k[mb_]):
             if mb[node_idx] == mb_:
-                eta_rk[mb_][k_.__int__()] += 1
+                eta_rk[mb_][k_] += 1
 
-    return eta_rk.astype(int)
+    return eta_rk
 
 
 def compute_profile_likelihood(edgelist, mb, ka=None, kb=None, k=None):
@@ -889,7 +889,7 @@ def compute_profile_likelihood(edgelist, mb, ka=None, kb=None, k=None):
     return italic_i
 
 
-@jit()
+@jit(cache=True)
 def compute_profile_likelihood_from_e_rs(e_rs):
     """compute_profile_likelihood_from_e_rs
 
@@ -937,10 +937,10 @@ def get_desc_len_from_data(na, nb, n_edges, ka, kb, edgelist, mb, diff=False, nr
     kb : ``int``
         Number of communities in type-*b*.
 
-    edgelist : ``list``
+    edgelist : :class:`numpy.ndarray`
         Edgelist in Python list structure.
 
-    mb : ``list``
+    mb : :class:`numpy.ndarray`
         Community membership of each node in Python list structure.
 
     diff : ``bool``
@@ -1016,7 +1016,7 @@ def get_desc_len_from_data_uni(n, n_edges, k, edgelist, mb):
     return desc_len_b
 
 
-@jit(uint64[:](uint64[:], uint64[:]), cache=True, fastmath=True)
+@njit(cache=True, fastmath=True)
 def accept_mb_merge(mb, mlist):
     """accept_mb_merge
 
@@ -1036,7 +1036,7 @@ def accept_mb_merge(mb, mlist):
         The merged partition.
 
     """
-    _mb = np.zeros(mb.size, dtype=np.uint64)
+    _mb = np.zeros(mb.size, dtype=np.int_)
     mlist.sort()
     for _node_id, _g in enumerate(mb):
         if _g == mlist[1]:
@@ -1045,8 +1045,6 @@ def accept_mb_merge(mb, mlist):
             _mb[_node_id] = _g
         else:
             _mb[_node_id] = _g - 1
-    assert max(_mb) + 1 == max(mb), \
-        "[ERROR] inconsistency between the membership indexes and the number of blocks."
     return _mb
 
 
