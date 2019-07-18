@@ -136,16 +136,16 @@ class KL(object):
 
         return action_str
 
-    def engine(self, f_edgelist, na, nb, ka, kb):  # TODO: bug when assigned verbose=False
+    def engine(self, f_edgelist, na, nb, ka, kb, mb=None):  # TODO: bug when assigned verbose=False
         """Run the shell code.
 
         Parameters
         ----------
         ka : ``int`` (required)
-            Number of communities for type-a nodes to partition.
+            Number of communities for type-`a` nodes to partition.
 
         kb : ``int`` (required)
-            Number of communities for type-b nodes to partition.
+            Number of communities for type-`b` nodes to partition.
 
         Returns
         -------

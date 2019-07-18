@@ -22,7 +22,7 @@ It will provide most scientific libraries that we need here.
 
 Let's install the libraries that we will use in this heuristic via: ::
 
-   pip install -r requirements.txt
+   python -m pip install -r requirements.txt
 
 If you are good so far, then we are now ready!
 

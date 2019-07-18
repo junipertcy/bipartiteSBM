@@ -316,7 +316,8 @@ def virtual_moves_ds(ori_e_rs, mlists, ka):
 
     mlists : ``list of 2-tuples``
 
-    ka : int
+    ka : ``int``
+        Number of communities in type-*a*.
 
     Returns
     -------
@@ -469,10 +470,10 @@ def gen_e_rs_harder(ka, kb, n_edges, samples=1, top_k=1):
     Parameters
     ----------
     ka : ``int``
-        Number of communities within type-`a`.
+        Number of communities within type-*a*.
 
     kb : ``int``
-        Number of communities within type-`b`.
+        Number of communities within type-*b*.
 
     n_edges : ``int``
         Number of edges planted in the system.
@@ -519,10 +520,10 @@ def gen_e_rs_hard(ka, kb, n_edges, p=0):
     Parameters
     ----------
     ka : ``int``
-        Mumber of communities within type-`a`.
+        Mumber of communities within type-*a*.
 
     kb : ``int``
-        Number of communities within type-`b`.
+        Number of communities within type-*b*.
 
     n_edges : ``int``
         Number of edges planted in the system.
@@ -578,23 +579,27 @@ def gen_equal_bipartite_partition(na, nb, ka, kb):
     Parameters
     ----------
     na : ``int``
+        Number of nodes in type-*a*.
 
     nb : ``int``
+        Number of nodes in type-*b*.
 
     ka : ``int``
+        Number of communities in type-*a*.
 
     kb : ``int``
+        Number of communities in type-*b*.
 
     Returns
     -------
-    n : ``list[int]``
+    n : :class:`numpy.ndarray`
 
     """
     n_blocks = map(int, gen_equal_partition(ka, na) + gen_equal_partition(kb, nb))
     n = []
     for idx, i in enumerate(n_blocks):
         n += [idx] * i
-    return n
+    return np.array(n, dtype=np.int_)
 
 
 @njit(cache=True)
@@ -620,7 +625,7 @@ def gen_bicliques_edgelist(b, num_nodes):
     total_num_nodes = b * num_nodes
     types = np.zeros(total_num_nodes, dtype=np.int_)
     num_edges_each_clique = int(num_nodes ** 2 / 4)
-    el = np.zeros([num_edges_each_clique * b, 2], dtype=np.int_)
+    el = np.zeros((num_edges_each_clique * b, 2), dtype=np.int_)
 
     idx = 0
     base = 0
@@ -679,7 +684,6 @@ def assemble_old2new_mapping(types):
 # ##################
 
 
-@njit(cache=True)
 def assemble_edgelist_old2new(edgelist, old2new):
     """Assemble the new edgelist array via an old2new mapping.
 
@@ -696,7 +700,7 @@ def assemble_edgelist_old2new(edgelist, old2new):
       The new edgelist of a group of bi-cliques (directly pluggable to :class:`det_k_bisbm.OptimalKs`)
 
     """
-    el = np.zeros([len(edgelist), 2], dtype=np.int_)
+    el = np.zeros((len(edgelist), 2), dtype=np.int_)
     for _id, _ in enumerate(edgelist):
         el[_id][0] = old2new[_[0]]
         el[_id][1] = old2new[_[1]]
@@ -804,6 +808,7 @@ def assemble_eta_rk_from_edgelist_and_mb(edgelist, mb):
     Parameters
     ----------
     edgelist : :class:`numpy.ndarray`
+
     mb : :class:`numpy.ndarray`
 
     Returns
@@ -838,23 +843,24 @@ def compute_profile_likelihood(edgelist, mb, ka=None, kb=None, k=None):
 
     Parameters
     ----------
-    edgelist : ``list``
+    edgelist : :class:`numpy.ndarray`
 
-    mb : ``list``
+    mb : :class:`numpy.ndarray`
 
     ka : ``int``
+        Number of communities in type-*a*.
 
     kb : ``int``
+        Number of communities in type-*b*.
 
     k : ``int``
+        Total number of communities.
 
     Returns
     -------
     italic_i : ``float``
 
     """
-    assert type(edgelist) is list, "[ERROR] the type of the input parameter (edgelist) should be a list"
-    assert type(mb) is list, "[ERROR] the type of the input parameter (mb) should be a list"
     # First, let's compute the m_e_rs from the edgelist and mb
     m_e_rs = np.zeros((max(mb) + 1, max(mb) + 1))
     for i in edgelist:
@@ -994,10 +1000,10 @@ def get_desc_len_from_data_uni(n, n_edges, k, edgelist, mb):
     k : ``int``
         Number of communities.
 
-    edgelist : ``list```
+    edgelist : :class:`numpy.ndarray`
         A list of edges.
 
-    mb : ``list``
+    mb : :class:`numpy.ndarray`
         A list of node community membership.
 
     Returns
@@ -1065,6 +1071,16 @@ def loky_executor(max_workers, timeout, func, feeds):
 # ##########################
 
 def get_flat_entropies(state):
+    """get_flat_entropies
+
+    Parameters
+    ----------
+    state : :class:`graph_tool.inference.blockmodel.BlockState`
+
+    Returns
+    -------
+
+    """
     na = sum(state.pclabel.a == 0)
     dl = dict()
     dl["mdl"] = state.entropy()
@@ -1078,6 +1094,16 @@ def get_flat_entropies(state):
 
 
 def get_nested_entropies(state):
+    """get_nested_entropies
+
+    Parameters
+    ----------
+    state : :class:`graph_tool.inference.nested_blockmodel.NestedBlockState`
+
+    Returns
+    -------
+
+    """
     na = sum(state.levels[0].pclabel.a == 0)
     dl = dict()
     dl["mdl"] = state.entropy()

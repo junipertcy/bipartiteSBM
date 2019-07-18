@@ -1,4 +1,5 @@
 """ i/o utilities """
+import numpy as np
 
 
 def get_edgelist(f_edgelist, delimiter=','):
@@ -15,8 +16,8 @@ def get_edgelist(f_edgelist, delimiter=','):
 
     Returns
     -------
-    edgelist : ``list``
-        The list of tupled edges.
+    edgelist : :class:`numpy.ndarray`
+        The numpy list of tupled edges.
     """
     edgelist = []
     with open(f_edgelist, "r") as f:
@@ -24,9 +25,8 @@ def get_edgelist(f_edgelist, delimiter=','):
             line = line.replace('\r', '').replace('\n', '')  # remove all line breaks!
             edge = line.split(delimiter)
             # edgelist.append((str(int(edge[0]) - 1), str(int(edge[1]) - 1)))
-            edgelist.append((str(int(edge[0])), str(int(edge[1]))))
-    f.close()
-    return edgelist
+            edgelist.append((int(edge[0]), int(edge[1])))
+    return np.array(edgelist, dtype=np.int_)
 
 
 def get_types(f_types):
@@ -53,9 +53,9 @@ def get_types(f_types):
     types = []
     with open(f_types, "r") as f:
         for line in f:
-            types.append(str(int(line.replace('\n', ""))))
-    f.close()
-    return types
+            types.append(int(line.replace('\n', "")))
+
+    return np.array(types, dtype=np.int_)
 
 
 def save_mb_to_file(path, mb):

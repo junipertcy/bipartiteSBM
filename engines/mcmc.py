@@ -164,15 +164,25 @@ class MCMC(object):
 
         Parameters
         ----------
-        ka : int, required
-            Number of communities for type-a nodes to partition.
+        f_edgelist : ``str``
 
-        kb : int, required
-            Number of communities for type-b nodes to partition.
+        na : ``int``
+
+        nb : ``int``
+
+        ka : ``int``, required
+            Number of communities for type-*a* nodes to partition.
+
+        kb : ``int``, required
+            Number of communities for type-*b* nodes to partition.
+
+        mb : :class:`numpy.ndarray`
+
+        method :
 
         Returns
         -------
-        of_group : numpy.ndarray
+        of_group : :class:`numpy.ndarray`
 
         """
         of_group = []
@@ -201,7 +211,7 @@ class MCMC(object):
                 of_group = out.replace(b' \n', b'').split(b' ')  # Note the space before the line break
                 of_group = list(map(int, of_group))
 
-        return np.array(of_group)
+        return np.array(of_group, dtype=np.int_)
 
     @staticmethod
     def _gen_init_n_blocks(na, nb, ka, kb):

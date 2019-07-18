@@ -202,9 +202,7 @@ class OptimalKs(object):
         self._summary["mdl"] = self.bookkeeping_dl[(ka, kb)]
 
         self._summary["dl"] = dict()
-        na = self.bm_state["n_a"]
-        nb = self.bm_state["n_b"]
-        e = self.bm_state["e"]
+        na, nb, e = self.bm_state["n_a"], self.bm_state["n_b"], self.bm_state["e"]
         mb = self.trace_mb[(ka, kb)]
         nr = assemble_n_r_from_mb(mb)
         self._summary["dl"]["adjacency"] = float(adjacency_entropy(self.edgelist, mb))
@@ -268,10 +266,10 @@ class OptimalKs(object):
         else:
             if self.bookkeeping_dl[(ka, kb)] > 0:
                 return self.bookkeeping_dl[(ka, kb)], self.bookkeeping_e_rs[(ka, kb)], self.trace_mb[(ka, kb)]
-
+        na, nb, e = self.bm_state["n_a"], self.bm_state["n_b"], self.bm_state["e"]
         if ka == 1 and kb == 1:
-            mb = np.array([0] * self.bm_state["n_a"] + [1] * self.bm_state["n_b"])
-            res = self._compute_desc_len(self.bm_state["n_a"], self.bm_state["n_b"], self.bm_state["e"], ka, kb, mb)
+            mb = np.array([0] * na + [1] * nb, dtype=np.int_)
+            res = self._compute_desc_len(na, nb, e, ka, kb, mb)
             return res[0], res[1], res[2]
 
         if not recompute:
@@ -286,11 +284,8 @@ class OptimalKs(object):
         else:
             _mb = None
 
-        if self.algm_name_ == "mcmc":
-            run = lambda a, b: self.engine_(self._f_edgelist_name, self.bm_state["n_a"], self.bm_state["n_b"], a, b,
-                                            mb=_mb)
-        else:
-            run = lambda a, b: self.engine_(self._f_edgelist_name, self.bm_state["n_a"], self.bm_state["n_b"], a, b)
+        def run(a, b):
+            return self.engine_(self._f_edgelist_name, na, nb, a, b, mb=_mb)
 
         # Calculate the biSBM inference several times,
         # choose the maximum likelihood (or minimum entropy) result.
@@ -304,8 +299,7 @@ class OptimalKs(object):
             for _ in range(self.max_n_sweeps_):
                 results += [run(ka, kb)]
 
-        result_ = [self._compute_desc_len(self.bm_state["n_a"], self.bm_state["n_b"], self.bm_state["e"], ka, kb, r) for
-                   r in results]
+        result_ = [self._compute_desc_len(na, nb, e, ka, kb, r) for r in results]
         result = min(result_, key=lambda x: x[0])
         dl = result[0]
         e_rs = result[1]
@@ -314,9 +308,12 @@ class OptimalKs(object):
 
     def natural_merge(self):
         """Phase 1 natural e_rs-block merge"""
+        na, nb, e = self.bm_state["n_a"], self.bm_state["n_b"], self.bm_state["e"]
 
-        run = lambda dummy: self.engine_(self._f_edgelist_name, self.bm_state["n_a"], self.bm_state["n_b"], 1, 1,
-                                         mb=None, method="natural")  # Note: setting (ka, kb) = (1, 1) is redundant.
+        def run(_):
+            # Note: setting (ka, kb) = (1, 1) is redundant.
+            return self.engine_(self._f_edgelist_name, na, nb, 1, 1, mb=None, method="natural")
+
         results = []
         if self.is_par_:
             # automatically shutdown after idling for 600s
@@ -327,9 +324,7 @@ class OptimalKs(object):
             for _ in range(self.max_n_sweeps_):
                 results += [run(0)]
 
-        result_ = [self._compute_desc_len(
-            self.bm_state["n_a"], self.bm_state["n_b"], self.bm_state["e"], r[0], r[1], r[2:]
-        ) for r in results]
+        result_ = [self._compute_desc_len(na, nb, e, r[0], r[1], r[2:]) for r in results]
         result = min(result_, key=lambda x: x[0])
         dl = result[0]
         e_rs = result[1]
@@ -339,13 +334,13 @@ class OptimalKs(object):
 
     def _natural_merge(self):
         dl, e_rs, mb, ka, kb = self.natural_merge()
+        assert max(mb) + 1 == ka + kb, "[ERROR] inconsistency between mb. indexes and #blocks. {} != {}".format(
+            max(mb) + 1, ka + kb)
         self._summary["algm_args"]["init_ka"] = ka
         self._summary["algm_args"]["init_kb"] = kb
         self._logger.info(f"Natural agglomerative merge to ({ka}, {kb}).")
         self.bookkeeping_dl[(ka, kb)] = dl
         self.bookkeeping_e_rs[(ka, kb)] = e_rs
-        assert max(mb) + 1 == ka + kb, "[ERROR] inconsistency between mb. indexes and #blocks. {} != {}".format(
-            max(mb) + 1, ka + kb)
         self.trace_mb[(ka, kb)] = mb
         self._update_bm_state(ka, kb, e_rs, mb)
         self._virgin_run = False
@@ -367,7 +362,7 @@ class OptimalKs(object):
     def _compute_desc_len(self, n_a, n_b, e, ka, kb, mb):
         e_rs = assemble_e_rs_from_mb(self.edgelist, mb)
         nr = assemble_n_r_from_mb(mb)
-        desc_len = get_desc_len_from_data(n_a, n_b, e, ka, kb, list(self.edgelist), mb, nr=nr, q_cache=self.__q_cache,
+        desc_len = get_desc_len_from_data(n_a, n_b, e, ka, kb, self.edgelist, mb, nr=nr, q_cache=self.__q_cache,
                                           is_bipartite=self.bipartite_prior_)
         return desc_len, e_rs, mb, (ka, kb)
 
@@ -435,10 +430,10 @@ class OptimalKs(object):
 
     def _compute_dl_and_update(self, ka, kb, recompute=False):
         dl, e_rs, mb = self.compute_dl(ka, kb, recompute=recompute)
-        self.bookkeeping_dl[(ka, kb)] = dl
-        self.bookkeeping_e_rs[(ka, kb)] = e_rs
         assert max(mb) + 1 == ka + kb, "[ERROR] inconsistency between mb. indexes and #blocks. {} != {}".format(
             max(mb) + 1, ka + kb)
+        self.bookkeeping_dl[(ka, kb)] = dl
+        self.bookkeeping_e_rs[(ka, kb)] = e_rs
         self.trace_mb[(ka, kb)] = mb
         self.bm_state["ref_dl"] = self.summary()["mdl"] if self.bm_state["ref_dl"] != 0 else dl
         return dl, e_rs, mb
@@ -457,8 +452,7 @@ class OptimalKs(object):
         _dl, _e_rs, _mb = self._compute_dl_and_update(ka, kb)
         if _dl > self.bookkeeping_dl[(1, 1)]:
             self._logger.info("DL at ({}, {}) is larger than that of (1, 1), which is {} compared to {}".format(
-                ka, kb, _dl, self.bookkeeping_dl[(1, 1)])
-            )
+                ka, kb, _dl, self.bookkeeping_dl[(1, 1)]))
             self._update_bm_state(ka, kb, _e_rs, _mb)
             return False
 
@@ -558,34 +552,6 @@ class OptimalKs(object):
     def get__q_cache(self):
         return self.__q_cache
 
-    def create_q_cache_memmap(self, q_cache=np.array([], ndmin=2)):
-        """`Deprecated.`
-
-        Create and assign a memory-map to an array of values for restricted integer partitions in a binary file on disk.
-
-        >>>    # Attempted usage internally.
-        >>>    self.__q_cache_f_name = os.path.join(tempfile.mkdtemp(dir=tempdir), '__q_cache.dat')
-        >>>    try:
-        >>>        max_e_r = self.bm_state["e"] if self.bm_state["e"] <= int(1e4) else int(1e4)
-        >>>        self.__q_cache = np.memmap(self.__q_cache_f_name, dtype='uint64', mode='r', shape=(
-        >>>            max_e_r + 1, max_e_r + 1)
-        >>>         )
-        >>>    except FileNotFoundError as e:
-        >>>        self._logger.warning(f"q_cache memmap file not found!: {e}")
-        >>>    else:
-        >>>        q_cache = init_q_cache(self.__q_cache_max_e_r, np.array([], ndmin=2))
-        >>>        self.create_q_cache_memmap(q_cache)
-
-        Parameters
-        ----------
-        q_cache : :class:`numpy.ndarray` (required, default: ``np.array([], ndmin=2)``)
-
-        """
-        self.__q_cache = q_cache
-        fp = np.memmap(self.__q_cache_f_name, dtype='uint64', mode="w+", shape=(q_cache.shape[0], q_cache.shape[1]))
-        fp[:] = self.__q_cache[:]
-        del fp
-
     def _set_logging_level(self, level):
         _level = 0
         if level.upper() == "INFO":
@@ -606,7 +572,7 @@ class OptimalKs(object):
                 delete = False
             else:
                 delete = True
-            self.f_edgelist = tempfile.NamedTemporaryFile(mode='w+b', dir=self.tempdir, delete=delete)
+            self.f_edgelist = tempfile.NamedTemporaryFile(mode='wb', dir=self.tempdir, delete=delete)
         finally:
             for edge in self.edgelist:
                 content = str(edge[0]) + "\t" + str(edge[1]) + "\n"
