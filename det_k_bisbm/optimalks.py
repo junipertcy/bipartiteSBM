@@ -155,7 +155,7 @@ class OptimalKs(object):
 
         References
         ----------
-        .. [yen-bipartite-2019] Tzu-Chi Yen and Daniel B. Larremore, "Blockmodeling on a Bipartite Network with Bipartite Priors", in preparation.
+        .. [yen-bipartite-2019] Tzu-Chi Yen and Daniel B. Larremore, "Blockmodeling a Bipartite Network with Bipartite Priors", in preparation.
 
         """
         self.bipartite_prior_ = bipartite_prior
@@ -170,21 +170,22 @@ class OptimalKs(object):
         else:
             diff_dl = 0.
             while abs(diff_dl) < self.i_0 * self.bm_state["ref_dl"]:
-                if self.bm_state["ka"] * self.bm_state["kb"] != 1:
-                    ka_, kb_, diff_dl, mlist = self._merge_e_rs(self.bm_state["ka"], self.bm_state["kb"])
+                ka, kb = self.bm_state["ka"], self.bm_state["kb"]
+                if ka * kb != 1:
+                    ka_, kb_, diff_dl, mlist = self._merge_e_rs(ka, kb)
                     if self._determine_i_0(diff_dl):
+                        ka__ = self.summary()["ka"]
+                        kb__ = self.summary()["kb"]
+                        self._logger.info(f"Tried {(ka, kb)} ~~-> {(ka_, kb_)}, but *DL{(ka_, kb_)} deviates too much from *DL{(ka__, kb__)}")
                         break
                     mb_ = accept_mb_merge(self.bm_state["mb"], mlist)
                     e_rs = assemble_e_rs_from_mb(self.edgelist, mb_)
-                    assert int(e_rs.sum()) == int(
-                        self.bm_state["e"] * 2), '__m_e_rs.sum() = {}; self.bm_state["e"] * 2 = {}'.format(
-                        str(int(e_rs.sum())), str(self.bm_state["e"] * 2)
-                    )
                     self._update_bm_state(ka_, kb_, e_rs, mb_)
-                    self._logger.info(f"Merging to ({ka_}, {kb_})")
+                    self._logger.info(f"{(ka, kb)} ~~-> {(ka_, kb_)}")
                 else:
                     break
-            self._logger.info("Escape while-loop, Re-do minimize_bisbm_dl().")
+            ka, kb = self.bm_state["ka"], self.bm_state["kb"]
+            self._logger.info(f"Escape the loop of agglomerative merges. Now {(ka, kb)} looks suspicious.")
             return self.minimize_bisbm_dl(bipartite_prior=self.bipartite_prior_)
 
     def summary(self):
@@ -275,11 +276,14 @@ class OptimalKs(object):
         if not recompute:
             ka_ = self._summary["algm_args"]["init_ka"]
             kb_ = self._summary["algm_args"]["init_kb"]
+            na = self._summary["na"]
+            nb = self._summary["nb"]
             dist = np.sqrt((ka_ - ka) ** 2 + (kb_ - kb) ** 2)
             if dist <= self._k_th_nb_to_search * np.sqrt(2):
+                self._logger.info(f"({na}, {nb}) ~~-> ({ka}, {kb}); Use that partition to start MCMC@({ka}, {kb}).")
                 _mb = None
             else:
-                self._logger.info(f"DIST={dist}; agg merge (or partition split) from ({ka_}, {kb_}) to ({ka}, {kb}).")
+                self._logger.info(f"({ka_}, {kb_}) ~~-> ({ka}, {kb}); Use that partition to start MCMC@({ka}, {kb}).")
                 _mb = self.trace_mb[(ka_, kb_)]
         else:
             _mb = None
@@ -354,7 +358,7 @@ class OptimalKs(object):
         if i_0 > 1.5 * iqr + np.percentile(self.i_0s, 75) >= 1e-4:
             self.i_0 = i_0
             self._summary["algm_args"]["i_0"] = i_0
-            self._logger.info(f"Determining i_0 at {i_0}.")
+            self._logger.info(f"Determining \u0394 at {i_0}.")  # \u0394 = Delta = i_0
             return True
         else:
             return False
@@ -372,23 +376,23 @@ class OptimalKs(object):
         Parameters
         ----------
         ka : ``int``
-            number of type-a communities in the affinity matrix
+            Number of type-a communities in the affinity matrix
         kb : ``int``
-            number of type-b communities in the affinity matrix
+            Number of type-b communities in the affinity matrix
 
         Returns
         -------
         _ka : ``int``
-            the new number of type-a communities in the affinity matrix
+            New number of type-a communities in the affinity matrix
 
         _kb : ``int``
-            the new number of type-b communities in the affinity matrix
+            New number of type-b communities in the affinity matrix
 
         diff_dl : ``list(int, int)``
-            the difference of the new entropy and the old one
+            Difference of the new entropy and the old one
 
         _mlist : ``list(int, int)``
-            the two row-indexes of the original affinity matrix that were finally chosen (and merged)
+            The two row-indexes of the original affinity matrix that were finally chosen (and merged)
 
         """
         m = np.arange(ka + kb)
@@ -448,10 +452,10 @@ class OptimalKs(object):
     def _check_if_local_minimum(self, ka, kb):
         """The `neighborhood search` as described in the paper."""
         k_th = self._k_th_nb_to_search
-        self._logger.info(f"Checking if {(ka, kb)} is a local minimum.")
+        self._logger.info(f"Is {(ka, kb)} a local minimum? Let's check.")
         _dl, _e_rs, _mb = self._compute_dl_and_update(ka, kb)
         if _dl > self.bookkeeping_dl[(1, 1)]:
-            self._logger.info("DL at ({}, {}) is larger than that of (1, 1), which is {} compared to {}".format(
+            self._logger.info("DL({}, {}) > DL(1, 1), which is {} compared to {}".format(
                 ka, kb, _dl, self.bookkeeping_dl[(1, 1)]))
             self._update_bm_state(ka, kb, _e_rs, _mb)
             return False
@@ -459,10 +463,10 @@ class OptimalKs(object):
         if _dl > self.summary()["mdl"]:
             self.i_0 *= self.adaptive_ratio
             ka, kb, _, _dl = self._rollback()
-            self._logger.info("There's already a point with lower dl; we are overshooting. Let's reduce i_0.")
-            self._logger.info(f"Re-Checking if {(ka, kb)} is a local minimum.")
+            self._logger.info("Overshooting! There's already a point with lower DL. Let's reduce \u0394 by {}.".format(self.adaptive_ratio))
+            self._logger.info(f"Move to {(ka, kb)} and re-checking if it is a local minimum.")
 
-        nb_points = map(lambda x: (x[0] + ka, x[1] + kb), product(range(-k_th, k_th + 1), repeat=2))
+        nb_points = [(x + ka, y + kb) for (x, y) in product(range(-k_th, k_th + 1), repeat=2)]
         # if any item has values less than 1, delete it. Also, exclude the suspected point (i.e., [ka, kb]).
         nb_points = [(i, j) for i, j in nb_points if
                      self.bm_state["n_a"] >= i >= 1 and self.bm_state["n_b"] >= j >= 1 and (i, j) != (ka, kb)]
@@ -470,15 +474,15 @@ class OptimalKs(object):
         for _ka, _kb in nb_points:
             dl, _, _ = self._compute_dl_and_update(_ka, _kb)
             if self._is_mdl_so_far(dl):
-                self._logger.info(f"Found {(_ka, _kb)} that gives an even lower description length ...")
+                self._logger.info(f"Found {(_ka, _kb)} that gives an even lower DL ...")
                 self._rollback()
-                self._logger.info("rollback but NOT reduce i_0")
+                self._logger.info(f"Move to {(_ka, _kb)} but NOT reduce \u0394")
                 break
         if _dl != self.summary()["mdl"]:
-            self._logger.info(f"No, {(ka, kb)} is NOT a local minimum")
+            self._logger.info(f"Bummer. {(ka, kb)} is NOT a local minimum.")
             return False
         else:
-            self._logger.info(f"Yes, {(ka, kb)} is a local minimum; we are done.")
+            self._logger.info(f"YES! {(ka, kb)} is a local minimum. We are done.")
             return True
 
     def _prerunning_checks(self):
