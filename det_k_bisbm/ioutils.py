@@ -2,14 +2,14 @@
 import numpy as np
 
 
-def get_edgelist(f_edgelist, delimiter=','):
+def get_edgelist(f_edgelist, delimiter=None):
     """
     This function returns an edgelist list from a file.
 
     Parameters
     ----------
     f_edgelist : ``str``
-        The path to the edgelist file.
+        The path to the edgelist text file.
 
     delimiter : ``str``
         The delimiter that separate the edges.
@@ -23,9 +23,24 @@ def get_edgelist(f_edgelist, delimiter=','):
     with open(f_edgelist, "r") as f:
         for line in f:
             line = line.replace('\r', '').replace('\n', '')  # remove all line breaks!
-            edge = line.split(delimiter)
-            # edgelist.append((str(int(edge[0]) - 1), str(int(edge[1]) - 1)))
-            edgelist.append((int(edge[0]), int(edge[1])))
+            if delimiter is not None:
+                edge = line.split(delimiter)
+                edgelist.append((int(edge[0]), int(edge[1])))
+            else:
+                try:
+                    edge = line.split(' ')
+                    edgelist.append((int(edge[0]), int(edge[1])))
+                except ValueError:
+                    try:
+                        edge = line.split('\t')
+                        edgelist.append((int(edge[0]), int(edge[1])))
+                    except ValueError:
+                        try:
+                            edge = line.split(',')
+                            edgelist.append((int(edge[0]), int(edge[1])))
+                        except ValueError:
+                            raise ValueError("Tried delimiters ' ', '\t', and ',', but none work...")
+
     return np.array(edgelist, dtype=np.int_)
 
 

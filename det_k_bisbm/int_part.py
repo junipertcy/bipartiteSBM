@@ -17,13 +17,12 @@ References
 
 """
 import numpy as np
-from numba import jit
+from numba import njit
 
 from scipy.special import gammaln, spence, loggamma
 
 
 # for computing the number of restricted partitions of the integer m into at most n pairs
-@jit(cache=True)
 def log_q(n, k, __q_cache):
     """log_q
 
@@ -50,7 +49,6 @@ def log_q(n, k, __q_cache):
     return log_q_approx(n, k)
 
 
-@jit(cache=True)
 def get_v(u, epsilon=1e-8):
     """get_v
 
@@ -73,7 +71,6 @@ def get_v(u, epsilon=1e-8):
     return v
 
 
-@jit(cache=True)
 def log_q_approx_small(n, k):
     """log_q_approx_small
 
@@ -89,7 +86,6 @@ def log_q_approx_small(n, k):
     return lbinom(n - 1, k - 1) - loggamma(k + 1)
 
 
-@jit(cache=True)
 def log_q_approx(n, k):
     """log_q_approx
 
@@ -111,7 +107,6 @@ def log_q_approx(n, k):
     return lf - np.log(n) + np.sqrt(n) * g
 
 
-@jit(cache=True)
 def init_q_cache(n_max, __q_cache=np.array([], ndmin=2)):
     """Initiate the look-up table for :math:`q(m, n)`.
 
@@ -130,16 +125,21 @@ def init_q_cache(n_max, __q_cache=np.array([], ndmin=2)):
         return
     __q_cache = np.resize(__q_cache, [n_max + 1, n_max + 1])
     __q_cache.fill(-np.inf)
+    return __fill_cache(__q_cache, n_max)
+
+
+@njit(cache=True)
+def __fill_cache(cache, n_max):
     for n in range(1, n_max + 1):
-        __q_cache[n][1] = 0
+        cache[n][1] = 0
         for k in range(2, n + 1):
-            __q_cache[n][k] = log_sum(__q_cache[n][k], __q_cache[n][k - 1])
+            cache[n][k] = log_sum(cache[n][k], cache[n][k - 1])
             if n > k:
-                __q_cache[n][k] = log_sum(__q_cache[n][k], __q_cache[n - k][k])
-    return __q_cache
+                cache[n][k] = log_sum(cache[n][k], cache[n - k][k])
+    return cache
 
 
-@jit(cache=True)
+@njit(cache=True)
 def log_sum(a, b):
     """log_sum
 

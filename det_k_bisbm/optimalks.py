@@ -90,7 +90,7 @@ class OptimalKs(object):
             self.bm_state["ka"] = int(self.bm_state["e"] ** 0.5 / 2)
             self.bm_state["kb"] = int(self.bm_state["e"] ** 0.5 / 2)
             self.i_0 = 1.
-            self.adaptive_ratio = 0.95  # adaptive parameter to make the "i_0" smaller, if it's overshooting.
+            self.adaptive_ratio = 0.9  # adaptive parameter to make the "i_0" smaller, if it's overshooting.
             self._k_th_nb_to_search = 2
             self._nm = 10
         else:
@@ -279,7 +279,7 @@ class OptimalKs(object):
             if dist <= self._k_th_nb_to_search * np.sqrt(2):
                 _mb = None
             else:
-                self._logger.info(f"DIST={dist}; agg merge from ({ka_}, {kb_}) to ({ka}, {kb}).")
+                self._logger.info(f"DIST={dist}; agg merge (or partition split) from ({ka_}, {kb_}) to ({ka}, {kb}).")
                 _mb = self.trace_mb[(ka_, kb_)]
         else:
             _mb = None
@@ -351,7 +351,7 @@ class OptimalKs(object):
         i_0 = diff_dl / self.bm_state["ref_dl"]
         self.i_0s += [i_0]
         iqr = np.percentile(self.i_0s, 75) - np.percentile(self.i_0s, 25)
-        if i_0 > 3 * iqr + np.percentile(self.i_0s, 75) >= 1e-4:
+        if i_0 > 1.5 * iqr + np.percentile(self.i_0s, 75) >= 1e-4:
             self.i_0 = i_0
             self._summary["algm_args"]["i_0"] = i_0
             self._logger.info(f"Determining i_0 at {i_0}.")
@@ -393,8 +393,8 @@ class OptimalKs(object):
         """
         m = np.arange(ka + kb)
 
-        mlist = set()
-        while len(mlist) == 0:
+        mlists = set()
+        while len(mlists) == 0:
             for _m in m:
                 pool = random.choices(m, k=self._nm)
                 _mlist = [[min(x, _m), max(x, _m)] for x in pool]
@@ -402,10 +402,10 @@ class OptimalKs(object):
                     cond = (_[0] != _[1]) and not (_[1] >= ka > _[0]) and not (_[0] == 0 and ka == 1) and not (
                             _[0] == ka and kb == 1)
                     if cond:
-                        mlist.add(str(_[0]) + "+" + str(_[1]))
+                        mlists.add(str(_[0]) + "+" + str(_[1]))
 
-        diff_dl, _mlist = virtual_moves_ds(self.bm_state["e_rs"], mlist, self.bm_state["ka"])
-        if max(_mlist) < self.bm_state["ka"]:
+        diff_dl, _mlist = virtual_moves_ds(self.bm_state["e_rs"], mlists, self.bm_state["ka"])
+        if np.max(_mlist) < self.bm_state["ka"]:
             ka = self.bm_state["ka"] - 1
             kb = self.bm_state["kb"]
         else:

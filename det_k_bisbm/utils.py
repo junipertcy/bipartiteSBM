@@ -103,6 +103,7 @@ def adjacency_entropy(edgelist, mb, exact=True, multigraph=True):
     edgelist : :class:`numpy.ndarray`
 
     mb : :class:`numpy.ndarray`
+        Partition :math:`b` of nodes into blocks.
 
     exact : ``bool``
 
@@ -255,6 +256,7 @@ def degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree_dl_kind
     edgelist : ``iterable`` or :class:`numpy.ndarray`
 
     mb : ``iterable`` or :class:`numpy.ndarray`
+        Partition :math:`b` of nodes into blocks.
 
     __q_cache : :class:`numpy.ndarray` (required, default: ``np.array([], ndmin=2)``)
 
@@ -314,7 +316,7 @@ def virtual_moves_ds(ori_e_rs, mlists, ka):
     ----------
     ori_e_rs : :class:`numpy.ndarray`
 
-    mlists : ``list of 2-tuples``
+    mlists : ``set``
 
     ka : ``int``
         Number of communities in type-*a*.
@@ -323,21 +325,22 @@ def virtual_moves_ds(ori_e_rs, mlists, ka):
     -------
     diff_dl : ``float``
 
-    _mlist : ``tuple``
+    _mlist : :class:`numpy.ndarray`
 
     """
     ori_e_r = np.sum(ori_e_rs, axis=1)
     size = ori_e_rs.shape[0] - 1
     t = np.inf
     diff_dl = 0.
-    _mlist = [0, 0]
+    _mlist = np.zeros(2, dtype=np.int_)
+
     for _ in mlists:
-        mlist = [int(_.split("+")[0]), int(_.split("+")[1])]
-        if (max(mlist) >= ka > min(mlist)) or (min(mlist) == 0 and ka == 1) or (
-                min(mlist) == ka and ori_e_rs.shape[0] == 1 + ka):
+        mlist = np.int_([_.split("+")[0], _.split("+")[1]])
+        if (np.max(mlist) >= ka > np.max(mlist)) or (np.max(mlist) == 0 and ka == 1) or (
+                np.max(mlist) == ka and ori_e_rs.shape[0] == 1 + ka):
             continue
         else:
-            if max(mlist) < ka:  # we are merging groups of type-a
+            if np.max(mlist) < ka:  # we are merging groups of type-a
                 _1, _2 = ori_e_rs[[mlist[0], mlist[1]], ka + 1: size + 1]
             else:
                 _1, _2 = ori_e_rs[[mlist[0], mlist[1]], 0: ka]
@@ -369,13 +372,13 @@ def gen_equal_partition(n, total):
 
     Parameters
     ----------
-    n: ``int``
+    n : ``int``
 
-    total: ``int``
+    total : ``int``
 
     Returns
     -------
-    n_blocks: ``list``
+    n_blocks : ``list``
 
     """
     all_nodes = np.arange(total)
@@ -443,6 +446,7 @@ def gen_e_rs(b, n_edges, p=0):
     Returns
     -------
     e_rs : :class:`numpy.ndarray`
+        Edge counts matrix.
 
     """
     c = n_edges / (b + (b ** 2 - b) * p)
@@ -463,7 +467,6 @@ def gen_e_rs(b, n_edges, p=0):
     return e_rs
 
 
-@jit(cache=True)
 def gen_e_rs_harder(ka, kb, n_edges, samples=1, top_k=1):
     """gen_e_rs_harder
 
@@ -487,14 +490,16 @@ def gen_e_rs_harder(ka, kb, n_edges, samples=1, top_k=1):
     Returns
     -------
     e_rs : :class:`numpy.ndarray` or ``list[numpy.ndarray]`` (when ``top_k > 1``)
+        Edge counts matrix.
 
     """
-    assert type(top_k) is int and top_k > 0, "Argument `top_k` needs to be a positive integer."
+    if top_k <= 0:
+        raise ValueError("Argument `top_k` needs to be a positive integer.")
     e_rs_inst = []
     for _ in range(int(samples)):
+        c = np.int_(np.random.dirichlet([1] * ka * kb, 1)[0] * n_edges)
         e_rs = np.zeros((ka + kb, ka + kb), dtype=np.int_)
-        c = list(map(int, np.random.dirichlet([1] * ka * kb, 1)[0] * n_edges))
-        remain_c = n_edges - sum(c)
+        remain_c = n_edges - np.sum(c, dtype=np.int_)
         for idx, _ in enumerate(range(remain_c)):
             c[idx] += 1
         perm = product(range(0, ka), range(ka, ka + kb))
@@ -534,6 +539,7 @@ def gen_e_rs_hard(ka, kb, n_edges, p=0):
     Returns
     -------
     e_rs : :class:`numpy.ndarray`
+        Edge counts matrix.
 
     """
     k_max = max(ka, kb)
@@ -714,6 +720,7 @@ def assemble_mb_new2old(mb, new2old):
     Parameters
     ----------
     mb : :class:`numpy.ndarray`
+        Partition :math:`b` of nodes into blocks.
 
     new2old : ``dict``
         Dictionary that maps the new node index to the old one; i.e., a reverse mapping of ``old2new``.
@@ -732,11 +739,12 @@ def assemble_mb_new2old(mb, new2old):
 
 @njit(cache=True)
 def assemble_n_r_from_mb(mb):
-    """Get n_r vector (number of nodes in each group) from the membership vector.
+    """Get :math:`n_r`, i.e., the number of nodes in each group, from the partition :math:`b`.
 
     Parameters
     ----------
     mb : ``iterable`` or :class:`numpy.ndarray`
+        Partition :math:`b` of nodes into blocks.
 
     Returns
     -------
@@ -752,17 +760,20 @@ def assemble_n_r_from_mb(mb):
 
 @njit(cache=True)
 def assemble_n_k_from_edgelist(edgelist, mb):
-    """Get n_k, or the number n_k of nodes of degree k.
+    """Get :math:`n_k`, i.e., the number :math:`n_k` of nodes of degree :math:`k`.
 
     Parameters
     ----------
     edgelist : :class:`numpy.ndarray`
+        List of edge tuples.
 
     mb : :class:`numpy.ndarray`
+        Partition :math:`b` of nodes into blocks.
 
     Returns
     -------
     n_k : :class:`numpy.ndarray`
+        Array of the number of nodes of degree :math:`k`.
 
     """
     k = np.zeros(len(mb) + 1, dtype=np.int_)
@@ -778,17 +789,20 @@ def assemble_n_k_from_edgelist(edgelist, mb):
 
 
 def assemble_e_rs_from_mb(edgelist, mb):
-    """assemble_e_rs_from_mb
+    """Get :math:`e_{rs}`, i.e., the matrix of edge counts between blocks.
 
     Parameters
     ----------
     edgelist : :class:`numpy.ndarray`
+        List of edge tuples.
 
     mb : :class:`numpy.ndarray`
+        Partition :math:`b` of nodes into blocks.
 
     Returns
     -------
     e_rs : :class:`numpy.ndarray`
+        Edge count matrix :math:`e_{rs}`.
 
     """
     sources, targets = zip(*edgelist)
@@ -803,13 +817,14 @@ def assemble_e_rs_from_mb(edgelist, mb):
 
 @njit(cache=True)
 def assemble_eta_rk_from_edgelist_and_mb(edgelist, mb):
-    """Get eta_rk, or the number eta_rk of nodes of degree k that belong to group r.
+    """Get :math:`\eta_{rk}`, or the number :math:`\eta_{rk}` of nodes of degree :math:`k` that belong to group :math:`r`.
 
     Parameters
     ----------
     edgelist : :class:`numpy.ndarray`
 
     mb : :class:`numpy.ndarray`
+        Partition :math:`b` of nodes into blocks.
 
     Returns
     -------
@@ -846,6 +861,7 @@ def compute_profile_likelihood(edgelist, mb, ka=None, kb=None, k=None):
     edgelist : :class:`numpy.ndarray`
 
     mb : :class:`numpy.ndarray`
+        Partition :math:`b` of nodes into blocks.
 
     ka : ``int``
         Number of communities in type-*a*.
@@ -895,7 +911,7 @@ def compute_profile_likelihood(edgelist, mb, ka=None, kb=None, k=None):
     return italic_i
 
 
-@jit(cache=True)
+@njit(cache=True)
 def compute_profile_likelihood_from_e_rs(e_rs):
     """compute_profile_likelihood_from_e_rs
 
@@ -908,12 +924,11 @@ def compute_profile_likelihood_from_e_rs(e_rs):
     italic_i : ``float``
 
     """
-    assert type(e_rs) is np.ndarray, "[ERROR] input parameter (m_e_rs) should be of type numpy.ndarray"
     italic_i = 0.
     e_r = np.sum(e_rs, axis=1)
     num_edges = e_r.sum() / 2.
     for ind, e_val in enumerate(np.nditer(e_rs)):
-        ind_i = int(np.floor(ind / (e_rs.shape[0])))
+        ind_i = np.int_(np.floor(ind / (e_rs.shape[0])))
         ind_j = ind % (e_rs.shape[0])
         if e_val != 0.0:
             italic_i += e_val / 2. / num_edges * np.log(
@@ -947,7 +962,7 @@ def get_desc_len_from_data(na, nb, n_edges, ka, kb, edgelist, mb, diff=False, nr
         Edgelist in Python list structure.
 
     mb : :class:`numpy.ndarray`
-        Community membership of each node in Python list structure.
+        Partition :math:`b` of nodes into blocks.
 
     diff : ``bool``
         When `diff == True`,
@@ -1004,7 +1019,7 @@ def get_desc_len_from_data_uni(n, n_edges, k, edgelist, mb):
         A list of edges.
 
     mb : :class:`numpy.ndarray`
-        A list of node community membership.
+        Partition :math:`b` of nodes into blocks.
 
     Returns
     -------
@@ -1076,9 +1091,12 @@ def get_flat_entropies(state):
     Parameters
     ----------
     state : :class:`graph_tool.inference.blockmodel.BlockState`
+        The stochastic block model state of a given graph, as defined in Graph-tool.
 
     Returns
     -------
+    dl : ``dict``
+        The entropic report of the partition.
 
     """
     na = sum(state.pclabel.a == 0)
@@ -1102,6 +1120,7 @@ def get_nested_entropies(state):
 
     Returns
     -------
+    dl : ``dict``
 
     """
     na = sum(state.levels[0].pclabel.a == 0)
