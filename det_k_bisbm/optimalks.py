@@ -107,6 +107,7 @@ class OptimalKs(object):
 
         # These trace_* variable are used to store the data that we temporarily go through
         self.trace_mb = OrderedDict()
+        self.trace_k = []  # only for painter.paint_trace
 
         # for debug/temp variables
         self.tempdir = tempdir
@@ -166,11 +167,13 @@ class OptimalKs(object):
             self._natural_merge()
 
         if self._check_if_local_minimum(self.bm_state["ka"], self.bm_state["kb"]):
+            self.trace_k += [("mdl", self.bm_state["ka"], self.bm_state["kb"])]
             return self.bookkeeping_dl
         else:
             diff_dl = 0.
             while abs(diff_dl) < self.i_0 * self.bm_state["ref_dl"]:
                 ka, kb = self.bm_state["ka"], self.bm_state["kb"]
+                self.trace_k += [("merge_or_rollback", ka, kb)]
                 if ka * kb != 1:
                     ka_, kb_, diff_dl, mlist = self._merge_e_rs(ka, kb)
                     if self._determine_i_0(diff_dl):
@@ -180,11 +183,12 @@ class OptimalKs(object):
                         break
                     mb_ = accept_mb_merge(self.bm_state["mb"], mlist)
                     e_rs = assemble_e_rs_from_mb(self.edgelist, mb_)
-                    self._update_bm_state(ka_, kb_, e_rs, mb_)
+                    self._update_bm_state(ka_, kb_, e_rs, mb_, record_merge=True)
                     self._logger.info(f"{(ka, kb)} ~~-> {(ka_, kb_)}")
                 else:
                     break
             ka, kb = self.bm_state["ka"], self.bm_state["kb"]
+            self.trace_k += [("escape_to", ka, kb)]
             self._logger.info(f"Escape the loop of agglomerative merges. Now {(ka, kb)} looks suspicious.")
             return self.minimize_bisbm_dl(bipartite_prior=self.bipartite_prior_)
 
@@ -204,7 +208,7 @@ class OptimalKs(object):
 
         self._summary["dl"] = dict()
         na, nb, e = self.bm_state["n_a"], self.bm_state["n_b"], self.bm_state["e"]
-        mb = self.trace_mb[(ka, kb)]
+        mb = self.trace_mb[(ka, kb)][1]
         nr = assemble_n_r_from_mb(mb)
         self._summary["dl"]["adjacency"] = float(adjacency_entropy(self.edgelist, mb))
         self._summary["dl"]["partition"] = float(partition_entropy(ka=ka, kb=kb, na=na, nb=nb, nr=nr))
@@ -266,7 +270,7 @@ class OptimalKs(object):
             pass
         else:
             if self.bookkeeping_dl[(ka, kb)] > 0:
-                return self.bookkeeping_dl[(ka, kb)], self.bookkeeping_e_rs[(ka, kb)], self.trace_mb[(ka, kb)]
+                return self.bookkeeping_dl[(ka, kb)], self.bookkeeping_e_rs[(ka, kb)], self.trace_mb[(ka, kb)][1]
         na, nb, e = self.bm_state["n_a"], self.bm_state["n_b"], self.bm_state["e"]
         if ka == 1 and kb == 1:
             mb = np.array([0] * na + [1] * nb, dtype=np.int_)
@@ -284,7 +288,7 @@ class OptimalKs(object):
                 _mb = None
             else:
                 self._logger.info(f"({ka_}, {kb_}) ~~-> ({ka}, {kb}); Use that partition to start MCMC@({ka}, {kb}).")
-                _mb = self.trace_mb[(ka_, kb_)]
+                _mb = self.trace_mb[(ka_, kb_)][1]
         else:
             _mb = None
 
@@ -334,18 +338,18 @@ class OptimalKs(object):
         e_rs = result[1]
         mb = result[2]
         ka, kb = result[3]
-        return dl, e_rs, mb, ka, kb
+        return dl, e_rs, mb, ka, kb, na, nb
 
     def _natural_merge(self):
-        dl, e_rs, mb, ka, kb = self.natural_merge()
+        dl, e_rs, mb, ka, kb, na, nb = self.natural_merge()
         assert max(mb) + 1 == ka + kb, "[ERROR] inconsistency between mb. indexes and #blocks. {} != {}".format(
             max(mb) + 1, ka + kb)
         self._summary["algm_args"]["init_ka"] = ka
         self._summary["algm_args"]["init_kb"] = kb
-        self._logger.info(f"Natural agglomerative merge to ({ka}, {kb}).")
+        self._logger.info(f"Natural agglomerative merge {(na, nb)} ~~-> {(ka, kb)}.")
         self.bookkeeping_dl[(ka, kb)] = dl
         self.bookkeeping_e_rs[(ka, kb)] = e_rs
-        self.trace_mb[(ka, kb)] = mb
+        self.trace_mb[(ka, kb)] = ("merge", mb)
         self._update_bm_state(ka, kb, e_rs, mb)
         self._virgin_run = False
 
@@ -422,15 +426,16 @@ class OptimalKs(object):
         ka = self.summary()["ka"]
         kb = self.summary()["kb"]
         e_rs = self.bookkeeping_e_rs[(ka, kb)]
-        mb = self.trace_mb[(ka, kb)]
+        mb = self.trace_mb[(ka, kb)][1]
         self._update_bm_state(ka, kb, e_rs, mb)
         return ka, kb, e_rs, dl
 
-    def _update_bm_state(self, ka, kb, e_rs, mb):
-        self.bm_state["ka"] = ka
-        self.bm_state["kb"] = kb
+    def _update_bm_state(self, ka, kb, e_rs, mb, record_merge=False):
+        self.bm_state["ka"], self.bm_state["kb"] = ka, kb
         self.bm_state["e_rs"] = e_rs
         self.bm_state["mb"] = mb
+        if record_merge:
+            self.trace_mb[(ka, kb)] = ("merge", mb)
 
     def _compute_dl_and_update(self, ka, kb, recompute=False):
         dl, e_rs, mb = self.compute_dl(ka, kb, recompute=recompute)
@@ -438,7 +443,8 @@ class OptimalKs(object):
             max(mb) + 1, ka + kb)
         self.bookkeeping_dl[(ka, kb)] = dl
         self.bookkeeping_e_rs[(ka, kb)] = e_rs
-        self.trace_mb[(ka, kb)] = mb
+        self.trace_mb[(ka, kb)] = ("mcmc", mb)
+        self.trace_k += [("mcmc", ka, kb)]
         self.bm_state["ref_dl"] = self.summary()["mdl"] if self.bm_state["ref_dl"] != 0 else dl
         return dl, e_rs, mb
 
@@ -454,9 +460,9 @@ class OptimalKs(object):
         k_th = self._k_th_nb_to_search
         self._logger.info(f"Is {(ka, kb)} a local minimum? Let's check.")
         _dl, _e_rs, _mb = self._compute_dl_and_update(ka, kb)
+        null_dl = self.bookkeeping_dl[(1, 1)]
         if _dl > self.bookkeeping_dl[(1, 1)]:
-            self._logger.info("DL({}, {}) > DL(1, 1), which is {} compared to {}".format(
-                ka, kb, _dl, self.bookkeeping_dl[(1, 1)]))
+            self._logger.info("DL({}, {}) > DL(1, 1), which is {} compared to {}".format(ka, kb, _dl, null_dl))
             self._update_bm_state(ka, kb, _e_rs, _mb)
             return False
 

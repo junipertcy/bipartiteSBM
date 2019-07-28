@@ -1,6 +1,7 @@
 """ plots """
-
+import matplotlib as mpl
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 import scipy.sparse as sps
 from .utils import *
 from itertools import combinations
@@ -8,6 +9,7 @@ from itertools import combinations
 from clusim.clustering import Clustering
 import clusim.sim as sim
 from sklearn import manifold
+import numpy as np
 
 
 def paint_block_mat_from_e_rs(e_rs, save2file=False, figsize=(3, 3), **kwargs):
@@ -130,49 +132,54 @@ def paint_sorted_adj_mat(mb, edgelist, output=None, fmt='auto', figsize=(3, 3), 
         plt.savefig(output, format=fmt, dpi=dpi, transparent=True)
 
 
-def paint_trace(oks, save2file=False, figsize=(3, 3), **kwargs):
-    from matplotlib import collections as mc
+def paint_trace(oks, save2file=False, figsize=(6, 6), **kwargs):
+    from matplotlib.collections import LineCollection
+    summary = oks.summary()
+    trace = [(i[1], i[2]) for i in oks.trace_k]
 
-    trace = list(oks.trace_mb.keys())
     lines = []
     for ind, i in enumerate(trace):
         if ind != len(trace) - 1:
             lines += [(trace[ind], trace[ind + 1])]
 
-    # lines = lines[20:]
-    lc = mc.LineCollection(lines, linewidths=2, color="#0074D9")
+    lines.pop(0)  # remove the first line segment to make it prettier
+
+    lc = LineCollection(lines, linewidths=0.5, color="#0074D9", )
     fig, ax = plt.subplots(figsize=figsize, dpi=300)
     ax.add_collection(lc)
+    ax.autoscale()
 
-    # Pink circle marks the optimal point (ka, kb)
-    summary = oks.summary()
-    ax.scatter(summary["ka"], summary["kb"], marker="o", c="pink", s=200, alpha=0.5)
+    ax.tick_params(direction="in")
+
+    x = [i[0] for j in lines for i in j]
+    y = [i[1] for j in lines for i in j]
+
+    ax.scatter(x, y)
+
+    # Locate the mdl point (Pink circle marks the optimal point (ka, kb))
+    ka = summary["ka"]
+    kb = summary["kb"]
+    plt.axvline(ka, color="#DDDDDD", linewidth=0.5)
+    plt.axhline(kb, color="#DDDDDD", linewidth=0.5)
+    #     ax.scatter(ka, kb, marker="o", c="pink", s=200, alpha=0.5)
 
     # Black numbers indicate ordered points where graph partition takes place
     for idx, point in enumerate(list(oks.bookkeeping_dl.keys())):
-        #     plt.scatter(point[0], point[1], marker='${}$'.format(idx), c="black", edgecolors="none", s=100)
         plt.scatter(point[0], point[1], marker='x', c="#FF4136", edgecolors="none", s=20)
 
-    # for idx, point in enumerate(list(oks.confident_desc_len.keys())):
-    #     plt.scatter(point[0], point[1], marker='${}$'.format(idx), c="black", edgecolors="none", s=100)
-    #     ax.scatter(point[0], point[1], marker='o', color="#0074D9", s=5)
-
-    ax.autoscale()
-    ax.margins(0.1)
+    ax.margins(0.01)
 
     ax.set_aspect(1)
-    plt.xlabel("number of type-a communities: ka")
-    plt.ylabel("number of type-b communities: kb")
-    plt.xticks(np.arange(0, 61, 10))
-    plt.yticks(np.arange(0, 61, 10))
+    plt.xlabel("$K_a$")
+    plt.ylabel("$K_b$")
 
-    plt.axvline(4)
-    plt.axhline(6)
-
-    # ax.set_xlim([2, 8])
-    # ax.set_ylim([2, 8])
-    # plt.xticks(np.arange(2, 9, 1))
-    # plt.yticks(np.arange(2, 9, 1))
+    k = np.array(trace)
+    k.flatten()
+    k = np.max(k)
+    plt.xticks(np.arange(0, k + 1, 2))
+    plt.yticks(np.arange(0, k + 1, 2))
+    plt.xlim([0, k + 1])
+    plt.ylim([0, k + 1])
 
     # plt.show()
     if save2file:
@@ -183,7 +190,7 @@ def paint_trace(oks, save2file=False, figsize=(3, 3), **kwargs):
         plt.savefig(path + '.eps', format='eps', dpi=300)
 
 
-def paint_dl_trace(oks, save2file=False, figsize=(5, 3), **kwargs):
+def paint_dl_trace(oks, save2file=False, figsize=(6, 2), **kwargs):
     qc = oks.get__q_cache()
     na = oks.summary()["na"]
     nb = oks.summary()["nb"]
@@ -193,14 +200,15 @@ def paint_dl_trace(oks, save2file=False, figsize=(5, 3), **kwargs):
     desc_len_list = []
 
     for idx, key in enumerate(oks.trace_mb.keys()):
-        mb = oks.trace_mb[key]
+        mb = oks.trace_mb[key][1]
         nr = assemble_n_r_from_mb(mb)
         desc_len_list += [get_desc_len_from_data(na, nb, e, key[0], key[1], oks.edgelist, mb, nr=nr, q_cache=qc)]
     ax.autoscale()
     ax.margins(0.1)
+    ax.tick_params(direction="in")
 
     plt.xlabel("steps")
-    plt.ylabel("description length")
+    plt.ylabel("DL")
     if save2file:
         try:
             path = kwargs["path"]
@@ -210,14 +218,14 @@ def paint_dl_trace(oks, save2file=False, figsize=(5, 3), **kwargs):
     plt.plot(desc_len_list, 'o-')
 
 
-def paint_similarity_trace(b, oks, save2file=False, figsize=(5, 3), **kwargs):
+def paint_similarity_trace(b, oks, save2file=False, figsize=(6, 2), **kwargs):
     clu_base = Clustering()
     fig, ax = plt.subplots(figsize=figsize, dpi=300)
     e_sim_list = []
-    b = clu_base.from_membership_list(b)
+    clu_base.from_membership_list(b)
     for g in oks.trace_mb.values():
         clu = Clustering()
-        clu.from_membership_list(list(g))
+        clu.from_membership_list(g[1])
         e_sim_list += [sim.element_sim(clu_base, clu)]
 
     ax.autoscale()
@@ -226,7 +234,7 @@ def paint_similarity_trace(b, oks, save2file=False, figsize=(5, 3), **kwargs):
     plt.xlabel("steps")
     plt.ylabel("Element-centric similarity")
     plt.yticks(np.linspace(0, 1, 5))
-
+    ax.tick_params(direction="in")
     if save2file:
         try:
             path = kwargs["path"]
@@ -234,6 +242,46 @@ def paint_similarity_trace(b, oks, save2file=False, figsize=(5, 3), **kwargs):
             raise (KeyError, "Please specify `path` for save2file.")
         plt.savefig(path + '.eps', format='eps', dpi=300)
     plt.plot(e_sim_list)
+
+
+def paint_landscape(oks, max_ka, max_kb):
+    mat = np.zeros([max_ka, max_kb])
+    for i in oks.bookkeeping_dl.keys():
+        try:
+            mat[i[0] - 1, i[1] - 1] = oks[i]
+        except IndexError:
+            pass
+
+    fig, ax = plt.subplots(1, 1, figsize=(6, 6))  # setup the plot
+
+    colors_undersea = plt.cm.terrain(np.linspace(0, 0.95, 256))
+    colors_land = plt.cm.terrain(np.linspace(0.95, 1, 256))
+    all_colors = np.vstack((colors_undersea, colors_land))
+    cmap = mpl.colors.LinearSegmentedColormap.from_list('terrain_map', all_colors)
+
+    # define the bins and normalize
+    bounds = np.geomspace(min(mat.flatten()), max(mat.flatten()), 256)
+    norm = mpl.colors.BoundaryNorm(bounds, 256)
+
+    ims = ax.imshow(mat, norm=norm, cmap=cmap, origin='lower', extent=[1, max_ka, 1, max_ka], rasterized=True)
+    plt.xlabel("$K_a$")
+    plt.ylabel("$K_b$")
+
+    # scaled colorbar that aligns with the frame
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    fig.colorbar(ims, cax=cax, label="DL (unit: nat)", shrink=1)
+    ax.tick_params(axis="y", direction="in")
+    ax.tick_params(axis="x", direction="in")
+    ax.xaxis.set_ticks_position("bottom")
+
+    ax.spines['right'].set_visible(True)
+    ax.spines['top'].set_visible(True)
+
+    ax.set_xticks(np.arange(1.5, max_ka + 1, 4))
+    ax.set_yticks(np.arange(1.5, max_kb + 1, 4))
+    ax.set_xticklabels(np.arange(1, max_ka + 1, 4))
+    ax.set_yticklabels(np.arange(1, max_kb + 1, 4))
 
 
 def paint_mds(oks, figsize=(20, 20)):
