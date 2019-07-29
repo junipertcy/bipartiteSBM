@@ -12,7 +12,7 @@ from sklearn import manifold
 import numpy as np
 
 
-def paint_block_mat_from_e_rs(e_rs, save2file=False, figsize=(3, 3), **kwargs):
+def paint_block_mat_from_e_rs(e_rs, output=None, figsize=(3, 3), dpi=200, **kwargs):
     plt.figure(figsize=figsize)
     frame = plt.gca()
 
@@ -48,15 +48,11 @@ def paint_block_mat_from_e_rs(e_rs, save2file=False, figsize=(3, 3), **kwargs):
     frame.axes.get_xaxis().set_visible(False)
     frame.axes.get_yaxis().set_visible(False)
 
-    if save2file:
-        try:
-            path = kwargs["path"]
-        except KeyError:
-            raise (KeyError, "Please specify `path` for save2file.")
-        plt.savefig(path + '.eps', format='eps', dpi=300)
+    if output is not None:
+        plt.savefig(output, dpi=dpi, transparent=True)
 
 
-def paint_block_mat(mb, edgelist, save2file=False, figsize=(3, 3), **kwargs):
+def paint_block_mat(mb, edgelist, output=None, figsize=(3, 3), dpi=200, **kwargs):
     mb = np.asanyarray(mb, dtype=int)
     e_rs, _ = assemble_e_rs_from_mb(edgelist, mb)
 
@@ -95,15 +91,11 @@ def paint_block_mat(mb, edgelist, save2file=False, figsize=(3, 3), **kwargs):
     frame.axes.get_xaxis().set_visible(False)
     frame.axes.get_yaxis().set_visible(False)
 
-    if save2file:
-        try:
-            path = kwargs["path"]
-        except KeyError:
-            raise (KeyError, "Please specify `path` for save2file.")
-        plt.savefig(path + '.eps', format='eps', dpi=300)
+    if output is not None:
+        plt.savefig(output, dpi=dpi, transparent=True)
 
 
-def paint_sorted_adj_mat(mb, edgelist, output=None, fmt='auto', figsize=(3, 3), dpi=200, invert=True):
+def paint_sorted_adj_mat(mb, edgelist, output=None, figsize=(3, 3), dpi=200, invert=True):
     font = {'family': 'serif'}
     plt.figure(figsize=figsize)
     fig, ax = plt.subplots()
@@ -129,10 +121,10 @@ def paint_sorted_adj_mat(mb, edgelist, output=None, fmt='auto', figsize=(3, 3), 
         ax.spines['right'].set_visible(False)
         ax.spines['top'].set_visible(False)
     if output is not None:
-        plt.savefig(output, format=fmt, dpi=dpi, transparent=True)
+        plt.savefig(output, dpi=dpi, transparent=True)
 
 
-def paint_trace(oks, save2file=False, figsize=(6, 6), **kwargs):
+def paint_trace(oks, output=None, figsize=(4, 4), dpi=200):
     from matplotlib.collections import LineCollection
     summary = oks.summary()
     trace = [(i[1], i[2]) for i in oks.trace_k]
@@ -182,15 +174,11 @@ def paint_trace(oks, save2file=False, figsize=(6, 6), **kwargs):
     plt.ylim([0, k + 1])
 
     # plt.show()
-    if save2file:
-        try:
-            path = kwargs["path"]
-        except KeyError:
-            raise (KeyError, "Please specify `path` for save2file.")
-        plt.savefig(path + '.eps', format='eps', dpi=300)
+    if output is not None:
+        plt.savefig(output, dpi=dpi, transparent=True)
 
 
-def paint_dl_trace(oks, save2file=False, figsize=(6, 2), **kwargs):
+def paint_dl_trace(oks, output=None, figsize=(4, 2), dpi=200, **kwargs):
     qc = oks.get__q_cache()
     na = oks.summary()["na"]
     nb = oks.summary()["nb"]
@@ -209,16 +197,12 @@ def paint_dl_trace(oks, save2file=False, figsize=(6, 2), **kwargs):
 
     plt.xlabel("steps")
     plt.ylabel("DL")
-    if save2file:
-        try:
-            path = kwargs["path"]
-        except KeyError:
-            raise (KeyError, "Please specify `path` for save2file.")
-        plt.savefig(path + '.eps', format='eps', dpi=300)
     plt.plot(desc_len_list, 'o-')
+    if output is not None:
+        plt.savefig(output, dpi=dpi, transparent=True)
 
 
-def paint_similarity_trace(b, oks, save2file=False, figsize=(6, 2), **kwargs):
+def paint_similarity_trace(b, oks, output=None, figsize=(3, 3), dpi=200, **kwargs):
     clu_base = Clustering()
     fig, ax = plt.subplots(figsize=figsize, dpi=300)
     e_sim_list = []
@@ -235,20 +219,16 @@ def paint_similarity_trace(b, oks, save2file=False, figsize=(6, 2), **kwargs):
     plt.ylabel("Element-centric similarity")
     plt.yticks(np.linspace(0, 1, 5))
     ax.tick_params(direction="in")
-    if save2file:
-        try:
-            path = kwargs["path"]
-        except KeyError:
-            raise (KeyError, "Please specify `path` for save2file.")
-        plt.savefig(path + '.eps', format='eps', dpi=300)
     plt.plot(e_sim_list)
+    if output is not None:
+        plt.savefig(output, dpi=dpi, transparent=True)
 
 
-def paint_landscape(oks, max_ka, max_kb):
+def paint_landscape(oks, max_ka, max_kb, output=None, dpi=200,):
     mat = np.zeros([max_ka, max_kb])
     for i in oks.bookkeeping_dl.keys():
         try:
-            mat[i[0] - 1, i[1] - 1] = oks[i]
+            mat[i[0] - 1, i[1] - 1] = oks.bookkeeping_dl[i]
         except IndexError:
             pass
 
@@ -282,6 +262,8 @@ def paint_landscape(oks, max_ka, max_kb):
     ax.set_yticks(np.arange(1.5, max_kb + 1, 4))
     ax.set_xticklabels(np.arange(1, max_ka + 1, 4))
     ax.set_yticklabels(np.arange(1, max_kb + 1, 4))
+    if output is not None:
+        plt.savefig(output, dpi=dpi, transparent=True)
 
 
 def paint_mds(oks, figsize=(20, 20)):
