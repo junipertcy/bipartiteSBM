@@ -90,7 +90,7 @@ class OptimalKs(object):
             self.bm_state["ka"] = int(self.bm_state["e"] ** 0.5 / 2)
             self.bm_state["kb"] = int(self.bm_state["e"] ** 0.5 / 2)
             self.i_0 = 1.
-            self.adaptive_ratio = 0.9  # adaptive parameter to make the "i_0" smaller, if it's overshooting.
+            self.adaptive_ratio = 0.95  # adaptive parameter to make the "i_0" smaller, if it's overshooting.
             self._k_th_nb_to_search = 2
             self._nm = 10
         else:
@@ -355,7 +355,7 @@ class OptimalKs(object):
         i_0 = diff_dl / self.bm_state["ref_dl"]
         self.i_0s += [i_0]
         iqr = np.percentile(self.i_0s, 75) - np.percentile(self.i_0s, 25)
-        if i_0 > 1.5 * iqr + np.percentile(self.i_0s, 75) >= 1e-4:
+        if i_0 > 3 * iqr + np.percentile(self.i_0s, 75) >= 1e-4:
             self.i_0 = i_0
             self._summary["algm_args"]["i_0"] = i_0
             self._logger.info(f"Determining \u0394 at {i_0}.")  # \u0394 = Delta = i_0
