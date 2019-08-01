@@ -323,7 +323,7 @@ def virtual_moves_ds(ori_e_rs, mlists, ka):
 
     Returns
     -------
-    diff_dl : ``float``
+    dS : ``float``
 
     _mlist : :class:`numpy.ndarray`
 
@@ -331,7 +331,7 @@ def virtual_moves_ds(ori_e_rs, mlists, ka):
     ori_e_r = np.sum(ori_e_rs, axis=1)
     size = ori_e_rs.shape[0] - 1
     t = np.inf
-    diff_dl = 0.
+    dS = 0.
     _mlist = np.zeros(2, dtype=np.int_)
 
     for _ in mlists:
@@ -355,9 +355,9 @@ def virtual_moves_ds(ori_e_rs, mlists, ka):
 
             if 0 <= _ds < t:
                 t = _ds
-                diff_dl, _mlist = _ds, mlist
+                dS, _mlist = _ds, mlist
 
-    return diff_dl, _mlist
+    return dS, _mlist
 
 
 # ####################
