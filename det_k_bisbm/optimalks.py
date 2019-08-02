@@ -107,6 +107,7 @@ class OptimalKs(object):
 
         # These trace_* variable are used to store the data that we temporarily go through
         self.trace_mb = OrderedDict()
+        self.trace_k = []  # only for painter.paint_trace
 
         # for debug/temp variables
         self.tempdir = tempdir
@@ -166,29 +167,35 @@ class OptimalKs(object):
             self._natural_merge()
 
         if self._check_if_local_minimum(self.bm_state["ka"], self.bm_state["kb"]):
+            self.trace_k += [("mdl", self.bm_state["ka"], self.bm_state["kb"])]
             return self.bookkeeping_dl
         else:
-            diff_dl = 0.
-            while abs(diff_dl) < self.i_0 * self.bm_state["ref_dl"]:
+            dS = 0.
+            while abs(dS) < self.i_0 * self.bm_state["ref_dl"]:
                 ka, kb = self.bm_state["ka"], self.bm_state["kb"]
+                self.trace_k += [("merge_or_rollback", ka, kb)]
                 if ka * kb != 1:
-                    ka_, kb_, diff_dl, mlist = self._merge_e_rs(ka, kb)
-                    if self._determine_i_0(diff_dl):
-                        ka__ = self.summary()["ka"]
-                        kb__ = self.summary()["kb"]
-                        self._logger.info(f"Tried {(ka, kb)} ~~-> {(ka_, kb_)}, but *DL{(ka_, kb_)} deviates too much from *DL{(ka__, kb__)}")
+                    ka_, kb_, dS, mlist = self._merge_e_rs(ka, kb)
+                    if self._determine_i_0(dS):
+                        ka__, kb__, _ = self.summary(mode="simple")
+                        self._logger.info(
+                            f"Tried {(ka, kb)} ~~-> {(ka_, kb_)}, "
+                            f"but *DL{(ka_, kb_)} deviates too much from *DL{(ka__, kb__)}, "
+                            f"which is {dS}."
+                        )
                         break
                     mb_ = accept_mb_merge(self.bm_state["mb"], mlist)
                     e_rs = assemble_e_rs_from_mb(self.edgelist, mb_)
-                    self._update_bm_state(ka_, kb_, e_rs, mb_)
+                    self._update_bm_state(ka_, kb_, e_rs, mb_, record_merge=True)
                     self._logger.info(f"{(ka, kb)} ~~-> {(ka_, kb_)}")
                 else:
                     break
             ka, kb = self.bm_state["ka"], self.bm_state["kb"]
+            self.trace_k += [("escape_to", ka, kb)]
             self._logger.info(f"Escape the loop of agglomerative merges. Now {(ka, kb)} looks suspicious.")
             return self.minimize_bisbm_dl(bipartite_prior=self.bipartite_prior_)
 
-    def summary(self):
+    def summary(self, mode=None):
         """Return a summary of the algorithmic outcome.
 
         Returns
@@ -198,21 +205,33 @@ class OptimalKs(object):
 
         """
         ka, kb = sorted(self.bookkeeping_dl, key=self.bookkeeping_dl.get)[0]
+        self._summary["mdl"] = self.bookkeeping_dl[(ka, kb)]
+        if mode == "simple":
+            return ka, kb, self._summary["mdl"]
+
         self._summary["ka"] = ka
         self._summary["kb"] = kb
-        self._summary["mdl"] = self.bookkeeping_dl[(ka, kb)]
+        self._summary["dl"] = self.summary_dl(ka, kb)
+        del self._summary["dl"]["dl"]
 
-        self._summary["dl"] = dict()
-        na, nb, e = self.bm_state["n_a"], self.bm_state["n_b"], self.bm_state["e"]
-        mb = self.trace_mb[(ka, kb)]
-        nr = assemble_n_r_from_mb(mb)
-        self._summary["dl"]["adjacency"] = float(adjacency_entropy(self.edgelist, mb))
-        self._summary["dl"]["partition"] = float(partition_entropy(ka=ka, kb=kb, na=na, nb=nb, nr=nr))
-        self._summary["dl"]["degree"] = float(degree_entropy(self.edgelist, mb, __q_cache=self.__q_cache))
-        self._summary["dl"]["edges"] = float(
-            model_entropy(e, ka=ka, kb=kb, na=na, nb=nb, nr=nr, is_bipartite=self.bipartite_prior_) -
-            self._summary["dl"]["partition"])
         return self._summary
+
+    def summary_dl(self, ka, kb):
+        _summary = dict()
+        na, nb, e = self.bm_state["n_a"], self.bm_state["n_b"], self.bm_state["e"]
+        try:
+            mb = self.trace_mb[(ka, kb)][1]
+        except KeyError:
+            raise KeyError(f"Did you compute the partition at {(ka, kb)}?")
+        nr = assemble_n_r_from_mb(mb)
+        _summary["adjacency"] = float(adjacency_entropy(self.edgelist, mb))
+        _summary["partition"] = float(partition_entropy(ka=ka, kb=kb, na=na, nb=nb, nr=nr))
+        _summary["degree"] = float(degree_entropy(self.edgelist, mb, __q_cache=self.__q_cache))
+        _summary["edges"] = float(
+            model_entropy(e, ka=ka, kb=kb, na=na, nb=nb, nr=nr, is_bipartite=self.bipartite_prior_) -
+            _summary["partition"])
+        _summary["dl"] = sum(_summary.values())
+        return _summary
 
     def compute_and_update(self, ka, kb, recompute=True):
         """Infer the partitions at a specific :math:`(K_a, K_b)` and then update the base class.
@@ -266,7 +285,7 @@ class OptimalKs(object):
             pass
         else:
             if self.bookkeeping_dl[(ka, kb)] > 0:
-                return self.bookkeeping_dl[(ka, kb)], self.bookkeeping_e_rs[(ka, kb)], self.trace_mb[(ka, kb)]
+                return self.bookkeeping_dl[(ka, kb)], self.bookkeeping_e_rs[(ka, kb)], self.trace_mb[(ka, kb)][1]
         na, nb, e = self.bm_state["n_a"], self.bm_state["n_b"], self.bm_state["e"]
         if ka == 1 and kb == 1:
             mb = np.array([0] * na + [1] * nb, dtype=np.int_)
@@ -284,7 +303,7 @@ class OptimalKs(object):
                 _mb = None
             else:
                 self._logger.info(f"({ka_}, {kb_}) ~~-> ({ka}, {kb}); Use that partition to start MCMC@({ka}, {kb}).")
-                _mb = self.trace_mb[(ka_, kb_)]
+                _mb = self.trace_mb[(ka_, kb_)][1]
         else:
             _mb = None
 
@@ -334,25 +353,25 @@ class OptimalKs(object):
         e_rs = result[1]
         mb = result[2]
         ka, kb = result[3]
-        return dl, e_rs, mb, ka, kb
+        return dl, e_rs, mb, ka, kb, na, nb
 
     def _natural_merge(self):
-        dl, e_rs, mb, ka, kb = self.natural_merge()
+        dl, e_rs, mb, ka, kb, na, nb = self.natural_merge()
         assert max(mb) + 1 == ka + kb, "[ERROR] inconsistency between mb. indexes and #blocks. {} != {}".format(
             max(mb) + 1, ka + kb)
         self._summary["algm_args"]["init_ka"] = ka
         self._summary["algm_args"]["init_kb"] = kb
-        self._logger.info(f"Natural agglomerative merge to ({ka}, {kb}).")
+        self._logger.info(f"Natural agglomerative merge {(na, nb)} ~~-> {(ka, kb)}.")
         self.bookkeeping_dl[(ka, kb)] = dl
         self.bookkeeping_e_rs[(ka, kb)] = e_rs
-        self.trace_mb[(ka, kb)] = mb
+        self.trace_mb[(ka, kb)] = ("merge", mb)
         self._update_bm_state(ka, kb, e_rs, mb)
         self._virgin_run = False
 
-    def _determine_i_0(self, diff_dl):
+    def _determine_i_0(self, dS):
         if self.i_0 < 1:
             return False
-        i_0 = diff_dl / self.bm_state["ref_dl"]
+        i_0 = dS / self.bm_state["ref_dl"]
         self.i_0s += [i_0]
         iqr = np.percentile(self.i_0s, 75) - np.percentile(self.i_0s, 25)
         if i_0 > 3 * iqr + np.percentile(self.i_0s, 75) >= 1e-4:
@@ -388,7 +407,7 @@ class OptimalKs(object):
         _kb : ``int``
             New number of type-b communities in the affinity matrix
 
-        diff_dl : ``list(int, int)``
+        dS : ``list(int, int)``
             Difference of the new entropy and the old one
 
         _mlist : ``list(int, int)``
@@ -408,29 +427,28 @@ class OptimalKs(object):
                     if cond:
                         mlists.add(str(_[0]) + "+" + str(_[1]))
 
-        diff_dl, _mlist = virtual_moves_ds(self.bm_state["e_rs"], mlists, self.bm_state["ka"])
+        dS, _mlist = virtual_moves_ds(self.bm_state["e_rs"], mlists, self.bm_state["ka"])
         if np.max(_mlist) < self.bm_state["ka"]:
             ka = self.bm_state["ka"] - 1
             kb = self.bm_state["kb"]
         else:
             ka = self.bm_state["ka"]
             kb = self.bm_state["kb"] - 1
-        return ka, kb, diff_dl, _mlist
+        return ka, kb, dS, _mlist
 
     def _rollback(self):
-        dl = self.summary()["mdl"]
-        ka = self.summary()["ka"]
-        kb = self.summary()["kb"]
+        ka, kb, dl = self.summary(mode="simple")
         e_rs = self.bookkeeping_e_rs[(ka, kb)]
-        mb = self.trace_mb[(ka, kb)]
+        mb = self.trace_mb[(ka, kb)][1]
         self._update_bm_state(ka, kb, e_rs, mb)
         return ka, kb, e_rs, dl
 
-    def _update_bm_state(self, ka, kb, e_rs, mb):
-        self.bm_state["ka"] = ka
-        self.bm_state["kb"] = kb
+    def _update_bm_state(self, ka, kb, e_rs, mb, record_merge=False):
+        self.bm_state["ka"], self.bm_state["kb"] = ka, kb
         self.bm_state["e_rs"] = e_rs
         self.bm_state["mb"] = mb
+        if record_merge:
+            self.trace_mb[(ka, kb)] = ("merge", mb)
 
     def _compute_dl_and_update(self, ka, kb, recompute=False):
         dl, e_rs, mb = self.compute_dl(ka, kb, recompute=recompute)
@@ -438,8 +456,9 @@ class OptimalKs(object):
             max(mb) + 1, ka + kb)
         self.bookkeeping_dl[(ka, kb)] = dl
         self.bookkeeping_e_rs[(ka, kb)] = e_rs
-        self.trace_mb[(ka, kb)] = mb
-        self.bm_state["ref_dl"] = self.summary()["mdl"] if self.bm_state["ref_dl"] != 0 else dl
+        self.trace_mb[(ka, kb)] = ("mcmc", mb)
+        self.trace_k += [("mcmc", ka, kb)]
+        self.bm_state["ref_dl"] = self.summary(mode="simple")[2] if self.bm_state["ref_dl"] != 0 else dl
         return dl, e_rs, mb
 
     # ###########
@@ -451,39 +470,51 @@ class OptimalKs(object):
 
     def _check_if_local_minimum(self, ka, kb):
         """The `neighborhood search` as described in the paper."""
-        k_th = self._k_th_nb_to_search
         self._logger.info(f"Is {(ka, kb)} a local minimum? Let's check.")
         _dl, _e_rs, _mb = self._compute_dl_and_update(ka, kb)
+        null_dl = self.bookkeeping_dl[(1, 1)]
         if _dl > self.bookkeeping_dl[(1, 1)]:
-            self._logger.info("DL({}, {}) > DL(1, 1), which is {} compared to {}".format(
-                ka, kb, _dl, self.bookkeeping_dl[(1, 1)]))
+            self._logger.info("DL({}, {}) > DL(1, 1), which is {} compared to {}".format(ka, kb, _dl, null_dl))
+            self._logger.info(f"~~~- Keep merging -~~~")
             self._update_bm_state(ka, kb, _e_rs, _mb)
             return False
 
-        if _dl > self.summary()["mdl"]:
-            self.i_0 *= self.adaptive_ratio
+        if _dl > self.summary(mode="simple")[2]:
             ka, kb, _, _dl = self._rollback()
-            self._logger.info("Overshooting! There's already a point with lower DL. Let's reduce \u0394 by {}.".format(self.adaptive_ratio))
+            _ = self.adaptive_ratio
+            self.i_0 *= _
+            self._logger.info(f"Overshooting! There's already a point with lower DL. Let's reduce \u0394 by {_}.")
             self._logger.info(f"Move to {(ka, kb)} and re-checking if it is a local minimum.")
 
-        nb_points = [(x + ka, y + kb) for (x, y) in product(range(-k_th, k_th + 1), repeat=2)]
-        # if any item has values less than 1, delete it. Also, exclude the suspected point (i.e., [ka, kb]).
-        nb_points = [(i, j) for i, j in nb_points if
-                     self.bm_state["n_a"] >= i >= 1 and self.bm_state["n_b"] >= j >= 1 and (i, j) != (ka, kb)]
+        nb_points = self._get_neighbor_points(ka, kb)
 
         for _ka, _kb in nb_points:
-            dl, _, _ = self._compute_dl_and_update(_ka, _kb)
-            if self._is_mdl_so_far(dl):
-                self._logger.info(f"Found {(_ka, _kb)} that gives an even lower DL ...")
-                self._rollback()
-                self._logger.info(f"Move to {(_ka, _kb)} but NOT reduce \u0394")
+            self._compute_dl_and_update(_ka, _kb)
+            if not self._is_mdl_so_far(_dl):
+                _, _, _, mdl = self._rollback()
+                self._logger.info(
+                    f"Warning. DL{(_ka, _kb)} = {mdl} < DL{(ka, kb)}. We move to {(_ka, _kb)} but NOT reduce \u0394.")
                 break
-        if _dl != self.summary()["mdl"]:
+
+        if _dl != self.summary(mode="simple")[2]:
             self._logger.info(f"Bummer. {(ka, kb)} is NOT a local minimum.")
             return False
         else:
-            self._logger.info(f"YES! {(ka, kb)} is a local minimum. We are done.")
+            self._logger.info(f"YES! {(ka, kb)} is a local minimum with DL = {_dl}. We are done.")
             return True
+
+    def _get_neighbor_points(self, ka, kb):
+        k_th = self._k_th_nb_to_search
+        nb_points = [(x + ka, y + kb) for (x, y) in product(range(-k_th, k_th + 1), repeat=2)]
+        # if any item has values less than 1, delete it. Also, exclude the suspected point (i.e., [ka, kb]).
+        na = self.bm_state["n_a"]
+        nb = self.bm_state["n_b"]
+        nb_points = [(i, j) for i, j in nb_points if na >= i >= 1 and nb >= j >= 1 and (i, j) != (ka, kb)]
+        _ = sorted(nb_points, key=lambda x: x[0] - ka + x[1] - kb, reverse=True)
+        nb_points = [_.pop(0), _.pop(-1)]
+        random.shuffle(_)
+        nb_points += _
+        return nb_points
 
     def _prerunning_checks(self):
         assert self.bm_state["n_a"] > 0, "[ERROR] Number of type-a nodes = 0, which is not allowed"
