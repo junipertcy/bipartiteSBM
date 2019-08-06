@@ -271,7 +271,6 @@ def degree_entropy(edgelist, mb, __q_cache=np.array([], ndmin=2), degree_dl_kind
 
         This option should be preferred in most cases.
 
-
     Returns
     -------
     ent : ``float``
