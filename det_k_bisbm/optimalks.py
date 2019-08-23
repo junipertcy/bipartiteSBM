@@ -575,6 +575,9 @@ class OptimalKs(object):
     def set_k_th_neighbor_to_search(self, k):
         self._k_th_nb_to_search = int(k)
 
+    def set_c(self, c):
+        self._c = c
+
     def set_nm(self, s=10):
         """Set the :math:`n_m` parameter (defaults to ``10``)."""
         self._nm = int(s)

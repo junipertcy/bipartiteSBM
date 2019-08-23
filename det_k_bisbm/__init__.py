@@ -29,3 +29,15 @@ structure via the statistical inference of the bipartite stochastic block model.
    TODO.
 
 """
+__package__ = 'bisbm'
+__title__ = 'biSBM: a python package for partitioning bipartite networks using the bipartite stochastic block model'
+__description__ = ''
+
+__copyright__ = '2019, Yen, T.-C.'
+
+__author__ = """\n""".join([
+    'Tzu-Chi Yen <tzuchi.yen@colorado.edu>',
+])
+
+__version__ = '0.90.0'
+__release__ = '0.90.0'
