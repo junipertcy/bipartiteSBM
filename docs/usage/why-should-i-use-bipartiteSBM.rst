@@ -1,7 +1,7 @@
-Why should I use det_k_bisbm?
-=============================
+Why should I use bipartiteSBM?
+==============================
 
-The :mod:`det_k_bisbm` is a replacement for `Graph-tool <https://graph-tool.skewed.de/>`_'s
+The :mod:`biSBM` is a replacement for `Graph-tool <https://graph-tool.skewed.de/>`_'s
 `minimize_blockmodel_dl <https://graph-tool.skewed.de/static/doc/inference.html#graph_tool.inference.minimize.minimize_blockmodel_dl>`_ function,
 specifically tailored for bipartite networks, with the following advantages:
 

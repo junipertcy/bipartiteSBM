@@ -1,6 +1,6 @@
-=================================
-The :mod:`det_k_bisbm` User Guide
-=================================
+==================================
+The :mod:`bipartiteSBM` User Guide
+==================================
 .. include:: ../README.rst
    :start-line: 13
    :end-before: Documentation
@@ -15,7 +15,7 @@ If you have any questions, please contact tzuchi@netscied.tw.
    :maxdepth: 1
    :caption: Quick start
 
-   usage/why-should-i-use-det_k_bisbm
+   usage/why-should-i-use-bipartiteSBM
    usage/installation
    usage/kl-inference
    usage/mcmc-inference
@@ -40,7 +40,7 @@ If you have any questions, please contact tzuchi@netscied.tw.
    :maxdepth: 1
    :caption: Module documentation
 
-   src/det_k_bisbm
+   src/biSBM
    src/engines
 
 .. toctree::
@@ -61,7 +61,7 @@ If you have any questions, please contact tzuchi@netscied.tw.
 Acknowledgements
 ----------------
 
-The `det_k_bisbm` is inspired and supported by the following great humans,
+The `bipartiteSBM` is inspired and supported by the following great humans,
 `Daniel B. Larremore`_, `Tiago de Paula Peixoto`_, `Jean-Gabriel Young`_, `Pan Zhang`_, and `Jie Tang`_.
 Thanks `Valentin Haenel`_ who helped debug and fix the Numba code.
 

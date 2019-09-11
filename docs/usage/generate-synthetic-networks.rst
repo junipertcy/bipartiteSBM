@@ -7,7 +7,7 @@ and the degree distribution :math:`d`. Once we specified these 3 parameters,
 we call `Graph-tool <https://graph-tool.skewed.de/>`_'s
 `generate_sbm <https://graph-tool.skewed.de/static/doc/generation.html#graph_tool.generation.generate_sbm>`_ function to
 generate a graph-tool graph instance,
-and then use that instance as an input for our :class:`det_k_bisbm.optimalks.OptimalKs` class.
+and then use that instance as an input for our :class:`biSBM.optimalks.OptimalKs` class.
 
 Block membership :math:`b`
 --------------------------

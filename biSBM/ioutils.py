@@ -60,7 +60,7 @@ def get_types(f_types):
 
     Examples
     --------
-    >>> from det_k_bisbm.ioutils import get_types
+    >>> from biSBM.ioutils import get_types
     >>> edgelist = get_types(f_types)
     >>> print(edgelist)
 

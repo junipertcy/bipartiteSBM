@@ -4,7 +4,7 @@ import tempfile
 import random
 from collections import OrderedDict
 
-from det_k_bisbm.utils import *
+from biSBM.utils import *
 
 
 class OptimalKs(object):

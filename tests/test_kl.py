@@ -1,5 +1,5 @@
-from det_k_bisbm.ioutils import *
-from det_k_bisbm.optimalks import *
+from biSBM.ioutils import *
+from biSBM.optimalks import *
 
 from engines.kl import *
 

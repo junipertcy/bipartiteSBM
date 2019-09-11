@@ -22,7 +22,7 @@ from recommonmark.parser import CommonMarkParser
 
 # -- Project information -----------------------------------------------------
 
-project = 'junipertcy/det_k_bisbm'
+project = 'junipertcy/bipartiteSBM'
 copyright = '2016-2019, Tzu-Chi Yen'
 author = 'Tzu-Chi Yen'
 
@@ -94,7 +94,7 @@ pygments_style = 'sphinx'
 #
 html_theme = 'sphinx_rtd_theme'
 html_theme_options = {
-    'canonical_url': 'https://docs.netscied.tw/det_k_bisbm/index.html',
+    'canonical_url': 'https://docs.netscied.tw/bipartiteSBM/index.html',
     'logo_only': False,
     'display_version': True,
     'prev_next_buttons_location': 'bottom',
@@ -111,7 +111,7 @@ html_theme_options = {
 html_context = {
   'display_github': True,
   'github_user': 'junipertcy',
-  'github_repo': 'det_k_bisbm',
+  'github_repo': 'bipartiteSBM',
   'github_version': 'master/docs/'
 }
 
@@ -140,7 +140,7 @@ html_static_path = ['_static']
 # -- Options for HTMLHelp output ---------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'det_k_bisbmdoc'
+htmlhelp_basename = 'bipartiteSBMdoc'
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {'python': ('https://docs.python.org/3', None),
@@ -179,7 +179,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'det_k_bisbm.tex', 'det\\_k\\_bisbm Documentation',
+    (master_doc, 'bipartiteSBM.tex', 'bipartiteSBM Documentation',
      'Tzu-Chi Yen', 'manual'),
 ]
 
@@ -189,7 +189,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'det_k_bisbm', 'det_k_bisbm Documentation',
+    (master_doc, 'bipartiteSBM', 'bipartiteSBM Documentation',
      [author], 1)
 ]
 
@@ -200,8 +200,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'det_k_bisbm', 'det_k_bisbm Documentation',
-     author, 'det_k_bisbm', 'One line description of project.',
+    (master_doc, 'bipartiteSBM', 'bipartiteSBM Documentation',
+     author, 'bipartiteSBM', 'One line description of project.',
      'Miscellaneous'),
 ]
 

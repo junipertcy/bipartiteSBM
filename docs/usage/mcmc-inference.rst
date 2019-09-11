@@ -5,8 +5,8 @@ in `dataset/southernWomen.edgelist`.
 
 To begin, let's first import the functions that we need. ::
 
-   from det_k_bisbm.ioutils import get_edgelist, get_types
-   from det_k_bisbm.optimalks import *
+   from biSBM.ioutils import get_edgelist, get_types
+   from biSBM.optimalks import *
 
 Here, we will fit the biSBM via the `Markov Chain Monte Carlo <https://github.com/junipertcy/bipartiteSBM-MCMC>`_ algorithm.
 We have provided a wrapper to the binary for this task. Let's import it.::
@@ -63,7 +63,7 @@ For the `sourthernWomen` dataset, we will see that there are no statistically si
 act of being a bipartite network. That is, we reached a trivial conclusion that :math:`K_a=1` and :math:`K_b=1`.
 
 If you are interested to run the heuristic again, just to check the consistency of the result,
-you can re-initiate the :class:`det_k_bisbm.optimalks.OptimalKs` class and then re-do the `minimize_bisbm_dl()`.
+you can re-initiate the :class:`biSBM.optimalks.OptimalKs` class and then re-do the `minimize_bisbm_dl()`.
 
 Once the algorithm stops, it will output the trace and entropy (a.k.a, description length) at the :math:`(K_a, K_b)`
 point whose description length is minimal. This is the best network parameterization after running the algorithm once,
@@ -85,6 +85,7 @@ To see the algorithmic outcome, we may simply run:  ::
     #   'partition': 5.5294290875114225,
     #   'degree': 77.19985608459028,
     #   'edges': 0.0}}
-​
+
+
 We conclude that the partition for the southern women dataset is trivial. There is no structure other than bipartite
 that support the blockmodeling of the dataset.

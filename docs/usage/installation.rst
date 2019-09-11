@@ -4,9 +4,9 @@ Installation
 We provide two reference engines to illustrate the applicability of our method.
 They have been added as submodules to this repository. To clone this project along with the submodules, do: ::
 
-   git clone https://github.com/junipertcy/det_k_bisbm.git --recursive
+   git clone https://github.com/junipertcy/bipartiteSBM.git --recursive
 
-Now enter the directory :mod:`det_k_bisbm`.
+Now enter the directory :mod:`biSBM`.
 Since the submodules we cloned in the :mod:`engines` folder may be out-dated,
 let's run this command to ensure we have all the newest submodule's content: ::
 

@@ -1,50 +1,50 @@
-det\_k\_bisbm package
+biSBM package
 =====================
 
 Module contents
 ---------------
 
-.. automodule:: det_k_bisbm
+.. automodule:: biSBM
     :members:
     :undoc-members:
     :show-inheritance:
 
-det\_k\_bisbm.optimalks module
+biSBM.optimalks module
 ------------------------------
 
-.. automodule:: det_k_bisbm.optimalks
+.. automodule:: biSBM.optimalks
     :members:
     :undoc-members:
     :show-inheritance:
 
-det\_k\_bisbm.utils module
+biSBM.utils module
 --------------------------
 
-.. automodule:: det_k_bisbm.utils
+.. automodule:: biSBM.utils
     :members:
     :undoc-members:
     :show-inheritance:
 
-det\_k\_bisbm.painter module
+biSBM.painter module
 ----------------------------
 
-.. automodule:: det_k_bisbm.painter
+.. automodule:: biSBM.painter
     :members:
     :undoc-members:
     :show-inheritance:
 
-det\_k\_bisbm.int\_part module
+biSBM.int\_part module
 ------------------------------
 
-.. automodule:: det_k_bisbm.int_part
+.. automodule:: biSBM.int_part
     :members:
     :undoc-members:
     :show-inheritance:
 
-det\_k\_bisbm.ioutils module
+biSBM.ioutils module
 ----------------------------
 
-.. automodule:: det_k_bisbm.ioutils
+.. automodule:: biSBM.ioutils
     :members:
     :undoc-members:
     :show-inheritance:

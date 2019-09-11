@@ -54,7 +54,7 @@ def paint_block_mat_from_e_rs(e_rs, output=None, figsize=(3, 3), dpi=200, **kwar
 
 def paint_block_mat(mb, edgelist, output=None, figsize=(3, 3), dpi=200, **kwargs):
     mb = np.asanyarray(mb, dtype=int)
-    e_rs, _ = assemble_e_rs_from_mb(edgelist, mb)
+    e_rs = assemble_e_rs_from_mb(edgelist, mb)
 
     plt.figure(figsize=figsize)
     frame = plt.gca()
