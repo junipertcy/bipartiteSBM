@@ -1,5 +1,8 @@
 language: python
 group: travis_latest
+python:
+  - "3.6"      # current default Python on Travis CI
+  - "3.7"
 
 git:
   depth: 25
