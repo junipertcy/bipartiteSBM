@@ -21,8 +21,9 @@ if [[ ! -f $HOME/miniconda3/bin/activate ]]
              echo $PATH
 #            wget http://repo.continuum.io/miniconda/Miniconda3-latest-MacOSX-x86_64.sh -O miniconda.sh
             brew update
-            brew upgrade
+#            brew upgrade
             brew install boost-python cmake
+            python3.7-config --ldflags
         fi
     fi
 #    chmod +x miniconda.sh && ./miniconda.sh -b -f
