@@ -1,10 +1,11 @@
 #!/bin/bash
 
-pip install -r requirements.txt
+pip3 install --upgrade pip3
+pip3 install -r requirements.txt
 
 # only install test requirements if explicitly specified
 if [[ "$INSTALL_TEST_REQUIREMENTS" == "true" ]]; then
-    pip install -r requirements_test.txt
+    pip3 install -r requirements_test.txt
 fi
 
-pip list
+pip3 list
