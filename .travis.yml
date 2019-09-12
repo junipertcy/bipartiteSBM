@@ -41,7 +41,7 @@ addons:
 
 before_install:
   - source build_tools/travis/install.sh
-  - source activate testenv37
+#  - source activate testenv37
 
 install: bash scripts/install_requirements.sh
 
