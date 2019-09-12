@@ -7,14 +7,39 @@ git:
 
 matrix:
   include:
+    # works on Precise and Trusty
     - os: linux
-      env: RUN_TESTS="true" WITH_PYTHON="3.7"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-5
+      env:
+        - MATRIX_EVAL="CC=gcc-5 && CXX=g++-5"
+        - RUN_TESTS="true" WITH_PYTHON="3.7"
+    # works on Precise and Trusty
     - os: linux
-      env: RUN_TESTS="true" WITH_PYTHON="3.6"
-    - os: osx
-      sudo: required
-      language: minimal
-      env: RUN_TESTS="true" WITH_PYTHON="3.6"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-6
+      env:
+        - MATRIX_EVAL="CC=gcc-6 && CXX=g++-6"
+        - RUN_TESTS="true" WITH_PYTHON="3.7"
+    # works on Precise and Trusty
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-7
+      env:
+        - MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
+        - RUN_TESTS="true" WITH_PYTHON="3.7"
     - os: osx
       sudo: required
       language: minimal
@@ -38,14 +63,15 @@ addons:
       - ubuntu-toolchain-r-test
       - boost-latest
     packages:
-      - clang-8
-      - g++-9
-      - gcc-9
+      - clang
+      - g++
+      - gcc
       - libboost1.71-all-dev
 
 before_install:
+  - eval "${MATRIX_EVAL}"
   - source build_tools/travis/install.sh
-  - if [[ "$WITH_PYTHON" == "3.6" ]]; then source activate testenv36; elif [[ "$WITH_PYTHON" == "3.7" ]]; then source activate testenv37; fi
+  - source activate testenv37
 
 install: bash scripts/install_requirements.sh
 
