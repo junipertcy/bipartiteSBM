@@ -38,10 +38,10 @@ addons:
       - ubuntu-toolchain-r-test
       - boost-latest
     packages:
-      - clang
-      - g++
-      - gcc
-      - libboost1.67-all-dev
+      - clang-8
+      - g++-9
+      - gcc-9
+      - libboost1.71-all-dev
 
 before_install:
   - source build_tools/travis/install.sh
