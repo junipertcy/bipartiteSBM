@@ -45,7 +45,5 @@ install: bash scripts/install_requirements.sh
 
 before_script:
   - bash scripts/compile_engines.sh
-  - sudo apt-get update -qq
-  - sudo apt-get install libboost-all-dev
 
 script: bash build_tools/travis/test_script.sh
