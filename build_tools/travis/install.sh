@@ -24,7 +24,7 @@ if [[ ! -f $HOME/miniconda3/bin/activate ]]
 #            brew upgrade
             brew uninstall boost
             brew install boost-python@1.59 cmake
-            python3.7-config --ldflags
+            brew link boost-python@1.59 cmake
         fi
     fi
 #    chmod +x miniconda.sh && ./miniconda.sh -b -f
