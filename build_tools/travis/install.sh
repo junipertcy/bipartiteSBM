@@ -21,10 +21,14 @@ if [[ ! -f $HOME/miniconda3/bin/activate ]]
              echo $PATH
 #            wget http://repo.continuum.io/miniconda/Miniconda3-latest-MacOSX-x86_64.sh -O miniconda.sh
             brew update
-#            brew upgrade
             brew uninstall boost
-            brew install boost-python@1.59 cmake
-            brew link boost-python@1.59 cmake
+            brew install boost@1.55
+
+            brew upgrade cmake
+            brew unlink cmake && brew link cmake
+
+            export LDFLAGS="-L/usr/local/opt/boost@1.55/lib"
+            export CPPFLAGS="-I/usr/local/opt/boost@1.55/include"
         fi
     fi
 #    chmod +x miniconda.sh && ./miniconda.sh -b -f
