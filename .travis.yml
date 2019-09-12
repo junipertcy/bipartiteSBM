@@ -35,7 +35,7 @@ addons:
       - clang
       - g++
       - gcc
-      - libboost1.67-all-dev
+      - libboost
 
 before_install:
   - source build_tools/travis/install.sh
