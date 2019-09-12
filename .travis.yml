@@ -41,7 +41,7 @@ addons:
 
 before_install:
   - source build_tools/travis/install.sh
-  - if [[ "$WITH_PYTHON" == "3.6" ]]; then source activate testenv36; elif [[ "$WITH_PYTHON" == "3.7" ]]; then source activate testenv37; fi
+  - source activate testenv37
 
 install: bash scripts/install_requirements.sh
 
