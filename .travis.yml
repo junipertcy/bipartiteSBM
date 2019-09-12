@@ -1,26 +1,42 @@
 language: python
+group: travis_latest
+
+git:
+  depth: 25
+  quiet: true
+
+python:
+- 3.7
+- 3.6
+
 matrix:
   include:
     - os: linux
-      env: RUN_TESTS="true" WITH_PYTHON="3.6"
+      python: 3.7
+      env: RUN_TESTS="true" WITH_PYTHON="3.7"
     - os: linux
-      env: RUN_TESTS="true" WITH_PYTHON="3.7"
-    - os: osx
-      sudo: required
-      language: generic
+      python: 3.6
       env: RUN_TESTS="true" WITH_PYTHON="3.6"
     - os: osx
       sudo: required
-      language: generic
+      language: minimal
+      env: RUN_TESTS="true" WITH_PYTHON="3.6"
+    - os: osx
+      sudo: required
+      language: minimal
       env: RUN_TESTS="true" WITH_PYTHON="3.7"
+
 before_cache:
   - rm -f /home/travis/.cache/pip/log/debug.log
+
 cache:
   directories:
   - /home/travis/miniconda3
   - /home/travis/.cache/pip
+
 notifications:
   email: false
+
 addons:
   apt:
     sources:
@@ -32,10 +48,14 @@ addons:
       - g++
       - gcc
       - libboost1.67-all-dev
+
 before_install:
   - source build_tools/travis/install.sh
   - if [[ "$WITH_PYTHON" == "3.6" ]]; then source activate testenv36; elif [[ "$WITH_PYTHON" == "3.7" ]]; then source activate testenv37; fi
+
 install: bash scripts/install_requirements.sh
+
 before_script:
   - bash scripts/compile_engines.sh
+
 script: bash build_tools/travis/test_script.sh
