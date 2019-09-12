@@ -23,7 +23,7 @@ if [[ ! -f $HOME/miniconda3/bin/activate ]]
             brew update
             brew uninstall boost
             brew install boost@1.55
-
+            brew upgrade gcc
             brew upgrade cmake
             brew unlink cmake && brew link cmake
 
