@@ -18,17 +18,8 @@ if [[ ! -f $HOME/miniconda3/bin/activate ]]
             wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
         elif [[ "$TRAVIS_OS_NAME" == "osx" ]]
         then
-             echo $PATH
-#            wget http://repo.continuum.io/miniconda/Miniconda3-latest-MacOSX-x86_64.sh -O miniconda.sh
             brew update
-            brew uninstall boost
-            brew install boost@1.55
-            brew upgrade gcc
-            brew upgrade cmake
-            brew unlink cmake && brew link cmake
-
-            export LDFLAGS="-L/usr/local/opt/boost@1.55/lib"
-            export CPPFLAGS="-I/usr/local/opt/boost@1.55/include"
+            brew upgrade
         fi
     fi
 #    chmod +x miniconda.sh && ./miniconda.sh -b -f
