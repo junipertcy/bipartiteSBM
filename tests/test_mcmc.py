@@ -4,11 +4,12 @@ from biSBM.optimalks import *
 from engines.mcmc import *
 
 
-mcmc = MCMC(f_engine="engines/bipartiteSBM-MCMC/bin/mcmc",
-            n_sweeps=4,
-            is_parallel=True,
-            n_cores=4
-        )
+mcmc = MCMC(
+    f_engine="engines/bipartiteSBM-MCMC/bin/mcmc",
+    n_sweeps=4,
+    is_parallel=True,
+    n_cores=4
+)
 
 edgelist = get_edgelist("dataset/test/bisbm-n_1000-ka_4-kb_6-r-1.0-Ka_30-Ir_1.75.gt.edgelist", "\t")
 types = mcmc.gen_types(500, 500)
