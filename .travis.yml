@@ -1,26 +1,32 @@
 language: python
+group: travis_latest
+
+git:
+  depth: 25
+  quiet: true
+
 matrix:
   include:
-    - os: linux
-      env: RUN_TESTS="true" WITH_PYTHON="3.6"
-    - os: linux
-      env: RUN_TESTS="true" WITH_PYTHON="3.7"
-    - os: osx
-      sudo: required
-      language: generic
-      env: RUN_TESTS="true" WITH_PYTHON="3.6"
-    - os: osx
-      sudo: required
-      language: generic
-      env: RUN_TESTS="true" WITH_PYTHON="3.7"
+    - name: "Python 3.7.1 on Xenial Linux"
+      python: 3.7           # this works for Linux but is ignored on macOS or Windows
+      env: RUN_TESTS="true"
+    - name: "Python 3.7.4 on macOS"
+      os: osx
+      osx_image: xcode11    # Python 3.7.4 running on macOS 10.14.4
+      language: shell       # 'language: python' is an error on Travis CI macOS
+      env: RUN_TESTS="true"
+
 before_cache:
   - rm -f /home/travis/.cache/pip/log/debug.log
+
 cache:
   directories:
   - /home/travis/miniconda3
   - /home/travis/.cache/pip
+
 notifications:
   email: false
+
 addons:
   apt:
     sources:
@@ -31,11 +37,14 @@ addons:
       - clang
       - g++
       - gcc
-      - libboost1.67-all-dev
+      - libboost-all-dev
+
 before_install:
   - source build_tools/travis/install.sh
-  - if [[ "$WITH_PYTHON" == "3.6" ]]; then source activate testenv36; elif [[ "$WITH_PYTHON" == "3.7" ]]; then source activate testenv37; fi
+
 install: bash scripts/install_requirements.sh
+
 before_script:
   - bash scripts/compile_engines.sh
+
 script: bash build_tools/travis/test_script.sh

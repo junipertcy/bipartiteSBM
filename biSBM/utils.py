@@ -1,7 +1,7 @@
 """ Utilities for network data manipulation and entropy computation. """
 import heapq
 from .int_part import *
-from numba import njit, jit
+from numba import njit
 from scipy.sparse import lil_matrix, coo_matrix
 from scipy.special import comb
 from itertools import product, combinations
