@@ -29,3 +29,7 @@ structure via the statistical inference of the bipartite stochastic block model.
    TODO.
 
 """
+from engines.kl import KL
+from engines.mcmc import MCMC
+
+__all__ = ["KL", "MCMC"]
