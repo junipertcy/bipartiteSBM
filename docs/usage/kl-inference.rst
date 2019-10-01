@@ -1,11 +1,11 @@
-Example Kerininghan-Lin inference
+Example Kernighan-Lin inference
 ==================================
 
 The algorithm for bipartite community detection is independent to the graph partitioning algorithm used. 
 In principle, one could switch to a different partitioning engine and infer the number of communities in a similar manner.
-Here, we illustrate the use of the `Kerninghan-Lin algorithm <https://github.com/junipertcy/bipartiteSBM-KL>`_ in the heuristic.
+Here, we illustrate the use of the `Kernighan-Lin algorithm <https://github.com/junipertcy/bipartiteSBM-KL>`_ in the heuristic.
 
-If one wants to do the graph partitioning using Kerninghan-Lin, one initiates a different engine class: ::
+If one wants to do the graph partitioning using Kernighan-Lin, one initiates a different engine class: ::
 
     from engines.kl import *
     kl = KL(f_engine="engines/bipartiteSBM-KL/biSBM",
@@ -45,4 +45,4 @@ Try print out the inferred labels, ::
 
 which may be relevant for other decision-making process.
 
-Note that Kerninghan-Lin is generally slower than the MCMC algorithm when the number of communities is large.
+Note that Kernighan-Lin is generally slower than the MCMC algorithm when the number of communities is large.
