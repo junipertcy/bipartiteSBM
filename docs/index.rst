@@ -5,7 +5,7 @@ The :mod:`bipartiteSBM` User Guide
    :start-line: 13
    :end-before: Documentation
 
-If you have any questions, please contact tzuchi@netscied.tw.
+If you have any questions, please contact tzuchi.yen@colorado.edu.
 
 .. toctree::
    :maxdepth: 2

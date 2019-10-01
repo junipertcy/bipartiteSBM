@@ -95,9 +95,9 @@ def paint_block_mat(mb, edgelist, output=None, figsize=(3, 3), dpi=200, **kwargs
         plt.savefig(output, dpi=dpi, transparent=True)
 
 
-def paint_sorted_adj_mat(mb, edgelist, output=None, figsize=(3, 3), dpi=200, invert=True):
+def paint_sorted_adj_mat(mb, edgelist, output=None, figsize=(10, 10), dpi=300, invert=True):
     font = {'family': 'serif'}
-    plt.figure(figsize=figsize)
+    plt.figure(figsize=(10, 10))
     fig, ax = plt.subplots()
     mb = np.argsort(mb)
     A = np.zeros([len(mb), len(mb)])
@@ -107,7 +107,7 @@ def paint_sorted_adj_mat(mb, edgelist, output=None, figsize=(3, 3), dpi=200, inv
         A[np.argwhere(mb == e0)[0][0]][np.argwhere(mb == e1)[0][0]] += 1
         A[np.argwhere(mb == e1)[0][0]][np.argwhere(mb == e0)[0][0]] += 1
     M = sps.csr_matrix(A)
-    plt.spy(M, markersize=0.1, marker=",")
+    plt.spy(M, markersize=0.01, marker=",")
     plt.xlabel(f"(Node index $i$) / {len(mb)}", fontdict=font)
     plt.ylabel(f"(Node index $i$) / {len(mb)}", fontdict=font)
 

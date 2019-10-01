@@ -28,8 +28,8 @@ nodes of type-`a` are indexed first and then followed by nodes of type-`b`.
 For example, if we have a sample network whose number (i.e., size) of type-`a` nodes is :math:`n_a=18` and the
 number of type-`b` nodes is :math:`n_b=14`.
 
-This means that the nodes which indexed with :math:`0 \dots 18` are type-`a` nodes and those indexed with
-:math:`18 \dots 32` are type-`b` nodes. Once we have specified the engine, it's time to bake the dataset!  ::
+This means that the nodes which indexed with :math:`0 \dots 17` are type-`a` nodes and those indexed with
+:math:`18 \dots 31` are type-`b` nodes. Once we have specified the engine, it's time to bake the dataset!  ::
 
    edgelist = get_edgelist("dataset/test/southernWomen.edgelist")
    types = get_types("dataset/test/southernWomen.types")
@@ -60,7 +60,7 @@ Now, we can start the heuristic search!  ::
 We should expect to wait for a minute or two for the program to complete (depending on the size of the network).
 
 For the `sourthernWomen` dataset, we will see that there are no statistically significant communities other than the
-act of being a bipartite network. That is, we reached a trivial conclusion that :math:`K_a=1` and :math:`K_b=1`.
+fact of being a bipartite network. That is, we reached a trivial conclusion that :math:`K_a=1` and :math:`K_b=1`.
 
 If you are interested to run the heuristic again, just to check the consistency of the result,
 you can re-initiate the :class:`biSBM.optimalks.OptimalKs` class and then re-do the `minimize_bisbm_dl()`.
