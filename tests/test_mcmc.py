@@ -41,3 +41,12 @@ def test_summary_dl_at_500_500():
     assert dl["partition"] == pytest.approx(5235.090133117156)
     assert dl["degree"] == pytest.approx(0., abs=1e-9)
     assert dl["edges"] == pytest.approx(57636.66542295214)
+
+
+def test_issue_12():
+    edgelist = [[0, 3], [0, 4], [0, 5], [1, 3], [1, 4], [1, 5], [2, 6], [2, 7], [2, 8]]
+    types = [1, 1, 1, 2, 2, 2, 2, 2, 2]
+    oks = bm.OptimalKs(mcmc, edgelist, types)
+    oks.minimize_bisbm_dl()
+    dl = oks.summary()
+    assert dl["mdl"] == pytest.approx(15.615238196841506)
