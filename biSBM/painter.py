@@ -178,7 +178,7 @@ def paint_trace(oks, output=None, figsize=(4, 4), dpi=200):
         plt.savefig(output, dpi=dpi, transparent=True)
 
 
-def paint_dl_trace(oks, output=None, figsize=(4, 2), dpi=200, **kwargs):
+def paint_dl_trace(oks, output=None, figsize=(4, 2), dpi=200):
     qc = oks.get__q_cache()
     na = oks.summary()["na"]
     nb = oks.summary()["nb"]
@@ -187,8 +187,8 @@ def paint_dl_trace(oks, output=None, figsize=(4, 2), dpi=200, **kwargs):
     fig, ax = plt.subplots(figsize=figsize, dpi=300)
     desc_len_list = []
 
-    for idx, key in enumerate(oks.trace_mb.keys()):
-        mb = oks.trace_mb[key][1]
+    for idx, key in enumerate(oks.oks.bookkeeping_mb["mcmc"].keys()):
+        mb = oks.oks.bookkeeping_mb["mcmc"][key][1]
         nr = assemble_n_r_from_mb(mb)
         desc_len_list += [get_desc_len_from_data(na, nb, e, key[0], key[1], oks.edgelist, mb, nr=nr, q_cache=qc)]
     ax.autoscale()
@@ -202,12 +202,12 @@ def paint_dl_trace(oks, output=None, figsize=(4, 2), dpi=200, **kwargs):
         plt.savefig(output, dpi=dpi, transparent=True)
 
 
-def paint_similarity_trace(b, oks, output=None, figsize=(3, 3), dpi=200, **kwargs):
+def paint_similarity_trace(b, oks, output=None, figsize=(3, 3), dpi=200):
     clu_base = Clustering()
     fig, ax = plt.subplots(figsize=figsize, dpi=300)
     e_sim_list = []
     clu_base.from_membership_list(b)
-    for g in oks.trace_mb.values():
+    for g in oks.oks.bookkeeping_mb["mcmc"].values():
         clu = Clustering()
         clu.from_membership_list(g[1])
         e_sim_list += [sim.element_sim(clu_base, clu)]
@@ -267,15 +267,15 @@ def paint_landscape(oks, max_ka, max_kb, output=None, dpi=200,):
 
 
 def paint_mds(oks, figsize=(20, 20)):
-    l2 = len(oks.trace_mb.keys())
+    l2 = len(oks.bookkeeping_mb["mcmc"].keys())
     l = int(l2 ** 0.5)
     X = np.zeros([l2, l2])
     for idx_1, pair_1 in enumerate(combinations(range(1, l + 1), 2)):
-        b = oks.trace_mb[pair_1]
+        b = oks.bookkeeping_mb["mcmc"][pair_1]
         clu_1 = Clustering()
         clu_1.from_membership_list(b)
         for idx_2, pair_2 in enumerate(combinations(range(1, l + 1), 2)):
-            b = oks.trace_mb[pair_2]
+            b = oks.bookkeeping_mb["mcmc"][pair_2]
             clu_2 = Clustering()
             clu_2.from_membership_list(b)
 
@@ -288,7 +288,7 @@ def paint_mds(oks, figsize=(20, 20)):
 
         plt.figure(figsize=figsize)
         for ind, i in enumerate(range(X.shape[0])):
-            plt.text(X[i, 0], X[i, 1], str(list(oks.trace_mb.keys())[ind]), color=plt.cm.Set1(1 / 10.),
+            plt.text(X[i, 0], X[i, 1], str(list(oks.bookkeeping_mb["mcmc"].keys())[ind]), color=plt.cm.Set1(1 / 10.),
                      fontdict={'weight': 'bold', 'size': 12})
         plt.xticks([]), plt.yticks([])
         if title is not None:

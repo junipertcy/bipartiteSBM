@@ -104,7 +104,10 @@ class OptimalKs(object):
         # Description Length (dl), e_rs matrix, and partition (mb) are book-kept
         self.bookkeeping_dl = OrderedDict()
         self.bookkeeping_e_rs = OrderedDict()
-        self.trace_mb = OrderedDict()
+        self.bookkeeping_mb = dict()
+        self.bookkeeping_mb["mcmc"] = OrderedDict()
+        self.bookkeeping_mb["merge"] = OrderedDict()
+        self.bookkeeping_mb["order"] = OrderedDict()
         self.trace_k = []  # only for painter.paint_trace
 
         # for debug/temp variables
@@ -218,7 +221,7 @@ class OptimalKs(object):
         _summary = dict()
         na, nb, e = self.bm_state["n_a"], self.bm_state["n_b"], self.bm_state["e"]
         try:
-            mb = self.trace_mb[(ka, kb)][1]
+            mb = self.bookkeeping_mb["mcmc"][(ka, kb)]
         except KeyError:
             raise KeyError(f"Did you compute the partition at {(ka, kb)}?")
         nr = assemble_n_r_from_mb(mb)
@@ -283,7 +286,8 @@ class OptimalKs(object):
             pass
         else:
             if self.bookkeeping_dl[(ka, kb)] > 0:
-                return self.bookkeeping_dl[(ka, kb)], self.bookkeeping_e_rs[(ka, kb)], self.trace_mb[(ka, kb)][1]
+                _ = ka, kb
+                return self.bookkeeping_dl[_], self.bookkeeping_e_rs[_], self.bookkeeping_mb["mcmc"][_]
         na, nb, e = self.bm_state["n_a"], self.bm_state["n_b"], self.bm_state["e"]
         if ka == 1 and kb == 1:
             mb = np.array([0] * na + [1] * nb, dtype=np.int_)
@@ -301,7 +305,7 @@ class OptimalKs(object):
                 _mb = None
             else:
                 self._logger.info(f"({ka_}, {kb_}) ~~-> ({ka}, {kb}); Use that partition to start MCMC@({ka}, {kb}).")
-                _mb = self.trace_mb[(ka_, kb_)][1]
+                _mb = self.bookkeeping_mb["mcmc"][(ka_, kb_)]
         else:
             _mb = None
 
@@ -362,7 +366,8 @@ class OptimalKs(object):
         self._logger.info(f"Natural agglomerative merge {(na, nb)} ~~-> {(ka, kb)}.")
         self.bookkeeping_dl[(ka, kb)] = dl
         self.bookkeeping_e_rs[(ka, kb)] = e_rs
-        self.trace_mb[(ka, kb)] = ("merge", mb)
+        self.bookkeeping_mb["mcmc"][(ka, kb)] = mb
+        self._set_bookkeeping_mb_search_order(ka, kb)
         self._update_bm_state(ka, kb, e_rs, mb)
         self._virgin_run = False
 
@@ -437,7 +442,7 @@ class OptimalKs(object):
     def _rollback(self):
         ka, kb, dl = self.summary(mode="simple")
         e_rs = self.bookkeeping_e_rs[(ka, kb)]
-        mb = self.trace_mb[(ka, kb)][1]
+        mb = self.bookkeeping_mb["mcmc"][(ka, kb)]
         self._update_bm_state(ka, kb, e_rs, mb)
         return ka, kb, e_rs, dl
 
@@ -446,7 +451,8 @@ class OptimalKs(object):
         self.bm_state["e_rs"] = e_rs
         self.bm_state["mb"] = mb
         if record_merge:
-            self.trace_mb[(ka, kb)] = ("merge", mb)
+            self.bookkeeping_mb["merge"][(ka, kb)] = mb
+            self._set_bookkeeping_mb_search_order(ka, kb)
 
     def _compute_dl_and_update(self, ka, kb, recompute=False):
         dl, e_rs, mb = self.compute_dl(ka, kb, recompute=recompute)
@@ -454,7 +460,8 @@ class OptimalKs(object):
             max(mb) + 1, ka + kb)
         self.bookkeeping_dl[(ka, kb)] = dl
         self.bookkeeping_e_rs[(ka, kb)] = e_rs
-        self.trace_mb[(ka, kb)] = ("mcmc", mb)
+        self.bookkeeping_mb["mcmc"][(ka, kb)] = mb
+        self._set_bookkeeping_mb_search_order(ka, kb)
         self.trace_k += [("mcmc", ka, kb)]
         self.bm_state["ref_dl"] = self.summary(mode="simple")[2] if self.bm_state["ref_dl"] != 0 else dl
         return dl, e_rs, mb
@@ -529,6 +536,15 @@ class OptimalKs(object):
             raise AttributeError("Arguments missing! Please assign `k_th_nb_to_search`.")
         if self._nm is None:
             raise AttributeError("Arguments missing! Please assign `size_rows_to_run`.")
+
+    def _set_bookkeeping_mb_search_order(self, ka, kb):
+        order = len(self.bookkeeping_mb["mcmc"]) + len(self.bookkeeping_mb["merge"])
+        try:
+            len(self.bookkeeping_mb["order"][(ka, kb)])
+        except KeyError:
+            self.bookkeeping_mb["order"][(ka, kb)] = [order - 1]
+        else:
+            self.bookkeeping_mb["order"][(ka, kb)] += [order - 1]
 
     # #######################
     # Set & Get of parameters

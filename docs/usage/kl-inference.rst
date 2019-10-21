@@ -41,7 +41,7 @@ We will see that it correctly finds :math:`K_a=4` and :math:`K_b=6` as a result.
 
 Try print out the inferred labels, ::
 
-   print(oks.trace_mb[(4, 6)])
+   print(oks.bookkeeping_mb["mcmc"][(4, 6)])
 
 which may be relevant for other decision-making process.
 

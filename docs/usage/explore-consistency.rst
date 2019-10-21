@@ -11,7 +11,7 @@ We then check an internal variable, which faithfully stores the description leng
 
    oks.bookkeeping_dl[(ka, kb)]
 
-We retain a bookkeeping of other useful observables as well. They are `bookkeeping_dl`, `bookkeeping_e_rs`, and `trace_mb`.
+We retain a bookkeeping of other useful observables as well. They are `bookkeeping_dl`, `bookkeeping_e_rs`, and `bookkeeping_mb`.
 When we run this repeatedly, we are accessing the precision of the inference engine. 
 Note that unless the underlying graph is super structured (e.g., bipartite cliques),
 the resulting description lengths vary.
