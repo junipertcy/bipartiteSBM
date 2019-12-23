@@ -478,7 +478,7 @@ class OptimalKs(object):
         self._logger.info(f"Is {(ka, kb)} a local minimum? Let's check.")
         _dl, _e_rs, _mb = self._compute_dl_and_update(ka, kb)
         null_dl = self.bookkeeping_dl[(1, 1)]
-        if _dl > self.bookkeeping_dl[(1, 1)]:
+        if _dl > null_dl:
             self._logger.info("DL({}, {}) > DL(1, 1), which is {} compared to {}".format(ka, kb, _dl, null_dl))
             self._logger.info(f"~~~- Keep merging -~~~")
             self._update_bm_state(ka, kb, _e_rs, _mb)
