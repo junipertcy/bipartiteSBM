@@ -1,7 +1,7 @@
 ## Empirical datasets
 
 All empirical datasets (except for the IMDb one) can be downloaded from the [Colorado Index of Complex Networks (ICON)](https://icon.colorado.edu/).
-The processed `edgelist` *.txt files can be downloaded from [this link](https://bag.netscied.tw/s/bipartiteSBM). 
+The processed `edgelist` *.txt files can be downloaded from [this link](https://bag.netscied.tw/s/Mc8JHCaTd3nWa36). 
 
 The filename follows this convention:
   `{title}-{entity_name_for_type_a}_{n_a}-{entity_name_for_type_b}_{n_b}.edgelist`
