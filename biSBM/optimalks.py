@@ -487,7 +487,8 @@ class OptimalKs(object):
         if _dl > self.summary(mode="simple")[2]:
             ka, kb, _, _dl = self._rollback()
             self.i_0 *= self.adaptive_ratio
-            self._logger.info(f"Overshooting! There's already a point with lower DL. Let's reduce \u0394 by {_}.")
+            self._logger.info(
+                f"Overshooting! There's already a point with lower DL. Let's reduce \u0394 by {self.adaptive_ratio}.")
             self._logger.info(f"Move to {(ka, kb)} and re-checking if it is a local minimum.")
 
         nb_points = self._get_neighbor_points(ka, kb)
