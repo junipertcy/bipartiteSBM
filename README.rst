@@ -13,9 +13,9 @@ bipartiteSBM
 
 This code and data repository accompanies the paper
 
-* *Community Detection in Bipartite Networks with Stochastic Blockmodels*, `Tzu-Chi Yen`_ and `Daniel B. Larremore`_, arXiv: 2001.11818 (2020).
+* *Community Detection in Bipartite Networks with Stochastic Blockmodels*, `Tzu-Chi Yen`_ and `Daniel B. Larremore`_, Physical Review E 102, 032309, (2020).
 
-Read it on: [`arXiv`_].
+Read it on: [`arXiv`_] or [`PRE`_].
 
 The code is tested on Python>=3.6. For questions, please email tzuchi at tzuchi.yen@colorado.edu, or via the `issues`_!
 
@@ -50,5 +50,6 @@ Documentation
 .. _`Tzu-Chi Yen`: https://junipertcy.info/
 .. _`Daniel B. Larremore`: https://larremorelab.github.io/
 .. _`arXiv`: https://arxiv.org/abs/2001.11818
+.. _`PRE`: https://journals.aps.org/pre/abstract/10.1103/PhysRevE.102.032309
 .. _`issues`: https://github.com/junipertcy/bipartiteSBM/issues
 .. _`docs`: https://docs.netscied.tw/bipartiteSBM/index.html
